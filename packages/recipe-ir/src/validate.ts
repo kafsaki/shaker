@@ -11,8 +11,8 @@
  */
 import type { ContainerId, IceType, Texture, Viscosity } from "./vocab.ts";
 import type { RecipeIR, Step } from "./ir.ts";
-import { slotsReferenced } from "./ir.ts";
-import { iceOccupancy } from "./glass.ts";
+import { slotsReferenced } from "./ir-utils.ts";
+import { iceOccupancy, type VesselSpec } from "./glass.ts";
 import { refToMl, requiresIntegerAmount, requiresAmount, unitKind } from "./units.ts";
 import { SHAKE_DILUTION, SHAKE_REFERENCE_SEC } from "./physics.ts";
 
@@ -20,6 +20,9 @@ import { SHAKE_DILUTION, SHAKE_REFERENCE_SEC } from "./physics.ts";
 
 export interface IngredientMeta {
   id: string;
+  /** 受控词表强制双语（ADR-011）。校验不需要，但步骤文案生成需要。 */
+  nameZh?: string;
+  nameEn?: string;
   category: string;
   abv?: number;
   density?: number;
@@ -33,18 +36,17 @@ export interface IngredientMeta {
   };
 }
 
-export interface GlassMeta {
-  id: string;
-  capacityMl: number;
-}
-
 /**
- * 校验所需的词表视图。做成接口而非具体类型，这样编辑器可以喂内存缓存，
- * 后端可以喂 DB 查询结果，测试可以喂假数据。
+ * 词表视图。做成接口而非具体类型，这样编辑器可以喂内存缓存、
+ * 后端可以喂 DB 查询结果、测试与原型可以喂假数据。
+ *
+ * `vessel` 既服务成品杯也服务工作容器（shaker 等）。校验只用到 `capacityMl`，
+ * 但动画编译要用完整的剖面 —— 所以这里直接返回编译好的 `VesselSpec`，
+ * 让 animator-core 的 `ResolvedVocab` 可以直接复用这个接口，而不是再定义一个近似的。
  */
 export interface VocabLookup {
   ingredient(id: string): IngredientMeta | undefined;
-  glass(id: string): GlassMeta | undefined;
+  vessel(id: string): VesselSpec | undefined;
 }
 
 /* ────────────────────────── 诊断 ────────────────────────── */
@@ -183,7 +185,7 @@ export function validateRecipeIR(ir: RecipeIR, vocab?: VocabLookup): ValidationR
 
   /* ── 词表存在性 ── */
   if (vocab) {
-    if (!vocab.glass(ir.glass)) {
+    if (!vocab.vessel(ir.glass)) {
       diags.push(err("vocab.unknown_glass", `杯型 "${ir.glass}" 不在词表中`, "glass"));
     }
     for (const [i, ref] of ir.ingredients.entries()) {
@@ -215,7 +217,7 @@ export function validateRecipeIR(ir: RecipeIR, vocab?: VocabLookup): ValidationR
   };
 
   const capacityOf = (id: ContainerId): number => {
-    if (id === "glass") return vocab?.glass(ir.glass)?.capacityMl ?? WORK_CAPACITY.glass;
+    if (id === "glass") return vocab?.vessel(ir.glass)?.def.capacityMl ?? WORK_CAPACITY.glass;
     return WORK_CAPACITY[id];
   };
 

@@ -7,6 +7,7 @@
 
 export * from "./vocab.ts";
 export * from "./ir.ts";
+export * from "./ir-utils.ts";
 export * from "./units.ts";
 export * from "./color.ts";
 export * from "./glass.ts";

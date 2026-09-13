@@ -1,0 +1,11 @@
+{
+  "name": "@shaker/seed",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "词表与经典配方种子数据。物理值按真实数据填，之后直接灌进 Postgres（ADR-016 的冷启动内容）。",
+  "exports": { ".": "./src/index.ts" },
+  "scripts": { "typecheck": "tsc --noEmit" },
+  "dependencies": { "@shaker/recipe-ir": "workspace:*" },
+  "devDependencies": { "typescript": "^5.7.2" }
+}

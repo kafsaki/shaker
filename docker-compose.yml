@@ -1,0 +1,58 @@
+# v1 基础设施只有两个组件（ADR-006）：
+#   - 队列用 river（Postgres 原生），不需要 Redis
+#   - Feed 与计数在 v1 规模下 Postgres 自己够
+# 真测出瓶颈再加 Redis。不提前加。
+services:
+  postgres:
+    image: postgres:17-alpine
+    container_name: shaker-pg
+    environment:
+      POSTGRES_USER: shaker
+      POSTGRES_PASSWORD: shaker_dev
+      POSTGRES_DB: shaker
+      # 开发环境用 C.UTF-8 排序，避免不同机器 locale 导致索引行为差异
+      POSTGRES_INITDB_ARGS: "--locale=C.UTF-8 --encoding=UTF8"
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U shaker -d shaker"]
+      interval: 5s
+      timeout: 3s
+      retries: 12
+
+  minio:
+    image: minio/minio:latest
+    container_name: shaker-minio
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: shaker
+      MINIO_ROOT_PASSWORD: shaker_dev_secret
+    ports:
+      - "9000:9000"   # S3 API
+      - "9001:9001"   # 控制台
+    volumes:
+      - miniodata:/data
+    healthcheck:
+      test: ["CMD", "mc", "ready", "local"]
+      interval: 5s
+      timeout: 3s
+      retries: 12
+
+  # 建桶。跑一次就退出。
+  minio-init:
+    image: minio/mc:latest
+    depends_on:
+      minio:
+        condition: service_healthy
+    entrypoint: >
+      /bin/sh -c "
+      mc alias set local http://minio:9000 shaker shaker_dev_secret &&
+      mc mb --ignore-existing local/shaker-media &&
+      mc anonymous set download local/shaker-media
+      "
+
+volumes:
+  pgdata:
+  miniodata:

@@ -57,10 +57,11 @@ const VOCAB: VocabLookup = {
     if (!e) return undefined;
     return { id, category: "spirit", abv: e.abv, density: e.density, viz: { color: e.color } };
   },
-  glass(id) {
+  vessel(id) {
     const caps: Record<string, number> = { coupe: 180, highball: 300, rocks: 240, martini: 150 };
     const c = caps[id];
-    return c === undefined ? undefined : { id, capacityMl: c };
+    if (c === undefined) return undefined;
+    return compileVessel({ id, nameZh: id, nameEn: id, capacityMl: c, shape: { profile: coupeProfile() } });
   },
 };
 

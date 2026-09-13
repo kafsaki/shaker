@@ -15,5 +15,9 @@
   },
   "devDependencies": {
     "typescript": "^5.7.2"
+  },
+  "pnpm": {
+    "//": "pnpm 默认拦截依赖的安装脚本。esbuild 需要它来放置平台二进制，这里显式放行；不要笼统地全部放行。",
+    "onlyBuiltDependencies": ["esbuild"]
   }
 }

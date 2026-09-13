@@ -327,21 +327,5 @@ export const RecipeIR = z
   .strict();
 export type RecipeIR = z.infer<typeof RecipeIR>;
 
-/** 步骤引用的容器集合 —— 编译器据此隐式创建容器。 */
-export function containersUsed(ir: RecipeIR): Set<z.infer<typeof ContainerId>> {
-  const out = new Set<z.infer<typeof ContainerId>>();
-  for (const s of ir.steps) {
-    if ("target" in s) out.add(s.target);
-    if ("from" in s) out.add(s.from);
-    if ("to" in s) out.add(s.to);
-  }
-  return out;
-}
-
-/** 某步骤引用的原料 slot（统一 items / material 两种写法）。 */
-export function slotsReferenced(s: Step): string[] {
-  const out: string[] = [];
-  if ("items" in s && s.items) out.push(...s.items);
-  if ("material" in s && s.material) out.push(s.material);
-  return out;
-}
+// containersUsed / slotsReferenced 已迁到 ir-utils.ts —— 那个文件零 zod 依赖，
+// 播放路径可以用它们而不把 schema 拖进 bundle。

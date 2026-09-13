@@ -1,0 +1,22 @@
+{
+  "name": "@shaker/animator-core",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "IR → Timeline 编译器。纯 TS，零渲染依赖 —— 三端共用。",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "test": "node --experimental-strip-types --test src/**/*.test.ts"
+  },
+  "dependencies": {
+    "@shaker/recipe-ir": "workspace:*"
+  },
+  "devDependencies": {
+    "typescript": "^5.7.2",
+    "@types/node": "^22.10.0",
+    "@shaker/seed": "workspace:*"
+  }
+}

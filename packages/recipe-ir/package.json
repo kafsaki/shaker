@@ -5,7 +5,8 @@
   "type": "module",
   "description": "配方 IR 的唯一真相源：zod schema、校验、单位换算、混色与杯型物理。零 UI 依赖。",
   "exports": {
-    ".": "./src/index.ts"
+    ".": "./src/index.ts",
+    "./core": "./src/core.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit",

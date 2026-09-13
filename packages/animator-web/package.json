@@ -1,0 +1,14 @@
+{
+  "name": "@shaker/animator-web",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Canvas 2D 绘制后端。唯一知道「怎么画」的地方。",
+  "exports": { ".": "./src/render.ts" },
+  "scripts": { "typecheck": "tsc --noEmit" },
+  "dependencies": {
+    "@shaker/recipe-ir": "workspace:*",
+    "@shaker/animator-core": "workspace:*"
+  },
+  "devDependencies": { "typescript": "^5.7.2" }
+}
