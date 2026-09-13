@@ -1,0 +1,22 @@
+{
+  "name": "@shaker/recipe-ir",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "配方 IR 的唯一真相源：zod schema、校验、单位换算、混色与杯型物理。零 UI 依赖。",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "test": "node --experimental-strip-types --test src/**/*.test.ts",
+    "gen:schema": "node --experimental-strip-types scripts/gen-schema.ts"
+  },
+  "dependencies": {
+    "zod": "^4.0.0"
+  },
+  "devDependencies": {
+    "typescript": "^5.7.2",
+    "@types/node": "^22.10.0"
+  }
+}

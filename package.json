@@ -1,0 +1,19 @@
+{
+  "name": "shaker",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "packageManager": "pnpm@10.15.0",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "typecheck": "pnpm -r typecheck",
+    "test": "pnpm -r test",
+    "gen:schema": "pnpm --filter @shaker/recipe-ir gen:schema",
+    "check:schema": "pnpm gen:schema && git diff --exit-code schema/recipe-ir.schema.json"
+  },
+  "devDependencies": {
+    "typescript": "^5.7.2"
+  }
+}
