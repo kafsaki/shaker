@@ -1,0 +1,3147 @@
+components:
+  schemas:
+    ApiError:
+      additionalProperties: false
+      properties:
+        $schema:
+          description: A URL to the JSON Schema for this object.
+          examples:
+            - https://example.com/schemas/ApiError.json
+          format: uri
+          readOnly: true
+          type: string
+        error:
+          $ref: "#/components/schemas/ErrorBody"
+      required:
+        - error
+      type: object
+    ChangePasswordInputBody:
+      additionalProperties: false
+      properties:
+        $schema:
+          description: A URL to the JSON Schema for this object.
+          examples:
+            - https://example.com/schemas/ChangePasswordInputBody.json
+          format: uri
+          readOnly: true
+          type: string
+        currentPassword:
+          maxLength: 128
+          minLength: 1
+          type: string
+        newPassword:
+          maxLength: 128
+          minLength: 8
+          type: string
+      required:
+        - currentPassword
+        - newPassword
+      type: object
+    CollapsedVariantsBody:
+      additionalProperties: false
+      properties:
+        count:
+          format: int64
+          type: integer
+        url:
+          type: string
+      required:
+        - count
+        - url
+      type: object
+    CommentBody:
+      additionalProperties: false
+      properties:
+        $schema:
+          description: A URL to the JSON Schema for this object.
+          examples:
+            - https://example.com/schemas/CommentBody.json
+          format: uri
+          readOnly: true
+          type: string
+        author:
+          $ref: "#/components/schemas/RecipeAuthorBody"
+        body:
+          type: string
+        createdAt:
+          type: string
+        id:
+          type: string
+        likeCount:
+          format: int64
+          type: integer
+        replies:
+          items:
+            $ref: "#/components/schemas/CommentBody"
+          type:
+            - array
+            - "null"
+        replyCount:
+          format: int64
+          type: integer
+        updatedAt:
+          type: string
+        viewerState:
+          $ref: "#/components/schemas/CommentViewerStateBody"
+      required:
+        - id
+        - body
+        - author
+        - likeCount
+        - replyCount
+        - createdAt
+        - updatedAt
+      type: object
+    CommentViewerStateBody:
+      additionalProperties: false
+      properties:
+        liked:
+          type: boolean
+      required:
+        - liked
+      type: object
+    CommentsOutputBody:
+      additionalProperties: false
+      properties:
+        $schema:
+          description: A URL to the JSON Schema for this object.
+          examples:
+            - https://example.com/schemas/CommentsOutputBody.json
+          format: uri
+          readOnly: true
+          type: string
+        items:
+          items:
+            $ref: "#/components/schemas/CommentBody"
+          type:
+            - array
+            - "null"
+        nextCursor:
+          type:
+            - string
+            - "null"
+      required:
+        - items
+        - nextCursor
+      type: object
+    CompareOutputBody:
+      additionalProperties: false
+      properties:
+        $schema:
+          description: A URL to the JSON Schema for this object.
+          examples:
+            - https://example.com/schemas/CompareOutputBody.json
+          format: uri
+          readOnly: true
+          type: string
+        items:
+          items:
+            $ref: "#/components/schemas/RecipeBody"
+          type:
+            - array
+            - "null"
+      required:
+        - items
+      type: object
+    CountOutputBody:
+      additionalProperties: false
+      properties:
+        $schema:
+          description: A URL to the JSON Schema for this object.
+          examples:
+            - https://example.com/schemas/CountOutputBody.json
+          format: uri
+          readOnly: true
+          type: string
+        like:
+          format: int64
+          type: integer
+      required:
+        - like
+      type: object
+    CreateCommentInputBody:
+      additionalProperties: false
+      properties:
+        $schema:
+          description: A URL to the JSON Schema for this object.
+          examples:
+            - https://example.com/schemas/CreateCommentInputBody.json
+          format: uri
+          readOnly: true
+          type: string
+        body:
+          maxLength: 4000
+          minLength: 1
+          type: string
+        parentId:
+          format: uuid
+          type: string
+      required:
+        - body
+      type: object
+    CreateRecipeInputBody:
+      additionalProperties: false
+      properties:
+        $schema:
+          description: A URL to the JSON Schema for this object.
+          examples:
+            - https://example.com/schemas/CreateRecipeInputBody.json
+          format: uri
+          readOnly: true
+          type: string
+        classicKey:
+          maxLength: 64
+          type: string
+        derivedFrom:
+          format: uuid
+          type: string
+        descriptionMd:
+          maxLength: 20000
+          type: string
+        difficulty:
+          format: int64
+          maximum: 5
+          minimum: 1
+          type: integer
+        family:
+          maxLength: 64
+          type: string
+        ir: {}
+        lang:
+          enum:
+            - zh
+            - en
+          type: string
+        subtitle:
+          maxLength: 120
+          type: string
+        tags:
+          items:
+            type: string
+          maxItems: 20
+          type:
+            - array
+            - "null"
+        tasteProfile:
+          $ref: "#/components/schemas/TasteProfileInput"
+        title:
+          maxLength: 120
+          minLength: 1
+          type: string
+      required:
+        - title
+        - ir
+      type: object
+    DistIngredientBody:
+      additionalProperties: false
+      properties:
+        amountMl:
+          $ref: "#/components/schemas/DistStatsBody"
+        ingredientId:
+          type: string
+        presentIn:
+          format: int64
+          type: integer
+        role:
+          type: string
+      required:
+        - ingredientId
+        - role
+        - presentIn
+        - amountMl
+      type: object
+    DistStatsBody:
+      additionalProperties: false
+      properties:
+        median:
+          format: double
+          type:
+            - number
+            - "null"
+        p10:
+          format: double
+          type:
+            - number
+            - "null"
+        p25:
+          format: double
+          type:
+            - number
+            - "null"
+        p75:
+          format: double
+          type:
+            - number
+            - "null"
+        p90:
+          format: double
+          type:
+            - number
+            - "null"
+      required:
+        - p10
+        - p25
+        - median
+        - p75
+        - p90
+      type: object
+    DistributionOutputBody:
+      additionalProperties: false
+      properties:
+        $schema:
+          description: A URL to the JSON Schema for this object.
+          examples:
+            - https://example.com/schemas/DistributionOutputBody.json
+          format: uri
+          readOnly: true
+          type: string
+        abvEst:
+          $ref: "#/components/schemas/DistStatsBody"
+        classicKey:
+          type: string
+        ingredients:
+          items:
+            $ref: "#/components/schemas/DistIngredientBody"
+          type:
+            - array
+            - "null"
+        variantCount:
+          format: int64
+          type: integer
+      required:
+        - classicKey
+        - variantCount
+        - ingredients
+        - abvEst
+      type: object
+    ErrorBody:
+      additionalProperties: false
+      properties:
+        code:
+          type: string
+        details:
+          items:
+            $ref: "#/components/schemas/ErrorDetailBody"
+          type:
+            - array
+            - "null"
+        message:
+          type: string
+      required:
+        - code
+        - message
+      type: object
+    ErrorDetailBody:
+      additionalProperties: false
+      properties:
+        code:
+          type: string
+        message:
+          type: string
+        path:
+          type: string
+      required:
+        - code
+        - message
+      type: object
+    FeedCard:
+      additionalProperties: false
+      properties:
+        collapsedVariants:
+          $ref: "#/components/schemas/CollapsedVariantsBody"
+      type: object
+    FeedOutputBody:
+      additionalProperties: false
+      properties:
+        $schema:
+          description: A URL to the JSON Schema for this object.
+          examples:
+            - https://example.com/schemas/FeedOutputBody.json
+          format: uri
+          readOnly: true
+          type: string
+        items:
+          items:
+            $ref: "#/components/schemas/FeedCard"
+          type:
+            - array
+            - "null"
+        nextCursor:
+          type:
+            - string
+            - "null"
+      required:
+        - items
+        - nextCursor
+      type: object
+    GlassBody:
+      additionalProperties: false
+      properties:
+        $schema:
+          description: A URL to the JSON Schema for this object.
+          examples:
+            - https://example.com/schemas/GlassBody.json
+          format: uri
+          readOnly: true
+          type: string
+        capacityMl:
+          format: int64
+          type: integer
+        id:
+          type: string
+        nameEn:
+          type: string
+        nameZh:
+          type: string
+        shape: {}
+      required:
+        - id
+        - nameZh
+        - nameEn
+        - capacityMl
+        - shape
+      type: object
+    HealthRespBody:
+      additionalProperties: false
+      properties:
+        $schema:
+          description: A URL to the JSON Schema for this object.
+          examples:
+            - https://example.com/schemas/HealthRespBody.json
+          format: uri
+          readOnly: true
+          type: string
+      type: object
+    IngredientBody:
+      additionalProperties: false
+      properties:
+        abv:
+          format: double
+          type:
+            - number
+            - "null"
+        aliases:
+          items:
+            type: string
+          type:
+            - array
+            - "null"
+        category:
+          type: string
+        density:
+          format: double
+          type:
+            - number
+            - "null"
+        id:
+          type: string
+        nameEn:
+          type: string
+        nameZh:
+          type: string
+        subcategory:
+          type: string
+        viz: {}
+      required:
+        - id
+        - nameZh
+        - nameEn
+        - category
+        - abv
+        - density
+        - viz
+        - aliases
+      type: object
+    IngredientDetailBody:
+      additionalProperties: false
+      properties:
+        $schema:
+          description: A URL to the JSON Schema for this object.
+          examples:
+            - https://example.com/schemas/IngredientDetailBody.json
+          format: uri
+          readOnly: true
+          type: string
+        abv:
+          format: double
+          type:
+            - number
+            - "null"
+        aliases:
+          items:
+            type: string
+          type:
+            - array
+            - "null"
+        category:
+          type: string
+        density:
+          format: double
+          type:
+            - number
+            - "null"
+        descriptionEn:
+          type: string
+        descriptionZh:
+          type: string
+        id:
+          type: string
+        nameEn:
+          type: string
+        nameZh:
+          type: string
+        recipeCount:
+          format: int64
+          type: integer
+        subcategory:
+          type: string
+        viz: {}
+      required:
+        - recipeCount
+        - id
+        - nameZh
+        - nameEn
+        - category
+        - abv
+        - density
+        - viz
+        - aliases
+      type: object
+    IngredientListOutputBody:
+      additionalProperties: false
+      properties:
+        $schema:
+          description: A URL to the JSON Schema for this object.
+          examples:
+            - https://example.com/schemas/IngredientListOutputBody.json
+          format: uri
+          readOnly: true
+          type: string
+        items:
+          items:
+            $ref: "#/components/schemas/IngredientBody"
+          type:
+            - array
+            - "null"
+        nextCursor:
+          type:
+            - string
+            - "null"
+      required:
+        - items
+        - nextCursor
+      type: object
+    LikerBody:
+      additionalProperties: false
+      properties:
+        likedAt:
+          type: string
+        user:
+          $ref: "#/components/schemas/RecipeAuthorBody"
+      required:
+        - user
+        - likedAt
+      type: object
+    LikersOutputBody:
+      additionalProperties: false
+      properties:
+        $schema:
+          description: A URL to the JSON Schema for this object.
+          examples:
+            - https://example.com/schemas/LikersOutputBody.json
+          format: uri
+          readOnly: true
+          type: string
+        items:
+          items:
+            $ref: "#/components/schemas/LikerBody"
+          type:
+            - array
+            - "null"
+        nextCursor:
+          type:
+            - string
+            - "null"
+      required:
+        - items
+        - nextCursor
+      type: object
+    LoginInputBody:
+      additionalProperties: false
+      properties:
+        $schema:
+          description: A URL to the JSON Schema for this object.
+          examples:
+            - https://example.com/schemas/LoginInputBody.json
+          format: uri
+          readOnly: true
+          type: string
+        identifier:
+          maxLength: 255
+          minLength: 3
+          type: string
+        password:
+          maxLength: 128
+          minLength: 1
+          type: string
+      required:
+        - identifier
+        - password
+      type: object
+    PublicUserBody:
+      additionalProperties: false
+      properties:
+        $schema:
+          description: A URL to the JSON Schema for this object.
+          examples:
+            - https://example.com/schemas/PublicUserBody.json
+          format: uri
+          readOnly: true
+          type: string
+        avatarUrl:
+          type:
+            - string
+            - "null"
+        bio:
+          type:
+            - string
+            - "null"
+        counts:
+          $ref: "#/components/schemas/UserCountsBody"
+        createdAt:
+          format: date-time
+          type: string
+        displayName:
+          type: string
+        handle:
+          type: string
+        id:
+          format: uuid
+          type: string
+        isOfficial:
+          type: boolean
+        location:
+          type:
+            - string
+            - "null"
+        viewerIsFollowing:
+          type: boolean
+        website:
+          type:
+            - string
+            - "null"
+      required:
+        - id
+        - handle
+        - displayName
+        - avatarUrl
+        - bio
+        - location
+        - website
+        - isOfficial
+        - counts
+        - createdAt
+      type: object
+    RecipeAuthorBody:
+      additionalProperties: false
+      properties:
+        avatarUrl:
+          type:
+            - string
+            - "null"
+        displayName:
+          type: string
+        handle:
+          type: string
+        id:
+          type: string
+        isOfficial:
+          type: boolean
+      required:
+        - id
+        - handle
+        - displayName
+        - avatarUrl
+        - isOfficial
+      type: object
+    RecipeBody:
+      additionalProperties: false
+      properties:
+        $schema:
+          description: A URL to the JSON Schema for this object.
+          examples:
+            - https://example.com/schemas/RecipeBody.json
+          format: uri
+          readOnly: true
+          type: string
+        abvEst:
+          format: double
+          type:
+            - number
+            - "null"
+        author:
+          $ref: "#/components/schemas/RecipeAuthorBody"
+        classicKey:
+          type:
+            - string
+            - "null"
+        counts:
+          $ref: "#/components/schemas/RecipeCountsBody"
+        coverUrl:
+          type:
+            - string
+            - "null"
+        createdAt:
+          type: string
+        derivedCount:
+          format: int64
+          type: integer
+        derivedFrom:
+          type:
+            - string
+            - "null"
+        descriptionMd:
+          type:
+            - string
+            - "null"
+        difficulty:
+          format: int64
+          type:
+            - integer
+            - "null"
+        family:
+          type:
+            - string
+            - "null"
+        ibaCategory:
+          type:
+            - string
+            - "null"
+        id:
+          type: string
+        ir: {}
+        irVersion:
+          format: int64
+          type: integer
+        isCanonical:
+          type: boolean
+        lang:
+          type: string
+        publishedAt:
+          type:
+            - string
+            - "null"
+        servings:
+          format: int64
+          type: integer
+        slug:
+          type: string
+        source:
+          type: string
+        status:
+          type: string
+        subtitle:
+          type:
+            - string
+            - "null"
+        tags:
+          items:
+            type: string
+          type:
+            - array
+            - "null"
+        tasteProfile:
+          $ref: "#/components/schemas/RecipeTasteBody"
+        title:
+          type: string
+        totalVolumeMl:
+          format: double
+          type:
+            - number
+            - "null"
+        updatedAt:
+          type: string
+        viewerState:
+          $ref: "#/components/schemas/RecipeViewerStateBody"
+        viz:
+          $ref: "#/components/schemas/RecipeVizBody"
+      required:
+        - id
+        - slug
+        - title
+        - subtitle
+        - descriptionMd
+        - lang
+        - author
+        - ir
+        - irVersion
+        - family
+        - source
+        - isCanonical
+        - classicKey
+        - ibaCategory
+        - derivedFrom
+        - derivedCount
+        - abvEst
+        - totalVolumeMl
+        - tasteProfile
+        - difficulty
+        - servings
+        - tags
+        - coverUrl
+        - status
+        - counts
+        - publishedAt
+        - createdAt
+        - updatedAt
+      type: object
+    RecipeCountsBody:
+      additionalProperties: false
+      properties:
+        collect:
+          format: int64
+          type: integer
+        comment:
+          format: int64
+          type: integer
+        like:
+          format: int64
+          type: integer
+        view:
+          format: int64
+          type: integer
+      required:
+        - like
+        - comment
+        - collect
+        - view
+      type: object
+    RecipeListOutputBody:
+      additionalProperties: false
+      properties:
+        $schema:
+          description: A URL to the JSON Schema for this object.
+          examples:
+            - https://example.com/schemas/RecipeListOutputBody.json
+          format: uri
+          readOnly: true
+          type: string
+        items:
+          items:
+            $ref: "#/components/schemas/RecipeBody"
+          type:
+            - array
+            - "null"
+        nextCursor:
+          type:
+            - string
+            - "null"
+      required:
+        - items
+        - nextCursor
+      type: object
+    RecipeSaveOutputBody:
+      additionalProperties: false
+      properties:
+        $schema:
+          description: A URL to the JSON Schema for this object.
+          examples:
+            - https://example.com/schemas/RecipeSaveOutputBody.json
+          format: uri
+          readOnly: true
+          type: string
+        recipe:
+          $ref: "#/components/schemas/RecipeBody"
+        warnings:
+          items:
+            $ref: "#/components/schemas/ErrorDetailBody"
+          type:
+            - array
+            - "null"
+      required:
+        - recipe
+        - warnings
+      type: object
+    RecipeTasteBody:
+      additionalProperties: false
+      properties:
+        bitter:
+          format: int64
+          type: integer
+        sour:
+          format: int64
+          type: integer
+        strength:
+          format: int64
+          type: integer
+        sweet:
+          format: int64
+          type: integer
+      required:
+        - sweet
+        - sour
+        - bitter
+        - strength
+      type: object
+    RecipeViewerStateBody:
+      additionalProperties: false
+      properties:
+        collectedInMenus:
+          items:
+            type: string
+          type:
+            - array
+            - "null"
+        liked:
+          type: boolean
+      required:
+        - liked
+        - collectedInMenus
+      type: object
+    RecipeVizBody:
+      additionalProperties: false
+      properties:
+        glassware:
+          additionalProperties:
+            $ref: "#/components/schemas/RecipeVizGlassBody"
+          type: object
+        ingredients:
+          additionalProperties:
+            $ref: "#/components/schemas/RecipeVizIngredientBody"
+          type: object
+      required:
+        - ingredients
+        - glassware
+      type: object
+    RecipeVizGlassBody:
+      additionalProperties: false
+      properties:
+        capacityMl:
+          format: int64
+          type: integer
+        nameEn:
+          type: string
+        nameZh:
+          type: string
+        shape: {}
+      required:
+        - nameZh
+        - nameEn
+        - capacityMl
+        - shape
+      type: object
+    RecipeVizIngredientBody:
+      additionalProperties: false
+      properties:
+        nameEn:
+          type: string
+        nameZh:
+          type: string
+        viz: {}
+      required:
+        - nameZh
+        - nameEn
+        - viz
+      type: object
+    RefreshInputBody:
+      additionalProperties: false
+      properties:
+        $schema:
+          description: A URL to the JSON Schema for this object.
+          examples:
+            - https://example.com/schemas/RefreshInputBody.json
+          format: uri
+          readOnly: true
+          type: string
+        refreshToken:
+          maxLength: 128
+          minLength: 20
+          type: string
+      required:
+        - refreshToken
+      type: object
+    RegisterInputBody:
+      additionalProperties: false
+      properties:
+        $schema:
+          description: A URL to the JSON Schema for this object.
+          examples:
+            - https://example.com/schemas/RegisterInputBody.json
+          format: uri
+          readOnly: true
+          type: string
+        displayName:
+          maxLength: 48
+          minLength: 1
+          type: string
+        email:
+          format: email
+          maxLength: 255
+          type: string
+        handle:
+          maxLength: 24
+          minLength: 3
+          pattern: ^[a-zA-Z0-9_]{3,24}$
+          type: string
+        password:
+          maxLength: 128
+          minLength: 8
+          type: string
+      required:
+        - handle
+        - email
+        - password
+        - displayName
+      type: object
+    RevisionBody:
+      additionalProperties: false
+      properties:
+        createdAt:
+          type: string
+        editorId:
+          type:
+            - string
+            - "null"
+        note:
+          type:
+            - string
+            - "null"
+        title:
+          type: string
+        version:
+          format: int64
+          type: integer
+      required:
+        - version
+        - title
+        - note
+        - editorId
+        - createdAt
+      type: object
+    RevisionDetailOutputBody:
+      additionalProperties: false
+      properties:
+        $schema:
+          description: A URL to the JSON Schema for this object.
+          examples:
+            - https://example.com/schemas/RevisionDetailOutputBody.json
+          format: uri
+          readOnly: true
+          type: string
+        createdAt:
+          type: string
+        editorId:
+          type:
+            - string
+            - "null"
+        ir: {}
+        note:
+          type:
+            - string
+            - "null"
+        title:
+          type: string
+        version:
+          format: int64
+          type: integer
+      required:
+        - version
+        - title
+        - note
+        - editorId
+        - createdAt
+        - ir
+      type: object
+    RevisionListOutputBody:
+      additionalProperties: false
+      properties:
+        $schema:
+          description: A URL to the JSON Schema for this object.
+          examples:
+            - https://example.com/schemas/RevisionListOutputBody.json
+          format: uri
+          readOnly: true
+          type: string
+        items:
+          items:
+            $ref: "#/components/schemas/RevisionBody"
+          type:
+            - array
+            - "null"
+      required:
+        - items
+      type: object
+    SearchIngredientBody:
+      additionalProperties: false
+      properties:
+        abv:
+          format: double
+          type:
+            - number
+            - "null"
+        category:
+          type: string
+        id:
+          type: string
+        nameEn:
+          type: string
+        nameZh:
+          type: string
+        subcategory:
+          type: string
+      required:
+        - id
+        - nameZh
+        - nameEn
+        - category
+        - abv
+      type: object
+    SearchIngredientGroup:
+      additionalProperties: false
+      properties:
+        items:
+          items:
+            $ref: "#/components/schemas/SearchIngredientBody"
+          type:
+            - array
+            - "null"
+        more:
+          type: string
+        nextCursor:
+          type: string
+        total:
+          format: int64
+          type: integer
+      required:
+        - items
+      type: object
+    SearchMenuGroup:
+      additionalProperties: false
+      properties:
+        items:
+          items:
+            $ref: "#/components/schemas/RecipeBody"
+          type:
+            - array
+            - "null"
+        more:
+          type: string
+        nextCursor:
+          type: string
+        total:
+          format: int64
+          type: integer
+      required:
+        - items
+      type: object
+    SearchOutputBody:
+      additionalProperties: false
+      properties:
+        $schema:
+          description: A URL to the JSON Schema for this object.
+          examples:
+            - https://example.com/schemas/SearchOutputBody.json
+          format: uri
+          readOnly: true
+          type: string
+        ingredients:
+          $ref: "#/components/schemas/SearchIngredientGroup"
+        menus:
+          $ref: "#/components/schemas/SearchMenuGroup"
+        recipes:
+          $ref: "#/components/schemas/SearchRecipeGroup"
+        users:
+          $ref: "#/components/schemas/SearchUserGroup"
+      type: object
+    SearchRecipeGroup:
+      additionalProperties: false
+      properties:
+        items:
+          items:
+            $ref: "#/components/schemas/RecipeBody"
+          type:
+            - array
+            - "null"
+        more:
+          type: string
+        nextCursor:
+          type: string
+        total:
+          format: int64
+          type: integer
+      required:
+        - items
+      type: object
+    SearchUserGroup:
+      additionalProperties: false
+      properties:
+        items:
+          items:
+            $ref: "#/components/schemas/UserCardBody"
+          type:
+            - array
+            - "null"
+        more:
+          type: string
+        nextCursor:
+          type: string
+        total:
+          format: int64
+          type: integer
+      required:
+        - items
+      type: object
+    TagBody:
+      additionalProperties: false
+      properties:
+        id:
+          type: string
+        kind:
+          type: string
+        nameEn:
+          type: string
+        nameZh:
+          type: string
+      required:
+        - id
+        - nameZh
+        - nameEn
+        - kind
+      type: object
+    TasteProfileInput:
+      additionalProperties: false
+      properties:
+        bitter:
+          format: int64
+          maximum: 5
+          minimum: 0
+          type: integer
+        sour:
+          format: int64
+          maximum: 5
+          minimum: 0
+          type: integer
+        strength:
+          format: int64
+          maximum: 5
+          minimum: 0
+          type: integer
+        sweet:
+          format: int64
+          maximum: 5
+          minimum: 0
+          type: integer
+      required:
+        - sweet
+        - sour
+        - bitter
+        - strength
+      type: object
+    TechniqueBody:
+      additionalProperties: false
+      properties:
+        iconId:
+          type: string
+        id:
+          type: string
+        nameEn:
+          type: string
+        nameZh:
+          type: string
+      required:
+        - id
+        - nameZh
+        - nameEn
+      type: object
+    TokenPairBody:
+      additionalProperties: false
+      properties:
+        $schema:
+          description: A URL to the JSON Schema for this object.
+          examples:
+            - https://example.com/schemas/TokenPairBody.json
+          format: uri
+          readOnly: true
+          type: string
+        accessToken:
+          type: string
+        expiresIn:
+          description: 访问令牌寿命（秒）
+          format: int64
+          type: integer
+        refreshToken:
+          type: string
+        user:
+          $ref: "#/components/schemas/UserBody"
+      required:
+        - user
+        - accessToken
+        - refreshToken
+        - expiresIn
+      type: object
+    UpdateCommentInputBody:
+      additionalProperties: false
+      properties:
+        $schema:
+          description: A URL to the JSON Schema for this object.
+          examples:
+            - https://example.com/schemas/UpdateCommentInputBody.json
+          format: uri
+          readOnly: true
+          type: string
+        body:
+          maxLength: 4000
+          minLength: 1
+          type: string
+      required:
+        - body
+      type: object
+    UpdateMeInputBody:
+      additionalProperties: false
+      properties:
+        $schema:
+          description: A URL to the JSON Schema for this object.
+          examples:
+            - https://example.com/schemas/UpdateMeInputBody.json
+          format: uri
+          readOnly: true
+          type: string
+        avatarUrl:
+          maxLength: 500
+          type: string
+        bio:
+          maxLength: 500
+          type: string
+        displayName:
+          maxLength: 48
+          minLength: 1
+          type: string
+        location:
+          maxLength: 60
+          type: string
+        unitPreference:
+          enum:
+            - ml
+            - oz
+          type: string
+        website:
+          maxLength: 200
+          type: string
+      type: object
+    UpdateRecipeInputBody:
+      additionalProperties: false
+      properties:
+        $schema:
+          description: A URL to the JSON Schema for this object.
+          examples:
+            - https://example.com/schemas/UpdateRecipeInputBody.json
+          format: uri
+          readOnly: true
+          type: string
+        classicKey:
+          maxLength: 64
+          type: string
+        coverUrl:
+          maxLength: 500
+          type: string
+        derivedFrom:
+          format: uuid
+          type: string
+        descriptionMd:
+          maxLength: 20000
+          type: string
+        difficulty:
+          format: int64
+          maximum: 5
+          minimum: 1
+          type: integer
+        family:
+          maxLength: 64
+          type: string
+        ir: {}
+        lang:
+          enum:
+            - zh
+            - en
+          type: string
+        subtitle:
+          maxLength: 120
+          type: string
+        tags:
+          items:
+            type: string
+          maxItems: 20
+          type:
+            - array
+            - "null"
+        tasteProfile:
+          $ref: "#/components/schemas/TasteProfileInput"
+        title:
+          maxLength: 120
+          minLength: 1
+          type: string
+      type: object
+    UserBody:
+      additionalProperties: false
+      properties:
+        $schema:
+          description: A URL to the JSON Schema for this object.
+          examples:
+            - https://example.com/schemas/UserBody.json
+          format: uri
+          readOnly: true
+          type: string
+        avatarUrl:
+          type:
+            - string
+            - "null"
+        bio:
+          type:
+            - string
+            - "null"
+        createdAt:
+          format: date-time
+          type: string
+        displayName:
+          type: string
+        email:
+          type: string
+        emailVerified:
+          type: boolean
+        followerCount:
+          format: int64
+          type: integer
+        followingCount:
+          format: int64
+          type: integer
+        handle:
+          type: string
+        id:
+          format: uuid
+          type: string
+        isOfficial:
+          type: boolean
+        location:
+          type:
+            - string
+            - "null"
+        recipeCount:
+          format: int64
+          type: integer
+        unitPreference:
+          type: string
+        website:
+          type:
+            - string
+            - "null"
+      required:
+        - id
+        - handle
+        - displayName
+        - email
+        - emailVerified
+        - avatarUrl
+        - bio
+        - location
+        - website
+        - unitPreference
+        - isOfficial
+        - followerCount
+        - followingCount
+        - recipeCount
+        - createdAt
+      type: object
+    UserCardBody:
+      additionalProperties: false
+      properties:
+        avatarUrl:
+          type:
+            - string
+            - "null"
+        displayName:
+          type: string
+        followerCount:
+          format: int64
+          type: integer
+        handle:
+          type: string
+        id:
+          format: uuid
+          type: string
+        isOfficial:
+          type: boolean
+        recipeCount:
+          format: int64
+          type: integer
+      required:
+        - id
+        - handle
+        - displayName
+        - avatarUrl
+        - isOfficial
+        - followerCount
+        - recipeCount
+      type: object
+    UserCountsBody:
+      additionalProperties: false
+      properties:
+        follower:
+          format: int64
+          type: integer
+        following:
+          format: int64
+          type: integer
+        recipe:
+          format: int64
+          type: integer
+      required:
+        - follower
+        - following
+        - recipe
+      type: object
+    UserListOutputBody:
+      additionalProperties: false
+      properties:
+        $schema:
+          description: A URL to the JSON Schema for this object.
+          examples:
+            - https://example.com/schemas/UserListOutputBody.json
+          format: uri
+          readOnly: true
+          type: string
+        items:
+          items:
+            $ref: "#/components/schemas/UserCardBody"
+          type:
+            - array
+            - "null"
+        nextCursor:
+          type:
+            - string
+            - "null"
+      required:
+        - items
+        - nextCursor
+      type: object
+    VocabBody:
+      additionalProperties: false
+      properties:
+        $schema:
+          description: A URL to the JSON Schema for this object.
+          examples:
+            - https://example.com/schemas/VocabBody.json
+          format: uri
+          readOnly: true
+          type: string
+        glassware:
+          items:
+            $ref: "#/components/schemas/GlassBody"
+          type:
+            - array
+            - "null"
+        ingredients:
+          items:
+            $ref: "#/components/schemas/IngredientBody"
+          type:
+            - array
+            - "null"
+        tags:
+          items:
+            $ref: "#/components/schemas/TagBody"
+          type:
+            - array
+            - "null"
+        techniques:
+          items:
+            $ref: "#/components/schemas/TechniqueBody"
+          type:
+            - array
+            - "null"
+        version:
+          format: date-time
+          type: string
+      required:
+        - version
+        - ingredients
+        - glassware
+        - techniques
+        - tags
+      type: object
+  securitySchemes:
+    bearerAuth:
+      bearerFormat: JWT
+      scheme: bearer
+      type: http
+info:
+  title: shaker
+  version: 0.1.0
+openapi: 3.1.0
+paths:
+  /api/v1/auth/login:
+    post:
+      description: identifier 接受 handle 或 email。
+      operationId: auth-login
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LoginInputBody"
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TokenPairBody"
+          description: OK
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+          description: Error
+      summary: 登录
+  /api/v1/auth/logout:
+    post:
+      description: 撤销当前会话链（含其刷新令牌）。
+      operationId: auth-logout
+      responses:
+        "204":
+          description: No Content
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+          description: Error
+      security:
+        - bearerAuth: []
+      summary: 登出
+  /api/v1/auth/logout-all:
+    post:
+      operationId: auth-logout-all
+      responses:
+        "204":
+          description: No Content
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+          description: Error
+      security:
+        - bearerAuth: []
+      summary: 登出全部设备
+  /api/v1/auth/refresh:
+    post:
+      description: 旧刷新令牌立即失效。检测到旧令牌重放会撤销该账号全部会话。
+      operationId: auth-refresh
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RefreshInputBody"
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TokenPairBody"
+          description: OK
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+          description: Error
+      summary: 刷新令牌
+  /api/v1/auth/register:
+    post:
+      description: 创建账号并返回令牌对。刷新令牌仅此一次返回，客户端须妥善保存。
+      operationId: auth-register
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RegisterInputBody"
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TokenPairBody"
+          description: OK
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+          description: Error
+      summary: 注册账号
+  /api/v1/classics:
+    get:
+      description: 全部权威条目（is_canonical），按发布时间倒序。
+      operationId: classics-list
+      parameters:
+        - explode: false
+          in: query
+          name: ibaCategory
+          schema:
+            enum:
+              - unforgettable
+              - contemporary
+              - new_era
+            type: string
+        - explode: false
+          in: query
+          name: family
+          schema:
+            maxLength: 64
+            type: string
+        - explode: false
+          in: query
+          name: cursor
+          schema:
+            type: string
+        - explode: false
+          in: query
+          name: limit
+          schema:
+            format: int64
+            maximum: 50
+            minimum: 1
+            type: integer
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RecipeListOutputBody"
+          description: OK
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+          description: Error
+      summary: 经典列表
+  /api/v1/classics/{classicKey}:
+    get:
+      description: 等价于该 classic_key 下 is_canonical 的配方。
+      operationId: classics-get
+      parameters:
+        - in: path
+          name: classicKey
+          required: true
+          schema:
+            maxLength: 64
+            minLength: 1
+            type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RecipeBody"
+          description: OK
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+          description: Error
+      summary: 权威条目
+  /api/v1/classics/{classicKey}/distribution:
+    get:
+      description: 变体的原料用量与 ABV 分位统计（p10/p25/median/p75/p90），数据来自 recipe_ingredients 投影的聚合（ADR-013）。
+      operationId: classics-distribution
+      parameters:
+        - in: path
+          name: classicKey
+          required: true
+          schema:
+            maxLength: 64
+            minLength: 1
+            type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DistributionOutputBody"
+          description: OK
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+          description: Error
+      summary: 规格分布
+  /api/v1/classics/{classicKey}/variants:
+    get:
+      description: 该经典的社区配方（不含权威条目），sort=hot|new。
+      operationId: classics-variants
+      parameters:
+        - in: path
+          name: classicKey
+          required: true
+          schema:
+            maxLength: 64
+            minLength: 1
+            type: string
+        - explode: false
+          in: query
+          name: sort
+          schema:
+            default: hot
+            enum:
+              - hot
+              - new
+            type: string
+        - explode: false
+          in: query
+          name: cursor
+          schema:
+            type: string
+        - explode: false
+          in: query
+          name: limit
+          schema:
+            format: int64
+            maximum: 50
+            minimum: 1
+            type: integer
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RecipeListOutputBody"
+          description: OK
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+          description: Error
+      summary: 社区变体
+  /api/v1/comments/{id}:
+    delete:
+      description: 顶层评论连回复一起软删，计数同步回退。
+      operationId: comments-delete
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            format: uuid
+            type: string
+      responses:
+        "204":
+          description: No Content
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+          description: Error
+      security:
+        - bearerAuth: []
+      summary: 软删自己的评论
+    patch:
+      operationId: comments-update
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            format: uuid
+            type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateCommentInputBody"
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CommentBody"
+          description: OK
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+          description: Error
+      security:
+        - bearerAuth: []
+      summary: 编辑自己的评论
+  /api/v1/comments/{id}/like:
+    delete:
+      operationId: comments-unlike
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            format: uuid
+            type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CountOutputBody"
+          description: OK
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+          description: Error
+      security:
+        - bearerAuth: []
+      summary: 取消评论点赞（幂等）
+    put:
+      operationId: comments-like
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            format: uuid
+            type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CountOutputBody"
+          description: OK
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+          description: Error
+      security:
+        - bearerAuth: []
+      summary: 评论点赞（幂等）
+  /api/v1/comments/{id}/replies:
+    get:
+      operationId: comments-replies
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            format: uuid
+            type: string
+        - explode: false
+          in: query
+          name: cursor
+          schema:
+            type: string
+        - explode: false
+          in: query
+          name: limit
+          schema:
+            format: int64
+            maximum: 50
+            minimum: 1
+            type: integer
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CommentsOutputBody"
+          description: OK
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+          description: Error
+      summary: 展开某条评论的全部回复
+  /api/v1/feed/following:
+    get:
+      description: 关注的人的发布，按时间倒序。需认证。
+      operationId: feed-following
+      parameters:
+        - explode: false
+          in: query
+          name: window
+          schema:
+            default: 7d
+            enum:
+              - 24h
+              - 7d
+              - 30d
+              - all
+            type: string
+        - explode: false
+          in: query
+          name: cursor
+          schema:
+            type: string
+        - explode: false
+          in: query
+          name: limit
+          schema:
+            format: int64
+            maximum: 50
+            minimum: 1
+            type: integer
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FeedOutputBody"
+          description: OK
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+          description: Error
+      security:
+        - bearerAuth: []
+      summary: 关注流
+  /api/v1/feed/hot:
+    get:
+      description: 时间衰减热度排序（DB 设计 §5 公式）。window 限定时间范围；classic_key 单页最多 2 条，其余折叠进 collapsedVariants（ADR-013）。
+      operationId: feed-hot
+      parameters:
+        - explode: false
+          in: query
+          name: window
+          schema:
+            default: 7d
+            enum:
+              - 24h
+              - 7d
+              - 30d
+              - all
+            type: string
+        - explode: false
+          in: query
+          name: cursor
+          schema:
+            type: string
+        - explode: false
+          in: query
+          name: limit
+          schema:
+            format: int64
+            maximum: 50
+            minimum: 1
+            type: integer
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FeedOutputBody"
+          description: OK
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+          description: Error
+      summary: 热门流
+  /api/v1/feed/new:
+    get:
+      description: 按发布时间倒序。折叠规则同 hot。
+      operationId: feed-new
+      parameters:
+        - explode: false
+          in: query
+          name: window
+          schema:
+            default: 7d
+            enum:
+              - 24h
+              - 7d
+              - 30d
+              - all
+            type: string
+        - explode: false
+          in: query
+          name: cursor
+          schema:
+            type: string
+        - explode: false
+          in: query
+          name: limit
+          schema:
+            format: int64
+            maximum: 50
+            minimum: 1
+            type: integer
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FeedOutputBody"
+          description: OK
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+          description: Error
+      summary: 最新流
+  /api/v1/glassware/{id}:
+    get:
+      operationId: glassware-get
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            maxLength: 64
+            type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GlassBody"
+          description: OK
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+          description: Error
+      summary: 杯型详情
+  /api/v1/ingredients:
+    get:
+      description: 分类浏览 + 中英文名/别名模糊搜索；cursor 翻页。
+      operationId: ingredients-list
+      parameters:
+        - explode: false
+          in: query
+          name: category
+          schema:
+            type: string
+        - explode: false
+          in: query
+          name: subcategory
+          schema:
+            type: string
+        - explode: false
+          in: query
+          name: q
+          schema:
+            type: string
+        - explode: false
+          in: query
+          name: cursor
+          schema:
+            type: string
+        - explode: false
+          in: query
+          name: limit
+          schema:
+            default: 20
+            format: int64
+            maximum: 50
+            minimum: 1
+            type: integer
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/IngredientListOutputBody"
+          description: OK
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+          description: Error
+      summary: 原料列表
+  /api/v1/ingredients/{id}:
+    get:
+      operationId: ingredients-get
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            maxLength: 64
+            type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/IngredientDetailBody"
+          description: OK
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+          description: Error
+      summary: 原料详情
+  /api/v1/me:
+    get:
+      operationId: me-get
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UserBody"
+          description: OK
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+          description: Error
+      security:
+        - bearerAuth: []
+      summary: 当前用户资料
+    patch:
+      description: 只传要改的字段；单位偏好影响前端展示，换算纯前端完成（ADR-014）。
+      operationId: me-update
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateMeInputBody"
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UserBody"
+          description: OK
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+          description: Error
+      security:
+        - bearerAuth: []
+      summary: 修改资料与偏好
+  /api/v1/me/drafts:
+    get:
+      description: 按更新时间倒序。
+      operationId: me-drafts
+      parameters:
+        - explode: false
+          in: query
+          name: cursor
+          schema:
+            type: string
+        - explode: false
+          in: query
+          name: limit
+          schema:
+            format: int64
+            maximum: 50
+            minimum: 1
+            type: integer
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RecipeListOutputBody"
+          description: OK
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+          description: Error
+      security:
+        - bearerAuth: []
+      summary: 我的草稿
+  /api/v1/me/password:
+    post:
+      description: 成功后撤销除当前会话以外的全部会话。
+      operationId: me-change-password
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ChangePasswordInputBody"
+        required: true
+      responses:
+        "204":
+          description: No Content
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+          description: Error
+      security:
+        - bearerAuth: []
+      summary: 修改密码
+  /api/v1/r/{slug}:
+    get:
+      description: 公开页面用（SEO 友好）；只返回已发布配方。
+      operationId: recipes-get-by-slug
+      parameters:
+        - in: path
+          name: slug
+          required: true
+          schema:
+            maxLength: 80
+            minLength: 1
+            type: string
+        - explode: false
+          in: query
+          name: expand
+          schema:
+            enum:
+              - viz
+            type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RecipeBody"
+          description: OK
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+          description: Error
+      summary: 按 slug 取已发布配方
+  /api/v1/recipes:
+    post:
+      description: 只校验 IR 结构（JSON Schema）；业务规则的 error 降级为 warnings 返回，发布时才强制（API 定义 §3）。
+      operationId: recipes-create
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateRecipeInputBody"
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RecipeSaveOutputBody"
+          description: OK
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+          description: Error
+      security:
+        - bearerAuth: []
+      summary: 创建草稿
+  /api/v1/recipes/compare:
+    get:
+      description: ids 是逗号分隔的 UUID（2..5 个），按传入顺序返回已发布配方。
+      operationId: recipes-compare
+      parameters:
+        - explode: false
+          in: query
+          name: ids
+          schema:
+            maxLength: 400
+            minLength: 3
+            type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CompareOutputBody"
+          description: OK
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+          description: Error
+      summary: 配方对比
+  /api/v1/recipes/{id}:
+    delete:
+      operationId: recipes-delete
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            format: uuid
+            type: string
+      responses:
+        "204":
+          description: No Content
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+          description: Error
+      security:
+        - bearerAuth: []
+      summary: 软删除配方
+    get:
+      description: expand=viz 附带 IR 引用到的原料/杯型视觉数据。viewerState 仅认证时出现。
+      operationId: recipes-get
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            format: uuid
+            type: string
+        - explode: false
+          in: query
+          name: expand
+          schema:
+            enum:
+              - viz
+            type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RecipeBody"
+          description: OK
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+          description: Error
+      summary: 按 UUID 取配方
+    patch:
+      description: "需 If-Match: <irVersion>（乐观锁）。已发布配方的 IR 变更会重跑完整校验并重建投影。"
+      operationId: recipes-update
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            format: uuid
+            type: string
+        - in: header
+          name: If-Match
+          schema:
+            type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateRecipeInputBody"
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RecipeSaveOutputBody"
+          description: OK
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+          description: Error
+      security:
+        - bearerAuth: []
+      summary: 修改草稿或已发布配方
+  /api/v1/recipes/{id}/comments:
+    get:
+      operationId: comments-list
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            format: uuid
+            type: string
+        - explode: false
+          in: query
+          name: cursor
+          schema:
+            type: string
+        - explode: false
+          in: query
+          name: limit
+          schema:
+            format: int64
+            maximum: 50
+            minimum: 1
+            type: integer
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CommentsOutputBody"
+          description: OK
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+          description: Error
+      summary: 顶层评论 + 每条前 3 条回复
+    post:
+      description: body 可带 parentId 回复某条顶层评论——只允许一层回复（API 定义 §2.4）。
+      operationId: comments-create
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            format: uuid
+            type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateCommentInputBody"
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CommentBody"
+          description: OK
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+          description: Error
+      security:
+        - bearerAuth: []
+      summary: 发评论
+  /api/v1/recipes/{id}/like:
+    delete:
+      operationId: recipes-unlike
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            format: uuid
+            type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CountOutputBody"
+          description: OK
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+          description: Error
+      security:
+        - bearerAuth: []
+      summary: 取消点赞（幂等）
+    put:
+      description: 状态设置而非事件追加：重复 PUT 返回 200，不重复计数（API 定义 §1.5）。
+      operationId: recipes-like
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            format: uuid
+            type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CountOutputBody"
+          description: OK
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+          description: Error
+      security:
+        - bearerAuth: []
+      summary: 点赞（幂等）
+  /api/v1/recipes/{id}/likes:
+    get:
+      operationId: recipes-likers
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            format: uuid
+            type: string
+        - explode: false
+          in: query
+          name: cursor
+          schema:
+            type: string
+        - explode: false
+          in: query
+          name: limit
+          schema:
+            format: int64
+            maximum: 50
+            minimum: 1
+            type: integer
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LikersOutputBody"
+          description: OK
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+          description: Error
+      summary: 点赞用户列表
+  /api/v1/recipes/{id}/publish:
+    post:
+      description: 跑完整校验（结构 + 业务规则），算派生值、投影原料、分配 slug。限每用户 10 次/小时。
+      operationId: recipes-publish
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            format: uuid
+            type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RecipeBody"
+          description: OK
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+          description: Error
+      security:
+        - bearerAuth: []
+      summary: 发布配方
+  /api/v1/recipes/{id}/revisions:
+    get:
+      operationId: recipes-revisions
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            format: uuid
+            type: string
+        - explode: false
+          in: query
+          name: expand
+          schema:
+            enum:
+              - viz
+            type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RevisionListOutputBody"
+          description: OK
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+          description: Error
+      security:
+        - bearerAuth: []
+      summary: 版本历史
+  /api/v1/recipes/{id}/revisions/{version}:
+    get:
+      operationId: recipes-revision-get
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            format: uuid
+            type: string
+        - in: path
+          name: version
+          required: true
+          schema:
+            format: int64
+            minimum: 1
+            type: integer
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RevisionDetailOutputBody"
+          description: OK
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+          description: Error
+      security:
+        - bearerAuth: []
+      summary: 某个历史版本的 IR
+  /api/v1/recipes/{id}/unpublish:
+    post:
+      operationId: recipes-unpublish
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            format: uuid
+            type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RecipeBody"
+          description: OK
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+          description: Error
+      security:
+        - bearerAuth: []
+      summary: 撤回为草稿
+  /api/v1/search:
+    get:
+      description: type=all 返回分组（每组前 5 条 + total + 查看全部链接）；专用类型（recipe/user/ingredient）返回对应分组并带 nextCursor 翻页。配方搜索支持多维筛选：ingredient 可重复传（AND 语义），ingredientRole 限定角色，relevance 排序把权威条目置顶后按 trgm 相似度（ADR-012）。menu 分组随酒单功能填充。
+      operationId: search
+      parameters:
+        - explode: false
+          in: query
+          name: q
+          schema:
+            maxLength: 100
+            type: string
+        - explode: false
+          in: query
+          name: type
+          schema:
+            default: all
+            enum:
+              - recipe
+              - user
+              - ingredient
+              - menu
+              - all
+            type: string
+        - explode: true
+          in: query
+          name: ingredient
+          schema:
+            items:
+              type: string
+            maxItems: 10
+            type:
+              - array
+              - "null"
+        - explode: false
+          in: query
+          name: ingredientRole
+          schema:
+            enum:
+              - base
+              - modifier
+              - sweetener
+              - souring
+              - bittering
+              - lengthener
+              - texture
+              - rinse
+            type: string
+        - explode: false
+          in: query
+          name: family
+          schema:
+            maxLength: 64
+            type: string
+        - explode: false
+          in: query
+          name: method
+          schema:
+            maxLength: 32
+            type: string
+        - explode: false
+          in: query
+          name: glass
+          schema:
+            maxLength: 64
+            type: string
+        - explode: false
+          in: query
+          name: tag
+          schema:
+            maxLength: 64
+            type: string
+        - explode: false
+          in: query
+          name: abvMin
+          schema:
+            format: double
+            maximum: 100
+            minimum: 0
+            type: number
+        - explode: false
+          in: query
+          name: abvMax
+          schema:
+            format: double
+            maximum: 100
+            minimum: 0
+            type: number
+        - explode: false
+          in: query
+          name: difficultyMax
+          schema:
+            format: int64
+            maximum: 5
+            minimum: 1
+            type: integer
+        - explode: false
+          in: query
+          name: sort
+          schema:
+            default: relevance
+            enum:
+              - relevance
+              - hot
+              - new
+            type: string
+        - explode: false
+          in: query
+          name: cursor
+          schema:
+            type: string
+        - explode: false
+          in: query
+          name: limit
+          schema:
+            format: int64
+            maximum: 50
+            minimum: 1
+            type: integer
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SearchOutputBody"
+          description: OK
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+          description: Error
+      summary: 全站搜索
+  /api/v1/users/{handle}:
+    get:
+      description: 含计数；认证且非本人时附带 viewerIsFollowing。/users/{handle}/menus 随酒单功能提供。
+      operationId: users-get
+      parameters:
+        - in: path
+          name: handle
+          required: true
+          schema:
+            pattern: ^[a-zA-Z0-9_]{3,24}$
+            type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PublicUserBody"
+          description: OK
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+          description: Error
+      summary: 公开资料
+  /api/v1/users/{handle}/follow:
+    delete:
+      description: 幂等。
+      operationId: users-unfollow
+      parameters:
+        - in: path
+          name: handle
+          required: true
+          schema:
+            pattern: ^[a-zA-Z0-9_]{3,24}$
+            type: string
+      responses:
+        "204":
+          description: No Content
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+          description: Error
+      security:
+        - bearerAuth: []
+      summary: 取关
+    put:
+      description: 幂等：重复关注返回当前资料。不能关注自己（422）。
+      operationId: users-follow
+      parameters:
+        - in: path
+          name: handle
+          required: true
+          schema:
+            pattern: ^[a-zA-Z0-9_]{3,24}$
+            type: string
+      responses:
+        "204":
+          description: No Content
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+          description: Error
+      security:
+        - bearerAuth: []
+      summary: 关注
+  /api/v1/users/{handle}/followers:
+    get:
+      operationId: users-followers
+      parameters:
+        - in: path
+          name: handle
+          required: true
+          schema:
+            pattern: ^[a-zA-Z0-9_]{3,24}$
+            type: string
+        - explode: false
+          in: query
+          name: cursor
+          schema:
+            type: string
+        - explode: false
+          in: query
+          name: limit
+          schema:
+            format: int64
+            maximum: 50
+            minimum: 1
+            type: integer
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UserListOutputBody"
+          description: OK
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+          description: Error
+      summary: 粉丝列表
+  /api/v1/users/{handle}/following:
+    get:
+      operationId: users-following
+      parameters:
+        - in: path
+          name: handle
+          required: true
+          schema:
+            pattern: ^[a-zA-Z0-9_]{3,24}$
+            type: string
+        - explode: false
+          in: query
+          name: cursor
+          schema:
+            type: string
+        - explode: false
+          in: query
+          name: limit
+          schema:
+            format: int64
+            maximum: 50
+            minimum: 1
+            type: integer
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UserListOutputBody"
+          description: OK
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+          description: Error
+      summary: 关注列表
+  /api/v1/users/{handle}/likes:
+    get:
+      description: 按点赞时间倒序。
+      operationId: users-likes
+      parameters:
+        - in: path
+          name: handle
+          required: true
+          schema:
+            pattern: ^[a-zA-Z0-9_]{3,24}$
+            type: string
+        - explode: false
+          in: query
+          name: cursor
+          schema:
+            type: string
+        - explode: false
+          in: query
+          name: limit
+          schema:
+            format: int64
+            maximum: 50
+            minimum: 1
+            type: integer
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RecipeListOutputBody"
+          description: OK
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+          description: Error
+      summary: 某人点赞过的配方
+  /api/v1/users/{handle}/recipes:
+    get:
+      operationId: users-recipes
+      parameters:
+        - in: path
+          name: handle
+          required: true
+          schema:
+            pattern: ^[a-zA-Z0-9_]{3,24}$
+            type: string
+        - explode: false
+          in: query
+          name: cursor
+          schema:
+            type: string
+        - explode: false
+          in: query
+          name: limit
+          schema:
+            format: int64
+            maximum: 50
+            minimum: 1
+            type: integer
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RecipeListOutputBody"
+          description: OK
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+          description: Error
+      summary: 某用户的已发布配方
+  /api/v1/vocab:
+    get:
+      description: 编辑器一次性拉全量词表做选择与校验；配 ETag 强缓存（If-None-Match → 304）。
+      operationId: vocab-get
+      parameters:
+        - in: header
+          name: If-None-Match
+          schema:
+            type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/VocabBody"
+          description: OK
+          headers:
+            Cache-Control:
+              schema:
+                type: string
+            ETag:
+              schema:
+                type: string
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+          description: Error
+      summary: 全量受控词表
+  /healthz:
+    get:
+      operationId: health
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HealthRespBody"
+          description: OK
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+          description: Error
+      summary: 存活探针
