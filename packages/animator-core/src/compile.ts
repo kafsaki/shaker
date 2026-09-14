@@ -242,7 +242,17 @@ function toScene(
       })),
       foam: foamBand(c),
       rim: c.rim,
-      garnishes: [],
+      // 装饰来自容器状态：加入后跨步骤持久存在（GARNISH 步骤内的落位动画由 attachGarnish 覆写）
+      garnishes: c.garnishes.map((g) => ({
+        garnishId: g.garnishId,
+        position: g.position,
+        prep: g.prep,
+        dx: 0,
+        dy: 0,
+        rot: 0,
+        opacity: 1,
+        color: g.color,
+      })),
       smoke: c.smokeDensity,
       lidOn: c.lidOn,
     });
@@ -315,6 +325,7 @@ function layerBands(c: ContainerState): RenderedLayer[] {
       opacity: l.opacity,
       blend,
       carbonation: l.carbonation,
+      texture: l.texture,
       sourceSlots: [...l.sourceSlots],
     });
   }
@@ -474,11 +485,28 @@ function applyStep(step: Step, ctx: Ctx): void {
       const c = ensure(step.target);
       const refs = refsOf(step.items, bySlot);
       c.active = true;
-      emit.at(0, { focus: c.id, props: [pourProp(c, refs, vocab, 0)] });
-      emit.at(0.18, { focus: c.id, props: [pourProp(c, refs, vocab, 1)], ease: "easeOut" });
-      addToContainer(c, refs, vocab);
-      emit.at(0.86, { focus: c.id, props: [pourProp(c, refs, vocab, 1)] });
-      emit.at(1, { focus: c.id, props: [pourProp(c, refs, vocab, 0)] });
+      if (refs.length <= 1 || step.pour === "simultaneous") {
+        emit.at(0, { focus: c.id, props: [pourProp(c, refs, vocab, 0)] });
+        emit.at(0.18, { focus: c.id, props: [pourProp(c, refs, vocab, 1)], ease: "easeOut" });
+        addToContainer(c, refs, vocab);
+        emit.at(0.86, { focus: c.id, props: [pourProp(c, refs, vocab, 1)] });
+        emit.at(1, { focus: c.id, props: [pourProp(c, refs, vocab, 0)] });
+      } else {
+        // 默认逐个倒：吧台上本来就是一种一种来，同时倒只响应显式 pour: "simultaneous"。
+        // 每种原料一段：抬起 → 保持倒入（状态在此刻变更）→ 收回，段与段之间不跳变。
+        const n = refs.length;
+        for (let k = 0; k < n; k++) {
+          const one = [refs[k]!];
+          const t0 = (k / n) * 0.88;
+          const t1 = ((k + 1) / n) * 0.88;
+          emit.at(t0, { focus: c.id, props: [pourProp(c, one, vocab, 0)] });
+          emit.at(t0 + (t1 - t0) * 0.28, { focus: c.id, props: [pourProp(c, one, vocab, 1)], ease: "easeOut" });
+          addToContainer(c, one, vocab);
+          emit.at(t1 - (t1 - t0) * 0.12, { focus: c.id, props: [pourProp(c, one, vocab, 1)] });
+          emit.at(t1, { focus: c.id, props: [pourProp(c, one, vocab, 0)] });
+        }
+        emit.at(1, { focus: c.id, props: [] });
+      }
       break;
     }
 
@@ -683,16 +711,21 @@ function applyStep(step: Step, ctx: Ctx): void {
         step.garnishId ??
         (step.items && step.items[0] ? bySlot.get(step.items[0])?.ingredientId : undefined);
       const color = (gid && vocab.ingredient(gid)?.viz.color) ?? "#8fbf5a";
-      emit.at(0, { focus: c.id });
-      if (step.prep === "expressed") c.aromaMist = 0.8;
-      emit.at(1, { focus: c.id });
-      // 装饰物附加到最后一帧的容器上
-      attachGarnish(emit, c.id, {
+      const placed = {
         garnishId: gid ?? "unknown",
         position: step.position,
         prep: step.prep ?? "none",
         color,
-      });
+      } as const;
+      // 写进容器状态（持久），再让 attachGarnish 在本步骤的帧上做落位动画
+      c.garnishes = [
+        ...c.garnishes.filter((g) => !(g.garnishId === placed.garnishId && g.position === placed.position)),
+        placed,
+      ];
+      emit.at(0, { focus: c.id });
+      if (step.prep === "expressed") c.aromaMist = 0.8;
+      emit.at(1, { focus: c.id });
+      attachGarnish(emit, c.id, placed);
       break;
     }
 
@@ -828,6 +861,13 @@ function attachGarnish(
 
 /* ────────────────────────── 道具 ────────────────────────── */
 
+/** 目标容器当前液面的舞台 y 坐标（液流落进酒里，而不是停在杯口上方）。 */
+function surfaceStreamY(c: ContainerState): number {
+  const h = c.vessel.scale * UNITS_PER_CM;
+  const surfaceH = heightForVolume(c.vessel, Math.min(occupiedMl(c), c.vessel.def.capacityMl));
+  return MAIN_POS.y - Math.max(0.02, surfaceH) * h - 2;
+}
+
 function pourProp(
   c: ContainerState,
   refs: readonly IngredientRef[],
@@ -838,7 +878,6 @@ function pourProp(
   const color = meta?.viz.color ?? "#d8d2c4";
   const visc = meta?.viz.viscosity ?? "low";
   const width = { low: 2.6, medium: 3.4, high: 4.6 }[visc];
-  const h = c.vessel.scale * UNITS_PER_CM;
   return {
     kind: "jigger",
     x: POUR_POS.x,
@@ -848,13 +887,12 @@ function pourProp(
     opacity: 0.9,
     stream:
       active > 0.5
-        ? { toX: MAIN_POS.x, toY: MAIN_POS.y - h * 0.92, width, color }
+        ? { toX: MAIN_POS.x, toY: surfaceStreamY(c), width, color }
         : undefined,
   };
 }
 
 function strainerProp(from: ContainerState, to: ContainerState, active: number): Prop {
-  const h = to.vessel.scale * UNITS_PER_CM;
   const top = from.layers[0];
   return {
     kind: "strainer",
@@ -865,13 +903,12 @@ function strainerProp(from: ContainerState, to: ContainerState, active: number):
     opacity: 1,
     stream:
       active > 0.2
-        ? { toX: MAIN_POS.x, toY: MAIN_POS.y - h * 0.9, width: 3, color: top?.color ?? "#e8d9b0" }
+        ? { toX: MAIN_POS.x, toY: surfaceStreamY(to), width: 3, color: top?.color ?? "#e8d9b0" }
         : undefined,
   };
 }
 
 function streamBetween(from: ContainerState, to: ContainerState): Prop {
-  const h = to.vessel.scale * UNITS_PER_CM;
   const top = from.layers[0];
   return {
     kind: "bottle",
@@ -880,7 +917,7 @@ function streamBetween(from: ContainerState, to: ContainerState): Prop {
     rot: 0.9,
     scale: 1,
     opacity: 1,
-    stream: { toX: MAIN_POS.x, toY: MAIN_POS.y - h * 0.9, width: 3.2, color: top?.color ?? "#e8d9b0" },
+    stream: { toX: MAIN_POS.x, toY: surfaceStreamY(to), width: 3.2, color: top?.color ?? "#e8d9b0" },
   };
 }
 

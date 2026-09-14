@@ -45,6 +45,14 @@ export interface SolidIce {
   rot: number;
 }
 
+/** 已落位的装饰（容器状态的一部分 —— 装饰加进去之后不会在下一步消失）。 */
+export interface PlacedGarnish {
+  garnishId: string;
+  position: "rim" | "in_glass" | "float" | "skewer" | "side";
+  prep: string;
+  color: string;
+}
+
 export interface ContainerState {
   id: ContainerId;
   vessel: VesselSpec;
@@ -61,6 +69,8 @@ export interface ContainerState {
   smokeDensity: number;
   aromaMist: number;
   lidOn: boolean;
+  /** 装饰物 —— 放进状态而不是只写关键帧，否则下一步重建场景时装饰会消失。 */
+  garnishes: PlacedGarnish[];
   /** 是否已出现在场景里。 */
   active: boolean;
 }
@@ -79,6 +89,7 @@ export function newContainer(id: ContainerId, vessel: VesselSpec): ContainerStat
     smokeDensity: 0,
     aromaMist: 0,
     lidOn: false,
+    garnishes: [],
     active: false,
   };
 }

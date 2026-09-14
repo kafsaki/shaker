@@ -7,22 +7,25 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 
-import { FIXTURES, VOCAB, type Fixture } from "@shaker/seed";
+import { FIXTURES, ASSET_TEST_FIXTURES, VOCAB, type Fixture } from "@shaker/seed";
 import { heightForVolume } from "@shaker/recipe-ir";
 import { compile } from "./compile.ts";
 import { particlesAt, sample, stepAt, applyEase } from "./sample.ts";
 import type { Effect, Timeline } from "./types.ts";
 
+/** 真实夹具 + asset_test 资源覆盖夹具一起过编译不变量。 */
+const ALL_FIXTURES: Fixture[] = [...FIXTURES, ...ASSET_TEST_FIXTURES];
+
 // 显式标注打断推断链：不标的话 tsc 会把下游 JSON.stringify 的结果判成循环引用（TS7022）
-const compiled: { f: Fixture; tl: Timeline }[] = FIXTURES.map((f) => ({
+const compiled: { f: Fixture; tl: Timeline }[] = ALL_FIXTURES.map((f) => ({
   f,
   tl: compile(f.ir, VOCAB),
 }));
 
 /* ══════════════════════════ 结构不变量 ══════════════════════════ */
 
-test("五个配方全部能编译", () => {
-  assert.equal(compiled.length, 5);
+test("全部配方夹具都能编译", () => {
+  assert.equal(compiled.length, ALL_FIXTURES.length);
   for (const { f, tl } of compiled) {
     assert.ok(tl.totalMs > 0, `${f.title} 时长为 0`);
   }
@@ -76,7 +79,7 @@ test("IR 的每个步骤都在 Timeline 里有对应项", () => {
 /* ══════════════════════════ compile 是纯函数 ══════════════════════════ */
 
 test("同一份输入编译两次得到逐字节相同的结果 —— 规范 §9.2 的核心承诺", () => {
-  for (const f of FIXTURES) {
+  for (const f of ALL_FIXTURES) {
     const a = JSON.stringify(compile(f.ir, VOCAB));
     const b = JSON.stringify(compile(f.ir, VOCAB));
     assert.equal(a, b, `${f.title} 的编译结果不确定（有随机或时间依赖）`);

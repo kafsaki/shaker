@@ -187,6 +187,10 @@ function lerpShake(
  *
  * 按索引配对而不是按 sourceSlots：层数变化（新倒入一层、混匀后合并）时
  * 按索引配对能自然产生"新层从零高度长出来"的效果。
+ *
+ * **新层的下边界必须贴着下面一层当前的（插值中的）上边界**，而不是固定在自己的
+ * 最终 fromH —— 否则多种原料同时倒入时，下层液面还在涨、上层却从最终位置开始长，
+ * 两层之间会露出一段杯壁空隙（历史 bug）。
  */
 function lerpLayers(as: readonly RenderedLayer[], bs: readonly RenderedLayer[], t: number): RenderedLayer[] {
   const len = Math.max(as.length, bs.length);
@@ -202,11 +206,15 @@ function lerpLayers(as: readonly RenderedLayer[], bs: readonly RenderedLayer[], 
         opacity: n(a.opacity, b.opacity, t),
         blend: n(a.blend, b.blend, t),
         carbonation: n(a.carbonation, b.carbonation, t),
+        // 质地是类别量，不做连续插值 —— 过半即切换
+        texture: t < 0.5 ? a.texture : b.texture,
         sourceSlots: b.sourceSlots,
       });
     } else if (b) {
-      // 新层：从下边界处长出来
-      out.push({ ...b, toH: n(b.fromH, b.toH, t) });
+      // 新层：从下面一层**当前的**液面长出，厚度从 0 长满。
+      // 关键帧里液层恒为连续（compile 保证），所以插值结果也连续、无空隙。
+      const base = out.length > 0 ? out[out.length - 1]!.toH : b.fromH;
+      out.push({ ...b, fromH: base, toH: base + (b.toH - b.fromH) * t });
     } else if (a) {
       // 消失的层：塌回下边界
       out.push({ ...a, toH: n(a.toH, a.fromH, t) });

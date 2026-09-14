@@ -11,7 +11,10 @@
 import { compile, sample, type Timeline } from "@shaker/animator-core";
 import { estimateAbv, totalLiquidMl, displayAmount, toParts, validateRecipeIR } from "@shaker/recipe-ir";
 import { DARK_THEME, LIGHT_THEME, renderScene } from "@shaker/animator-web";
-import { FIXTURES, VOCAB, vesselLookup, type Fixture } from "@shaker/seed";
+import { FIXTURES, ASSET_TEST_FIXTURES, VOCAB, vesselLookup, type Fixture } from "@shaker/seed";
+
+/** 真实配方在前，资源覆盖测试夹具（asset_testN）排在最后。 */
+const ALL_FIXTURES: Fixture[] = [...FIXTURES, ...ASSET_TEST_FIXTURES];
 
 /* ────────────────────────── DOM ────────────────────────── */
 
@@ -44,6 +47,7 @@ const metaEl = $<HTMLDivElement>("meta");
 const ingList = $<HTMLTableSectionElement>("ingredients");
 const testNote = $<HTMLParagraphElement>("testnote");
 const diagEl = $<HTMLDivElement>("diagnostics");
+const bannerEl = $<HTMLDivElement>("banner");
 const unitBtn = $<HTMLButtonElement>("units");
 const partsChk = $<HTMLInputElement>("parts");
 
@@ -53,7 +57,7 @@ let fixture: Fixture = FIXTURES[0]!;
 let timeline: Timeline = compileFixture(fixture);
 let playing = true;
 let tMs = 0;
-let dark = false;
+let dark = true; // 像素风默认暗调吧台
 let unitPref: "ml" | "oz" = "ml";
 let lastFrame = performance.now();
 const frameTimes: number[] = [];
@@ -110,12 +114,16 @@ function frame(now: number): void {
 }
 
 function draw(): void {
-  const { scene, stepIndex } = sample(timeline, tMs);
+  // 12fps 定格感：场景几何按 80ms 步进量化；液流条纹/水花/闪烁仍用原始时间
+  const tQ = Math.floor(tMs / 80) * 80;
+  const { scene, stepIndex, step, stepProgress } = sample(timeline, tQ);
   renderScene(ctx, scene, {
     theme: dark ? DARK_THEME : LIGHT_THEME,
-    timeMs: tMs,
+    timeMs: tQ,
+    fxMs: tMs,
     vessel: vesselLookup,
     stage: STAGE,
+    serveProgress: step.stepId === "__final" ? stepProgress : undefined,
     debug: debugChk.checked,
   });
   highlightStep(stepIndex);
@@ -143,7 +151,7 @@ let smoothedFps = 60;
 
 function buildTabs(): void {
   recipeTabs.innerHTML = "";
-  for (const f of FIXTURES) {
+  for (const f of ALL_FIXTURES) {
     const b = document.createElement("button");
     b.textContent = f.title;
     b.className = f === fixture ? "tab active" : "tab";
@@ -193,11 +201,21 @@ function buildSteps(): void {
 }
 
 let lastHighlight = -1;
+let bannerTimer: number | undefined;
 function highlightStep(i: number): void {
   if (i === lastHighlight) return;
   lastHighlight = i;
   for (const li of stepList.children) {
     li.classList.toggle("current", li.getAttribute("data-index") === String(i));
+  }
+  // 像素风步骤横幅（游戏过场）；定格段展示 SERVE!
+  const s = timeline.steps[i];
+  if (s) {
+    const isFinal = s.stepId === "__final";
+    bannerEl.textContent = isFinal ? "★ SERVE! ★" : `STEP ${i + 1} · ${s.label.zh}`;
+    bannerEl.classList.add("show");
+    clearTimeout(bannerTimer);
+    bannerTimer = window.setTimeout(() => bannerEl.classList.remove("show"), isFinal ? 1800 : 1100);
   }
 }
 
@@ -324,6 +342,7 @@ speedSel.onchange = () => {
   buildMeta();
 };
 
+themeBtn.textContent = "浅色"; // 初始即暗调
 themeBtn.onclick = () => {
   dark = !dark;
   document.body.classList.toggle("dark", dark);

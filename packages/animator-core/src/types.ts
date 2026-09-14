@@ -10,7 +10,7 @@
  *     发射器 + 固定 seed 在渲染时按 t 确定性算出。如果粒子带状态，seek 回退时
  *     位置就会跳变，拖时间轴的体验会立刻崩坏。
  */
-import type { ContainerId, VocabLookup } from "@shaker/recipe-ir/core";
+import type { ContainerId, Texture, VocabLookup } from "@shaker/recipe-ir/core";
 
 /* ════════════════════════════ 顶层 ════════════════════════════ */
 
@@ -108,6 +108,11 @@ export interface RenderedLayer {
   blend: number;
   /** 气泡发射率 0..1。 */
   carbonation: number;
+  /**
+   * 液体质地 —— 渲染器据此区分表现：
+   * clear 透亮带液面高光；cloudy 哑光含悬浮微粒；creamy 浑浊加厚；foam 由泡沫冠表达。
+   */
+  texture: Texture;
   /** 溯源 —— UI 悬停原料可高亮它贡献的层。 */
   sourceSlots: string[];
 }

@@ -142,6 +142,7 @@ export const INGREDIENTS: Ing[] = [
   // 装饰物 —— 归入 ingredients(category='garnish')，不单独建表（ADR-009）
   ing("lime-wheel", "青柠片", "Lime Wheel", "garnish", "#c2da72"),
   ing("orange-peel", "橙皮", "Orange Peel", "garnish", "#e8912a"),
+  ing("lemon-peel", "柠檬皮", "Lemon Peel", "garnish", "#e8d84a"),
   ing("orange-wheel", "橙片", "Orange Wheel", "garnish", "#f0a132"),
   ing("cherry", "酒渍樱桃", "Maraschino Cherry", "garnish", "#8c1024"),
   ing("mint-sprig", "薄荷枝", "Mint Sprig", "garnish", "#3f8534"),
@@ -237,7 +238,7 @@ export interface Fixture {
   ir: RecipeIR;
 }
 
-function parse(raw: unknown): RecipeIR {
+export function parse(raw: unknown): RecipeIR {
   const r = RecipeIRSchema.safeParse(raw);
   if (!r.success) {
     throw new Error(`夹具配方不合法：${JSON.stringify(r.error.issues, null, 2)}`);
@@ -398,4 +399,63 @@ export const FIXTURES: Fixture[] = [
       ],
     }),
   },
+
+  {
+    title: "Highball",
+    subtitle: "威士忌 · 苏打（长条冰）",
+    family: "highball",
+    tests: "长条冰（block）+ 苏打补满的气泡。验证冰柱造型、top_up 补满量、气泡发射器。",
+    ir: parse({
+      schemaVersion: 1,
+      glass: "highball",
+      method: "built",
+      ingredients: [
+        { slot: "i1", ingredientId: "bourbon", amount: 45, unit: "ml", role: "base" },
+        { slot: "i2", ingredientId: "soda-water", unit: "top_up", role: "lengthener" },
+        { slot: "i3", ingredientId: "lemon-peel", amount: 1, unit: "piece", role: "garnish" },
+      ],
+      steps: [
+        { id: "s1", action: "ICE", target: "glass", iceType: "block", fill: 0.55 },
+        { id: "s2", action: "ADD", target: "glass", items: ["i1"] },
+        { id: "s3", action: "TOP_UP", target: "glass", items: ["i2"] },
+        { id: "s4", action: "STIR", target: "glass", durationSec: 4 },
+        { id: "s5", action: "GARNISH", target: "glass", items: ["i3"], position: "rim", prep: "twist" },
+      ],
+    }),
+  },
+
+  {
+    title: "Old Fashioned",
+    subtitle: "波本 · 糖浆 · 苦精（球冰）",
+    family: "old_fashioned",
+    tests: "球冰（sphere）+ dash 苦精小剂量滴落 + 挤皮油雾。验证球冰造型、dash 不加液面、STIR 保持清澈。",
+    ir: parse({
+      schemaVersion: 1,
+      glass: "rocks",
+      method: "stirred",
+      ingredients: [
+        { slot: "i1", ingredientId: "bourbon", amount: 50, unit: "ml", role: "base" },
+        { slot: "i2", ingredientId: "simple-syrup", amount: 8, unit: "ml", role: "sweetener" },
+        { slot: "i3", ingredientId: "angostura", amount: 2, unit: "dash", role: "bittering" },
+        { slot: "i4", ingredientId: "orange-peel", amount: 1, unit: "piece", role: "garnish" },
+      ],
+      steps: [
+        { id: "s1", action: "ADD", target: "glass", items: ["i2", "i3"] },
+        { id: "s2", action: "ICE", target: "glass", iceType: "sphere", fill: 0.5 },
+        { id: "s3", action: "ADD", target: "glass", items: ["i1"] },
+        { id: "s4", action: "STIR", target: "glass", durationSec: 20 },
+        {
+          id: "s5",
+          action: "GARNISH",
+          target: "glass",
+          items: ["i4"],
+          position: "rim",
+          prep: "expressed",
+          discard: false,
+        },
+      ],
+    }),
+  },
 ];
+
+export { ASSET_TEST_FIXTURES } from "./asset-test.ts";

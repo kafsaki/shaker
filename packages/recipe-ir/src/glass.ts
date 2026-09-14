@@ -15,6 +15,14 @@ export interface ProfilePoint {
   y: number;
   /** 归一化半径。 */
   r: number;
+  /**
+   * true = 这一点是刻意的尖角（棱面杯、方底杯的棱线），渲染时保持锐利；
+   * 缺省 = 平滑点，渲染器用样条穿过它（coupe 四个点也能出圆润杯腹）。
+   *
+   * 只影响渲染：体积↔高度映射永远走分段线性（physics 不读这个字段），
+   * 样条穿过所有采样点，偏差亚毫米级，液面不会与杯壁错位。
+   */
+  corner?: boolean;
 }
 
 export interface GlassShape {

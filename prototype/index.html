@@ -54,8 +54,24 @@
   }
 
   /* 舞台 */
-  #stage { display: block; border-radius: 8px; width: 400px; height: 520px; }
-  .stagewrap { padding: 0; overflow: hidden; line-height: 0; }
+  #stage { display: block; border-radius: 8px; width: 400px; height: 520px; image-rendering: pixelated; }
+  .stagewrap { padding: 0; overflow: hidden; line-height: 0; position: relative; }
+
+  /* 像素风步骤横幅（游戏过场） */
+  #banner {
+    position: absolute; top: 16px; left: 50%; transform: translateX(-50%);
+    font: 700 15px/1 "Courier New", ui-monospace, monospace; letter-spacing: .16em;
+    color: #ffd9a0; background: rgba(20,14,26,0.92);
+    padding: 9px 18px; border: 3px solid #ffd9a0;
+    box-shadow: 0 0 0 3px #2c1a24, 0 0 18px rgba(255,217,160,0.35);
+    opacity: 0; transition: opacity .12s steps(2);
+    pointer-events: none; white-space: nowrap; z-index: 2;
+  }
+  #banner.show { opacity: 1; }
+  body:not(.dark) #banner {
+    color: #7a4a20; background: rgba(250,246,236,0.95); border-color: #7a4a20;
+    box-shadow: 0 0 0 3px #e0d4bc;
+  }
 
   /* 控件 */
   .controls { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-top: 12px; }
@@ -140,7 +156,7 @@
   .hint { font-size: 11.5px; color: var(--ink-dim); margin: 8px 0 0; }
 </style>
 </head>
-<body>
+<body class="dark">
 
 <header>
   <h1>Shaker · 动画引擎原型</h1>
@@ -150,7 +166,7 @@
 <main>
   <!-- 左：舞台 -->
   <section>
-    <div class="panel stagewrap"><canvas id="stage" width="400" height="520"></canvas></div>
+    <div class="panel stagewrap"><canvas id="stage" width="400" height="520"></canvas><div id="banner"></div></div>
     <input id="scrub" type="range" min="0" max="1000" value="0">
     <div class="controls">
       <button id="play">暂停</button>
