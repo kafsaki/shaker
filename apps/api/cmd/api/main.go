@@ -16,6 +16,7 @@ import (
 	"github.com/kafsaki/shaker/apps/api/db"
 	"github.com/kafsaki/shaker/apps/api/internal/api"
 	"github.com/kafsaki/shaker/apps/api/internal/config"
+	"github.com/kafsaki/shaker/apps/api/internal/seed"
 )
 
 func main() {
@@ -38,9 +39,17 @@ func main() {
 	}
 	slog.Info("迁移完成")
 
+	if cfg.Seed {
+		if err := seed.Run(ctx, pool); err != nil {
+			slog.Error("种子导入失败", "err", err)
+			os.Exit(1)
+		}
+		slog.Info("种子导入完成（幂等）")
+	}
+
 	srv := &http.Server{
 		Addr:              cfg.Addr,
-		Handler:           api.New(pool),
+		Handler:           api.New(pool, cfg),
 		ReadHeaderTimeout: 10 * time.Second,
 	}
 
