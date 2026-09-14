@@ -98,6 +98,12 @@ export const MIXEDNESS_TARGET = {
 /** 密度差小于此值时，ADD 会并入现有层而非新建层（g/cm³）。 */
 export const LAYER_MERGE_DENSITY_THRESHOLD = 0.03;
 
+/**
+ * mixedness 达到此值时把所有液层合并成单层 —— 搅拌到这份上的酒物理上已均匀
+ * （STIR 上限 0.85 会触发合层，ROLL 0.75 保留轻微分层）。
+ */
+export const LAYER_MERGE_MIXEDNESS = 0.8;
+
 /* ────────────────────────── 温度 ────────────────────────── */
 
 export const TEMP_AMBIENT_C = 20;

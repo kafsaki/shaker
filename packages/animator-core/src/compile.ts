@@ -11,6 +11,7 @@ import {
   type IngredientRef,
   type RecipeIR,
   type Step,
+  type VesselSpec,
 } from "@shaker/recipe-ir/core";
 import { stepLabel } from "./labels.ts";
 import {
@@ -52,6 +53,27 @@ const MAIN_POS = { x: 200, y: 448 };
 const POUR_POS = { x: 232, y: 206 };
 /** 双容器并列时的左右位置。 */
 const LEFT_POS = { x: 126, y: 448 };
+
+/**
+ * 台面线的舞台 y —— 渲染器 buffer 高 = stage.height / 4（PS），台面线在倒数第 14 行
+ * （见 animator-web drawBackdrop）。与 DEFAULT_STAGE.height=520 对应 464。
+ */
+const COUNTER_Y = DEFAULT_STAGE.height - 14 * 4;
+
+/**
+ * 器皿最低像素到碗底（液体零点、RenderedContainer.y）的落差：
+ * 高脚杯是柱脚 + 底座（≈1 像素行），无脚杯是厚底一行（4 舞台单位）。
+ * 与渲染器 drawContainer 的柱脚/底座画法保持一致。
+ */
+function footDrop(vessel: VesselSpec): number {
+  const stem = vessel.def.shape.stem;
+  return stem ? stem.height * vessel.scale * UNITS_PER_CM + 4 : 4;
+}
+
+/** 静置容器的碗底舞台 y —— 任何杯型放在台面上时，最低点都落在同一条台面线上。 */
+function restBowlY(vessel: VesselSpec): number {
+  return COUNTER_Y - footDrop(vessel);
+}
 
 /** 工作容器的内置定义（不在 glassware 词表里）。 */
 export const WORK_VESSEL_IDS: Record<Exclude<ContainerId, "glass">, string> = {
@@ -267,10 +289,10 @@ function positionFor(
   active: ContainerState[],
 ): { x: number; y: number } {
   const others = active.filter((o) => o.id !== c.id);
-  if (others.length === 0) return MAIN_POS;
+  if (others.length === 0) return { x: MAIN_POS.x, y: restBowlY(c.vessel) };
   // 焦点容器占主位，其余靠左；更多容器时挤在左侧（v1 不会超过两个同时活跃）
-  if (c.id === focus) return MAIN_POS;
-  return LEFT_POS;
+  if (c.id === focus) return { x: MAIN_POS.x, y: restBowlY(c.vessel) };
+  return { x: LEFT_POS.x, y: restBowlY(c.vessel) };
 }
 
 function frostLevel(c: ContainerState): number {
@@ -378,7 +400,7 @@ function collectEffects(
         rate: (physics.BUBBLE_RATE_PER_100ML * carbonatedMl) / 100,
         region: {
           x: MAIN_POS.x - radius * 0.8,
-          y: MAIN_POS.y - surfaceH * h * 0.9,
+          y: restBowlY(c.vessel) - surfaceH * h * 0.9,
           w: radius * 1.6,
           h: surfaceH * h * 0.85,
         },
@@ -397,7 +419,7 @@ function collectEffects(
         startMs,
         endMs,
         rate: 16 * c.smokeDensity,
-        region: { x: MAIN_POS.x - radius, y: MAIN_POS.y - h, w: radius * 2, h: h * 0.25 },
+        region: { x: MAIN_POS.x - radius, y: restBowlY(c.vessel) - h, w: radius * 2, h: h * 0.25 },
         drift: { vx: 6, vy: c.lidOn ? -4 : 10 },
         size: { min: 6, max: 18 },
         color: "#e8eef2",
@@ -413,7 +435,7 @@ function collectEffects(
         startMs,
         endMs: startMs + Math.min(endMs - startMs, 900),
         rate: 40 * c.aromaMist,
-        region: { x: MAIN_POS.x - radius, y: MAIN_POS.y - h * 1.25, w: radius * 2, h: h * 0.3 },
+        region: { x: MAIN_POS.x - radius, y: restBowlY(c.vessel) - h * 1.25, w: radius * 2, h: h * 0.3 },
         drift: { vx: 0, vy: 18 },
         size: { min: 0.6, max: 1.6 },
         color: "#fff6d8",
@@ -470,7 +492,7 @@ function applyStep(step: Step, ctx: Ctx): void {
       const refs = refsOf(step.items, bySlot);
       emit.at(0, { focus: c.id });
       addToContainer(c, refs, vocab);
-      emit.at(0.5, { focus: c.id, props: [swirlProp()] });
+      emit.at(0.5, { focus: c.id, props: [swirlProp(c)] });
       if (step.discard) {
         // 倒掉多余，只留挂壁着色
         const tint = c.layers[c.layers.length - 1];
@@ -523,8 +545,8 @@ function applyStep(step: Step, ctx: Ctx): void {
       const c = ensure(step.target);
       const refs = refsOf(step.items, bySlot);
       c.active = true;
-      emit.at(0, { focus: c.id, props: [muddlerProp(0)] });
-      emit.at(0.3, { focus: c.id, props: [muddlerProp(1)] });
+      emit.at(0, { focus: c.id, props: [muddlerProp(c, 0)] });
+      emit.at(0.3, { focus: c.id, props: [muddlerProp(c, 1)] });
       // firm 捣压出汁
       if (step.intensity === "firm") {
         const juiced = refs.filter((r) => ["piece", "wedge", "slice"].includes(r.unit));
@@ -539,7 +561,7 @@ function applyStep(step: Step, ctx: Ctx): void {
           );
         }
       }
-      emit.at(0.7, { focus: c.id, props: [muddlerProp(0.4)] });
+      emit.at(0.7, { focus: c.id, props: [muddlerProp(c, 0.4)] });
       emit.at(1, { focus: c.id, props: [] });
       break;
     }
@@ -580,15 +602,15 @@ function applyStep(step: Step, ctx: Ctx): void {
     case "STIR": {
       const c = ensure(step.target);
       c.active = true;
-      emit.at(0, { focus: c.id, props: [barspoonProp(0)] });
-      emit.at(0.4, { focus: c.id, props: [barspoonProp(1)], ease: "linear" });
+      emit.at(0, { focus: c.id, props: [barspoonProp(c, 0)] });
+      emit.at(0.4, { focus: c.id, props: [barspoonProp(c, 1)], ease: "linear" });
       dilute(
         c,
         physics.STIR_DILUTION *
           Math.min(1, (step.durationSec ?? physics.STIR_REFERENCE_SEC) / physics.STIR_REFERENCE_SEC),
       );
       mix(c, physics.MIXEDNESS_TARGET.STIR);
-      emit.at(0.9, { focus: c.id, props: [barspoonProp(1)], ease: "linear" });
+      emit.at(0.9, { focus: c.id, props: [barspoonProp(c, 1)], ease: "linear" });
       emit.at(1, { focus: c.id, props: [] });
       break;
     }
@@ -596,11 +618,11 @@ function applyStep(step: Step, ctx: Ctx): void {
     case "SWIZZLE": {
       const c = ensure(step.target);
       c.active = true;
-      emit.at(0, { focus: c.id, props: [swizzleProp()] });
+      emit.at(0, { focus: c.id, props: [swizzleProp(c)] });
       dilute(c, physics.SWIZZLE_DILUTION);
       mix(c, physics.MIXEDNESS_TARGET.SWIZZLE, { cloudy: true });
       c.temperatureC = physics.TEMP_SWIZZLE_C;
-      emit.at(0.85, { focus: c.id, props: [swizzleProp()] });
+      emit.at(0.85, { focus: c.id, props: [swizzleProp(c)] });
       emit.at(1, { focus: c.id, props: [] });
       break;
     }
@@ -696,10 +718,10 @@ function applyStep(step: Step, ctx: Ctx): void {
       const c = ensure(step.target);
       const refs = refsOf(step.items, bySlot);
       c.active = true;
-      emit.at(0, { focus: c.id, props: [barspoonProp(0.6)] });
+      emit.at(0, { focus: c.id, props: [barspoonProp(c, 0.6)] });
       // forceNewLayer：作者的显式意图优先于物理（规范 §7.3）
       addToContainer(c, refs, vocab, true);
-      emit.at(0.9, { focus: c.id, props: [barspoonProp(0.6)], ease: "easeOut" });
+      emit.at(0.9, { focus: c.id, props: [barspoonProp(c, 0.6)], ease: "easeOut" });
       emit.at(1, { focus: c.id, props: [] });
       break;
     }
@@ -732,9 +754,9 @@ function applyStep(step: Step, ctx: Ctx): void {
     case "SPRITZ": {
       const c = ensure(step.target);
       c.active = true;
-      emit.at(0, { focus: c.id, props: [sprayProp()] });
+      emit.at(0, { focus: c.id, props: [sprayProp(c)] });
       c.aromaMist = Math.min(1, 0.4 * (step.sprays ?? 1));
-      emit.at(1, { focus: c.id, props: [sprayProp()] });
+      emit.at(1, { focus: c.id, props: [sprayProp(c)] });
       break;
     }
 
@@ -748,7 +770,7 @@ function applyStep(step: Step, ctx: Ctx): void {
         startMs: 0,
         endMs: emit.durationMs,
         rate: step.subject === "peel_oil" ? 90 : 40,
-        region: { x: MAIN_POS.x - 16, y: MAIN_POS.y - h - 14, w: 32, h: 14 },
+        region: { x: MAIN_POS.x - 16, y: restBowlY(c.vessel) - h - 14, w: 32, h: 14 },
         drift: { vx: 0, vy: step.subject === "peel_oil" ? 20 : -46 },
         size: { min: 1.5, max: 5 },
         color: step.subject === "peel_oil" ? "#ffb038" : "#ff8a24",
@@ -865,7 +887,7 @@ function attachGarnish(
 function surfaceStreamY(c: ContainerState): number {
   const h = c.vessel.scale * UNITS_PER_CM;
   const surfaceH = heightForVolume(c.vessel, Math.min(occupiedMl(c), c.vessel.def.capacityMl));
-  return MAIN_POS.y - Math.max(0.02, surfaceH) * h - 2;
+  return restBowlY(c.vessel) - Math.max(0.02, surfaceH) * h - 2;
 }
 
 function pourProp(
@@ -913,7 +935,7 @@ function streamBetween(from: ContainerState, to: ContainerState): Prop {
   return {
     kind: "bottle",
     x: LEFT_POS.x,
-    y: LEFT_POS.y - from.vessel.scale * UNITS_PER_CM,
+    y: restBowlY(from.vessel) - from.vessel.scale * UNITS_PER_CM,
     rot: 0.9,
     scale: 1,
     opacity: 1,
@@ -921,22 +943,23 @@ function streamBetween(from: ContainerState, to: ContainerState): Prop {
   };
 }
 
-function barspoonProp(active: number): Prop {
-  return { kind: "barspoon", x: MAIN_POS.x + 6, y: MAIN_POS.y - 150, rot: active * 0.3, scale: 1, opacity: 1 };
+function barspoonProp(c: ContainerState, active: number): Prop {
+  const y = restBowlY(c.vessel);
+  return { kind: "barspoon", x: MAIN_POS.x + 6, y: y - 150, rot: active * 0.3, scale: 1, opacity: 1 };
 }
 
-function swizzleProp(): Prop {
-  return { kind: "swizzle", x: MAIN_POS.x, y: MAIN_POS.y - 160, rot: 0, scale: 1, opacity: 1 };
+function swizzleProp(c: ContainerState): Prop {
+  return { kind: "swizzle", x: MAIN_POS.x, y: restBowlY(c.vessel) - 160, rot: 0, scale: 1, opacity: 1 };
 }
 
-function muddlerProp(depth: number): Prop {
-  return { kind: "muddler", x: MAIN_POS.x, y: MAIN_POS.y - 170 + depth * 40, rot: 0, scale: 1, opacity: 1 };
+function muddlerProp(c: ContainerState, depth: number): Prop {
+  return { kind: "muddler", x: MAIN_POS.x, y: restBowlY(c.vessel) - 170 + depth * 40, rot: 0, scale: 1, opacity: 1 };
 }
 
-function sprayProp(): Prop {
-  return { kind: "spray", x: MAIN_POS.x + 40, y: MAIN_POS.y - 200, rot: -0.4, scale: 1, opacity: 1 };
+function sprayProp(c: ContainerState): Prop {
+  return { kind: "spray", x: MAIN_POS.x + 40, y: restBowlY(c.vessel) - 200, rot: -0.4, scale: 1, opacity: 1 };
 }
 
-function swirlProp(): Prop {
-  return { kind: "barspoon", x: MAIN_POS.x, y: MAIN_POS.y - 140, rot: 0.6, scale: 1, opacity: 0.7 };
+function swirlProp(c: ContainerState): Prop {
+  return { kind: "barspoon", x: MAIN_POS.x, y: restBowlY(c.vessel) - 140, rot: 0.6, scale: 1, opacity: 0.7 };
 }

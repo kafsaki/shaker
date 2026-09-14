@@ -297,8 +297,8 @@ function iceSize(kind: IceType): number {
 /* ────────────────────────── 混合 ────────────────────────── */
 
 /**
- * 提高混合度。达到 1.0 时把所有层合并成单层（加权减色混合）；
- * < 1 时保留多层，层间渐变带宽度由 mixedness 控制。
+ * 提高混合度。达到 LAYER_MERGE_MIXEDNESS（0.8）时把所有层合并成单层（加权减色混合）；
+ * 低于该值时保留多层，层间渐变带宽度由 mixedness 控制。
  *
  * **这是「摇匀」和「分层」能用同一套代码表达的关键**（规范 §4.1）。
  */
@@ -311,7 +311,7 @@ export function mix(c: ContainerState, target: number, opts?: { cloudy?: boolean
     }
   }
 
-  if (c.mixedness >= 1 && c.layers.length > 1) {
+  if (c.mixedness >= physics.LAYER_MERGE_MIXEDNESS && c.layers.length > 1) {
     const total = c.layers.reduce((s, l) => s + l.volumeMl, 0);
     const merged: LiquidLayer = {
       volumeMl: total,

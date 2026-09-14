@@ -68,6 +68,25 @@ test("时间轴末尾有成品定格段，供截封面图", () => {
   }
 });
 
+test("静置容器的最低点都落在台面线上（碗底 y + 柱脚/底座落差 = 464）", () => {
+  // 台面线 = stage.height − 14×4 = 464（渲染器 drawBackdrop 的 counterY）
+  const COUNTER_Y = 464;
+  for (const { f, tl } of compiled) {
+    const last = tl.steps[tl.steps.length - 1]!;
+    const scene = last.keyframes[last.keyframes.length - 1]!.scene;
+    for (const c of scene.containers) {
+      const vessel = VOCAB.vessel(c.vesselId);
+      assert.ok(vessel, `${f.title} 的容器 ${c.vesselId} 不在词表`);
+      const h = vessel.scale * 20; // UNITS_PER_CM
+      const drop = vessel.def.shape.stem ? vessel.def.shape.stem.height * h + 4 : 4;
+      assert.ok(
+        Math.abs(c.y + drop - COUNTER_Y) < 0.01,
+        `${f.title} 的 ${c.vesselId} 最低点不在台面上：y=${c.y} + drop=${drop} ≠ ${COUNTER_Y}`,
+      );
+    }
+  }
+});
+
 test("IR 的每个步骤都在 Timeline 里有对应项", () => {
   for (const { f, tl } of compiled) {
     const irIds = f.ir.steps.map((s) => s.id);
@@ -250,6 +269,13 @@ test("Tequila Sunrise：石榴糖浆密度最大，自然沉到最底层（不�
     bottom.sourceSlots.includes("i3"),
     `最底层应含石榴糖浆(i3)，实际 ${JSON.stringify(bottom.sourceSlots)}`,
   );
+});
+
+test("Highball：搅拌后苏打与威士忌合并成单层（mixedness ≥ 0.8 合层）", () => {
+  const { tl } = compiled.find((c) => c.f.title === "Highball")!;
+  const last = tl.steps[tl.steps.length - 1]!;
+  const glass = last.keyframes[0]!.scene.containers.find((c) => c.id === "glass")!;
+  assert.equal(glass.layers.length, 1, `搅匀后应该只有一层，实际 ${glass.layers.length} 层`);
 });
 
 test("Daiquiri：硬摇后完全混匀成单层，且液体从摇壶转移到了杯里", () => {
