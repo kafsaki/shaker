@@ -1,0 +1,1514 @@
+{
+  "officialUser": {
+    "handle": "shaker",
+    "displayName": "Shaker 官方",
+    "email": "official@shaker.local",
+    "bio": "经典配方与词表维护账号。"
+  },
+  "ingredients": [
+    {
+      "id": "rum-white",
+      "nameZh": "白朗姆",
+      "nameEn": "White Rum",
+      "category": "spirit",
+      "subcategory": null,
+      "abv": 40,
+      "density": 0.94,
+      "viz": {
+        "color": "#f7f3e4",
+        "opacity": 0.9,
+        "carbonated": false,
+        "viscosity": "low",
+        "texture": "clear",
+        "foaming": 0
+      },
+      "aliases": [
+        {
+          "alias": "白朗姆",
+          "lang": "zh"
+        },
+        {
+          "alias": "朗姆酒",
+          "lang": "zh"
+        },
+        {
+          "alias": "light rum",
+          "lang": "en"
+        }
+      ]
+    },
+    {
+      "id": "gin-london-dry",
+      "nameZh": "伦敦干金酒",
+      "nameEn": "London Dry Gin",
+      "category": "spirit",
+      "subcategory": null,
+      "abv": 40,
+      "density": 0.94,
+      "viz": {
+        "color": "#f4f7f4",
+        "opacity": 0.9,
+        "carbonated": false,
+        "viscosity": "low",
+        "texture": "clear",
+        "foaming": 0
+      },
+      "aliases": [
+        {
+          "alias": "金酒",
+          "lang": "zh"
+        },
+        {
+          "alias": "琴酒",
+          "lang": "zh"
+        },
+        {
+          "alias": "gin",
+          "lang": "en"
+        },
+        {
+          "alias": "dry gin",
+          "lang": "en"
+        }
+      ]
+    },
+    {
+      "id": "tequila-blanco",
+      "nameZh": "银龙舌兰",
+      "nameEn": "Tequila Blanco",
+      "category": "spirit",
+      "subcategory": null,
+      "abv": 38,
+      "density": 0.94,
+      "viz": {
+        "color": "#f6f4ea",
+        "opacity": 0.9,
+        "carbonated": false,
+        "viscosity": "low",
+        "texture": "clear",
+        "foaming": 0
+      },
+      "aliases": [
+        {
+          "alias": "龙舌兰",
+          "lang": "zh"
+        },
+        {
+          "alias": "银龙舌兰",
+          "lang": "zh"
+        },
+        {
+          "alias": "tequila",
+          "lang": "en"
+        },
+        {
+          "alias": "blanco",
+          "lang": "en"
+        }
+      ]
+    },
+    {
+      "id": "bourbon",
+      "nameZh": "波本威士忌",
+      "nameEn": "Bourbon",
+      "category": "spirit",
+      "subcategory": null,
+      "abv": 45,
+      "density": 0.94,
+      "viz": {
+        "color": "#c06a1d",
+        "opacity": 0.86,
+        "carbonated": false,
+        "viscosity": "low",
+        "texture": "clear",
+        "foaming": 0
+      },
+      "aliases": [
+        {
+          "alias": "波本",
+          "lang": "zh"
+        },
+        {
+          "alias": "威士忌",
+          "lang": "zh"
+        },
+        {
+          "alias": "whiskey",
+          "lang": "en"
+        },
+        {
+          "alias": "bourbon whiskey",
+          "lang": "en"
+        }
+      ]
+    },
+    {
+      "id": "campari",
+      "nameZh": "金巴利",
+      "nameEn": "Campari",
+      "category": "amaro_bitter",
+      "subcategory": null,
+      "abv": 24,
+      "density": 1.09,
+      "viz": {
+        "color": "#c8102e",
+        "opacity": 0.9,
+        "carbonated": false,
+        "viscosity": "low",
+        "texture": "clear",
+        "foaming": 0
+      },
+      "aliases": [
+        {
+          "alias": "康帕利",
+          "lang": "zh"
+        },
+        {
+          "alias": "坎帕里",
+          "lang": "zh"
+        }
+      ]
+    },
+    {
+      "id": "angostura",
+      "nameZh": "安高天娜苦精",
+      "nameEn": "Angostura Bitters",
+      "category": "amaro_bitter",
+      "subcategory": null,
+      "abv": 44,
+      "density": 1.05,
+      "viz": {
+        "color": "#5e2016",
+        "opacity": 0.9,
+        "carbonated": false,
+        "viscosity": "low",
+        "texture": "clear",
+        "foaming": 0
+      },
+      "aliases": [
+        {
+          "alias": "安高天娜",
+          "lang": "zh"
+        },
+        {
+          "alias": "苦精",
+          "lang": "zh"
+        },
+        {
+          "alias": "bitters",
+          "lang": "en"
+        }
+      ]
+    },
+    {
+      "id": "vermouth-rosso",
+      "nameZh": "红味美思",
+      "nameEn": "Sweet Vermouth",
+      "category": "fortified_wine",
+      "subcategory": null,
+      "abv": 16,
+      "density": 1.05,
+      "viz": {
+        "color": "#7c2d1a",
+        "opacity": 0.88,
+        "carbonated": false,
+        "viscosity": "low",
+        "texture": "clear",
+        "foaming": 0
+      },
+      "aliases": [
+        {
+          "alias": "味美思",
+          "lang": "zh"
+        },
+        {
+          "alias": "甜味美思",
+          "lang": "zh"
+        },
+        {
+          "alias": "sweet vermouth",
+          "lang": "en"
+        },
+        {
+          "alias": "vermouth",
+          "lang": "en"
+        }
+      ]
+    },
+    {
+      "id": "lime-juice",
+      "nameZh": "青柠汁",
+      "nameEn": "Lime Juice",
+      "category": "juice",
+      "subcategory": null,
+      "abv": 0,
+      "density": 1.03,
+      "viz": {
+        "color": "#d7e59b",
+        "opacity": 0.85,
+        "carbonated": false,
+        "viscosity": "low",
+        "texture": "cloudy",
+        "foaming": 0
+      },
+      "aliases": [
+        {
+          "alias": "青柠",
+          "lang": "zh"
+        },
+        {
+          "alias": "莱姆汁",
+          "lang": "zh"
+        },
+        {
+          "alias": "lime",
+          "lang": "en"
+        }
+      ]
+    },
+    {
+      "id": "lemon-juice",
+      "nameZh": "柠檬汁",
+      "nameEn": "Lemon Juice",
+      "category": "juice",
+      "subcategory": null,
+      "abv": 0,
+      "density": 1.03,
+      "viz": {
+        "color": "#e8e08a",
+        "opacity": 0.85,
+        "carbonated": false,
+        "viscosity": "low",
+        "texture": "cloudy",
+        "foaming": 0
+      },
+      "aliases": [
+        {
+          "alias": "柠檬汁",
+          "lang": "zh"
+        },
+        {
+          "alias": "lemon",
+          "lang": "en"
+        }
+      ]
+    },
+    {
+      "id": "orange-juice",
+      "nameZh": "橙汁",
+      "nameEn": "Orange Juice",
+      "category": "juice",
+      "subcategory": null,
+      "abv": 0,
+      "density": 1.05,
+      "viz": {
+        "color": "#f59b1e",
+        "opacity": 0.95,
+        "carbonated": false,
+        "viscosity": "medium",
+        "texture": "cloudy",
+        "foaming": 0
+      },
+      "aliases": [
+        {
+          "alias": "橙汁",
+          "lang": "zh"
+        },
+        {
+          "alias": "orange",
+          "lang": "en"
+        }
+      ]
+    },
+    {
+      "id": "simple-syrup",
+      "nameZh": "糖浆",
+      "nameEn": "Simple Syrup",
+      "category": "syrup_sweetener",
+      "subcategory": null,
+      "abv": 0,
+      "density": 1.26,
+      "viz": {
+        "color": "#f6f0dd",
+        "opacity": 0.9,
+        "carbonated": false,
+        "viscosity": "high",
+        "texture": "clear",
+        "foaming": 0
+      },
+      "aliases": [
+        {
+          "alias": "糖水",
+          "lang": "zh"
+        },
+        {
+          "alias": "syrup",
+          "lang": "en"
+        },
+        {
+          "alias": "gomme",
+          "lang": "en"
+        }
+      ]
+    },
+    {
+      "id": "grenadine",
+      "nameZh": "石榴糖浆",
+      "nameEn": "Grenadine",
+      "category": "syrup_sweetener",
+      "subcategory": null,
+      "abv": 0,
+      "density": 1.18,
+      "viz": {
+        "color": "#a8082c",
+        "opacity": 0.96,
+        "carbonated": false,
+        "viscosity": "high",
+        "texture": "clear",
+        "foaming": 0
+      },
+      "aliases": [
+        {
+          "alias": "石榴糖浆",
+          "lang": "zh"
+        },
+        {
+          "alias": "红石榴糖浆",
+          "lang": "zh"
+        }
+      ]
+    },
+    {
+      "id": "soda-water",
+      "nameZh": "苏打水",
+      "nameEn": "Soda Water",
+      "category": "mixer",
+      "subcategory": null,
+      "abv": 0,
+      "density": 1,
+      "viz": {
+        "color": "#eef5f8",
+        "opacity": 0.55,
+        "carbonated": true,
+        "viscosity": "low",
+        "texture": "clear",
+        "foaming": 0
+      },
+      "aliases": [
+        {
+          "alias": "苏打",
+          "lang": "zh"
+        },
+        {
+          "alias": "气泡水",
+          "lang": "zh"
+        },
+        {
+          "alias": "soda",
+          "lang": "en"
+        },
+        {
+          "alias": "sparkling water",
+          "lang": "en"
+        }
+      ]
+    },
+    {
+      "id": "egg-white",
+      "nameZh": "蛋清",
+      "nameEn": "Egg White",
+      "category": "dairy_egg",
+      "subcategory": null,
+      "abv": 0,
+      "density": 1.04,
+      "viz": {
+        "color": "#fbf9f2",
+        "opacity": 0.92,
+        "carbonated": false,
+        "viscosity": "medium",
+        "texture": "foam",
+        "foaming": 1
+      },
+      "aliases": [
+        {
+          "alias": "蛋白",
+          "lang": "zh"
+        },
+        {
+          "alias": "egg white",
+          "lang": "en"
+        }
+      ]
+    },
+    {
+      "id": "mint-leaf",
+      "nameZh": "薄荷叶",
+      "nameEn": "Mint Leaves",
+      "category": "spice_herb",
+      "subcategory": null,
+      "abv": null,
+      "density": 1,
+      "viz": {
+        "color": "#4a8f3c",
+        "opacity": 0.9,
+        "carbonated": false,
+        "viscosity": "low",
+        "texture": "clear",
+        "foaming": 0
+      },
+      "aliases": [
+        {
+          "alias": "薄荷",
+          "lang": "zh"
+        },
+        {
+          "alias": "mint",
+          "lang": "en"
+        }
+      ]
+    },
+    {
+      "id": "lime-wheel",
+      "nameZh": "青柠片",
+      "nameEn": "Lime Wheel",
+      "category": "garnish",
+      "subcategory": null,
+      "abv": null,
+      "density": null,
+      "viz": {
+        "color": "#c2da72",
+        "opacity": 0.9,
+        "carbonated": false,
+        "viscosity": "low",
+        "texture": "clear",
+        "foaming": 0
+      },
+      "aliases": [
+        {
+          "alias": "青柠片",
+          "lang": "zh"
+        },
+        {
+          "alias": "lime wheel",
+          "lang": "en"
+        }
+      ]
+    },
+    {
+      "id": "orange-peel",
+      "nameZh": "橙皮",
+      "nameEn": "Orange Peel",
+      "category": "garnish",
+      "subcategory": null,
+      "abv": null,
+      "density": null,
+      "viz": {
+        "color": "#e8912a",
+        "opacity": 0.9,
+        "carbonated": false,
+        "viscosity": "low",
+        "texture": "clear",
+        "foaming": 0
+      },
+      "aliases": [
+        {
+          "alias": "橙皮",
+          "lang": "zh"
+        },
+        {
+          "alias": "orange peel",
+          "lang": "en"
+        }
+      ]
+    },
+    {
+      "id": "orange-wheel",
+      "nameZh": "橙片",
+      "nameEn": "Orange Wheel",
+      "category": "garnish",
+      "subcategory": null,
+      "abv": null,
+      "density": null,
+      "viz": {
+        "color": "#f0a132",
+        "opacity": 0.9,
+        "carbonated": false,
+        "viscosity": "low",
+        "texture": "clear",
+        "foaming": 0
+      },
+      "aliases": [
+        {
+          "alias": "橙片",
+          "lang": "zh"
+        },
+        {
+          "alias": "orange wheel",
+          "lang": "en"
+        }
+      ]
+    },
+    {
+      "id": "cherry",
+      "nameZh": "酒渍樱桃",
+      "nameEn": "Maraschino Cherry",
+      "category": "garnish",
+      "subcategory": null,
+      "abv": null,
+      "density": null,
+      "viz": {
+        "color": "#8c1024",
+        "opacity": 0.9,
+        "carbonated": false,
+        "viscosity": "low",
+        "texture": "clear",
+        "foaming": 0
+      },
+      "aliases": [
+        {
+          "alias": "樱桃",
+          "lang": "zh"
+        },
+        {
+          "alias": "maraschino cherry",
+          "lang": "en"
+        }
+      ]
+    },
+    {
+      "id": "mint-sprig",
+      "nameZh": "薄荷枝",
+      "nameEn": "Mint Sprig",
+      "category": "garnish",
+      "subcategory": null,
+      "abv": null,
+      "density": null,
+      "viz": {
+        "color": "#3f8534",
+        "opacity": 0.9,
+        "carbonated": false,
+        "viscosity": "low",
+        "texture": "clear",
+        "foaming": 0
+      },
+      "aliases": [
+        {
+          "alias": "薄荷枝",
+          "lang": "zh"
+        },
+        {
+          "alias": "mint sprig",
+          "lang": "en"
+        }
+      ]
+    }
+  ],
+  "glassware": [
+    {
+      "id": "coupe",
+      "nameZh": "碟形杯",
+      "nameEn": "Coupe",
+      "capacityMl": 180,
+      "shape": {
+        "profile": [
+          {
+            "y": 0,
+            "r": 0.12
+          },
+          {
+            "y": 0.1,
+            "r": 0.38
+          },
+          {
+            "y": 0.45,
+            "r": 0.49
+          },
+          {
+            "y": 1,
+            "r": 0.5
+          }
+        ],
+        "stem": {
+          "height": 0.62,
+          "width": 0.05
+        },
+        "base": {
+          "radius": 0.32
+        }
+      }
+    },
+    {
+      "id": "martini",
+      "nameZh": "马天尼杯",
+      "nameEn": "Martini",
+      "capacityMl": 150,
+      "shape": {
+        "profile": [
+          {
+            "y": 0,
+            "r": 0.05
+          },
+          {
+            "y": 1,
+            "r": 0.52
+          }
+        ],
+        "stem": {
+          "height": 0.7,
+          "width": 0.05
+        },
+        "base": {
+          "radius": 0.34
+        }
+      }
+    },
+    {
+      "id": "rocks",
+      "nameZh": "古典杯",
+      "nameEn": "Rocks",
+      "capacityMl": 240,
+      "shape": {
+        "profile": [
+          {
+            "y": 0,
+            "r": 0.4888
+          },
+          {
+            "y": 0.06,
+            "r": 0.5096
+          },
+          {
+            "y": 1,
+            "r": 0.52
+          }
+        ]
+      }
+    },
+    {
+      "id": "highball",
+      "nameZh": "高球杯",
+      "nameEn": "Highball",
+      "capacityMl": 300,
+      "shape": {
+        "profile": [
+          {
+            "y": 0,
+            "r": 0.2162
+          },
+          {
+            "y": 0.06,
+            "r": 0.22540000000000002
+          },
+          {
+            "y": 1,
+            "r": 0.23
+          }
+        ]
+      }
+    },
+    {
+      "id": "collins",
+      "nameZh": "柯林斯杯",
+      "nameEn": "Collins",
+      "capacityMl": 350,
+      "shape": {
+        "profile": [
+          {
+            "y": 0,
+            "r": 0.1974
+          },
+          {
+            "y": 0.06,
+            "r": 0.20579999999999998
+          },
+          {
+            "y": 1,
+            "r": 0.21
+          }
+        ]
+      }
+    },
+    {
+      "id": "sour-glass",
+      "nameZh": "酸酒杯",
+      "nameEn": "Sour Glass",
+      "capacityMl": 180,
+      "shape": {
+        "profile": [
+          {
+            "y": 0,
+            "r": 0.282
+          },
+          {
+            "y": 0.06,
+            "r": 0.294
+          },
+          {
+            "y": 1,
+            "r": 0.3
+          }
+        ],
+        "stem": {
+          "height": 0.3,
+          "width": 0.05
+        },
+        "base": {
+          "radius": 0.26
+        }
+      }
+    }
+  ],
+  "techniques": [
+    {
+      "id": "CHILL",
+      "nameZh": "冰镇",
+      "nameEn": "Chill",
+      "iconId": "chill",
+      "sortOrder": 0
+    },
+    {
+      "id": "RIM",
+      "nameZh": "杯口装饰",
+      "nameEn": "Rim",
+      "iconId": "rim",
+      "sortOrder": 1
+    },
+    {
+      "id": "RINSE",
+      "nameZh": "涮杯",
+      "nameEn": "Rinse",
+      "iconId": "rinse",
+      "sortOrder": 2
+    },
+    {
+      "id": "ADD",
+      "nameZh": "加入",
+      "nameEn": "Add",
+      "iconId": "add",
+      "sortOrder": 3
+    },
+    {
+      "id": "ICE",
+      "nameZh": "加冰",
+      "nameEn": "Add Ice",
+      "iconId": "ice",
+      "sortOrder": 4
+    },
+    {
+      "id": "MUDDLE",
+      "nameZh": "捣压",
+      "nameEn": "Muddle",
+      "iconId": "muddle",
+      "sortOrder": 5
+    },
+    {
+      "id": "SHAKE",
+      "nameZh": "摇和",
+      "nameEn": "Shake",
+      "iconId": "shake",
+      "sortOrder": 6
+    },
+    {
+      "id": "STIR",
+      "nameZh": "搅拌",
+      "nameEn": "Stir",
+      "iconId": "stir",
+      "sortOrder": 7
+    },
+    {
+      "id": "SWIZZLE",
+      "nameZh": "旋搅",
+      "nameEn": "Swizzle",
+      "iconId": "swizzle",
+      "sortOrder": 8
+    },
+    {
+      "id": "ROLL",
+      "nameZh": "滚和",
+      "nameEn": "Roll",
+      "iconId": "roll",
+      "sortOrder": 9
+    },
+    {
+      "id": "THROW",
+      "nameZh": "抛接",
+      "nameEn": "Throw",
+      "iconId": "throw",
+      "sortOrder": 10
+    },
+    {
+      "id": "BLEND",
+      "nameZh": "搅打",
+      "nameEn": "Blend",
+      "iconId": "blend",
+      "sortOrder": 11
+    },
+    {
+      "id": "STRAIN",
+      "nameZh": "滤入",
+      "nameEn": "Strain",
+      "iconId": "strain",
+      "sortOrder": 12
+    },
+    {
+      "id": "DUMP",
+      "nameZh": "倒入",
+      "nameEn": "Dump",
+      "iconId": "dump",
+      "sortOrder": 13
+    },
+    {
+      "id": "TOP_UP",
+      "nameZh": "补满",
+      "nameEn": "Top Up",
+      "iconId": "top_up",
+      "sortOrder": 14
+    },
+    {
+      "id": "FLOAT",
+      "nameZh": "漂浮",
+      "nameEn": "Float",
+      "iconId": "float",
+      "sortOrder": 15
+    },
+    {
+      "id": "GARNISH",
+      "nameZh": "装饰",
+      "nameEn": "Garnish",
+      "iconId": "garnish",
+      "sortOrder": 16
+    },
+    {
+      "id": "SPRITZ",
+      "nameZh": "喷雾",
+      "nameEn": "Spritz",
+      "iconId": "spritz",
+      "sortOrder": 17
+    },
+    {
+      "id": "FLAME",
+      "nameZh": "火焰",
+      "nameEn": "Flame",
+      "iconId": "flame",
+      "sortOrder": 18
+    },
+    {
+      "id": "SMOKE",
+      "nameZh": "烟熏",
+      "nameEn": "Smoke",
+      "iconId": "smoke",
+      "sortOrder": 19
+    },
+    {
+      "id": "WAIT",
+      "nameZh": "静置",
+      "nameEn": "Wait",
+      "iconId": "wait",
+      "sortOrder": 20
+    }
+  ],
+  "tags": [
+    {
+      "id": "refreshing",
+      "nameZh": "清爽",
+      "nameEn": "Refreshing",
+      "kind": "taste"
+    },
+    {
+      "id": "sweet",
+      "nameZh": "甜",
+      "nameEn": "Sweet",
+      "kind": "taste"
+    },
+    {
+      "id": "sour",
+      "nameZh": "酸",
+      "nameEn": "Sour",
+      "kind": "taste"
+    },
+    {
+      "id": "bitter",
+      "nameZh": "苦",
+      "nameEn": "Bitter",
+      "kind": "taste"
+    },
+    {
+      "id": "strong",
+      "nameZh": "烈",
+      "nameEn": "Strong",
+      "kind": "taste"
+    },
+    {
+      "id": "smooth",
+      "nameZh": "顺口",
+      "nameEn": "Smooth",
+      "kind": "taste"
+    },
+    {
+      "id": "after-dinner",
+      "nameZh": "餐后",
+      "nameEn": "After Dinner",
+      "kind": "occasion"
+    },
+    {
+      "id": "party",
+      "nameZh": "派对",
+      "nameEn": "Party",
+      "kind": "occasion"
+    },
+    {
+      "id": "summer",
+      "nameZh": "夏季",
+      "nameEn": "Summer",
+      "kind": "season"
+    },
+    {
+      "id": "winter",
+      "nameZh": "冬季",
+      "nameEn": "Winter",
+      "kind": "season"
+    }
+  ],
+  "classicRecipes": [
+    {
+      "title": "Daiquiri",
+      "subtitle": "白朗姆 · 青柠 · 糖浆",
+      "slug": "daiquiri",
+      "classicKey": "daiquiri",
+      "ibaCategory": "unforgettable",
+      "family": "sour",
+      "descriptionMd": "白朗姆、青柠与糖的三元平衡——酸酒家族的教科书。",
+      "lang": "zh",
+      "tasteProfile": {
+        "sweet": 2,
+        "sour": 4,
+        "bitter": 0,
+        "strength": 3
+      },
+      "difficulty": 2,
+      "tags": [
+        "refreshing",
+        "sour",
+        "summer"
+      ],
+      "ir": {
+        "schemaVersion": 1,
+        "glass": "coupe",
+        "method": "shaken",
+        "servings": 1,
+        "ingredients": [
+          {
+            "slot": "i1",
+            "ingredientId": "rum-white",
+            "role": "base",
+            "unit": "ml",
+            "amount": 60
+          },
+          {
+            "slot": "i2",
+            "ingredientId": "lime-juice",
+            "role": "souring",
+            "unit": "ml",
+            "amount": 25
+          },
+          {
+            "slot": "i3",
+            "ingredientId": "simple-syrup",
+            "role": "sweetener",
+            "unit": "ml",
+            "amount": 15
+          },
+          {
+            "slot": "i4",
+            "ingredientId": "lime-wheel",
+            "role": "garnish",
+            "unit": "piece",
+            "amount": 1
+          }
+        ],
+        "steps": [
+          {
+            "action": "CHILL",
+            "id": "s1",
+            "target": "glass",
+            "method": "freezer"
+          },
+          {
+            "action": "ADD",
+            "id": "s2",
+            "target": "shaker",
+            "items": [
+              "i1",
+              "i2",
+              "i3"
+            ]
+          },
+          {
+            "action": "ICE",
+            "id": "s3",
+            "target": "shaker",
+            "iceType": "cube",
+            "fill": 0.8
+          },
+          {
+            "action": "SHAKE",
+            "id": "s4",
+            "target": "shaker",
+            "durationSec": 12,
+            "intensity": "hard"
+          },
+          {
+            "action": "STRAIN",
+            "id": "s5",
+            "from": "shaker",
+            "to": "glass",
+            "strainer": "hawthorne",
+            "double": true
+          },
+          {
+            "action": "GARNISH",
+            "id": "s6",
+            "target": "glass",
+            "items": [
+              "i4"
+            ],
+            "position": "rim",
+            "prep": "wheel"
+          }
+        ]
+      }
+    },
+    {
+      "title": "Negroni",
+      "subtitle": "金酒 · 金巴利 · 红味美思（1:1:1）",
+      "slug": "negroni",
+      "classicKey": "negroni",
+      "ibaCategory": "unforgettable",
+      "family": "equal_parts",
+      "descriptionMd": "等份金酒、金巴利与红味美思，先苦后甘的餐前经典。",
+      "lang": "zh",
+      "tasteProfile": {
+        "sweet": 2,
+        "sour": 0,
+        "bitter": 4,
+        "strength": 3
+      },
+      "difficulty": 1,
+      "tags": [
+        "bitter",
+        "after-dinner"
+      ],
+      "ir": {
+        "schemaVersion": 1,
+        "glass": "rocks",
+        "method": "stirred",
+        "servings": 1,
+        "ingredients": [
+          {
+            "slot": "i1",
+            "ingredientId": "gin-london-dry",
+            "role": "base",
+            "unit": "ml",
+            "amount": 30
+          },
+          {
+            "slot": "i2",
+            "ingredientId": "campari",
+            "role": "bittering",
+            "unit": "ml",
+            "amount": 30
+          },
+          {
+            "slot": "i3",
+            "ingredientId": "vermouth-rosso",
+            "role": "modifier",
+            "unit": "ml",
+            "amount": 30
+          }
+        ],
+        "steps": [
+          {
+            "action": "ICE",
+            "id": "s1",
+            "target": "glass",
+            "iceType": "large_cube",
+            "fill": 0.7
+          },
+          {
+            "action": "ADD",
+            "id": "s2",
+            "target": "glass",
+            "items": [
+              "i1",
+              "i2",
+              "i3"
+            ]
+          },
+          {
+            "action": "STIR",
+            "id": "s3",
+            "target": "glass",
+            "durationSec": 25
+          },
+          {
+            "action": "GARNISH",
+            "id": "s4",
+            "target": "glass",
+            "garnishId": "orange-peel",
+            "position": "rim",
+            "prep": "expressed",
+            "discard": false
+          }
+        ]
+      }
+    },
+    {
+      "title": "Tequila Sunrise",
+      "subtitle": "银龙舌兰 · 橙汁 · 石榴糖浆",
+      "slug": "tequila-sunrise",
+      "classicKey": "tequila-sunrise",
+      "ibaCategory": "contemporary",
+      "family": "highball",
+      "descriptionMd": "橙汁与石榴糖浆的密度分层，日出般的渐变。",
+      "lang": "zh",
+      "tasteProfile": {
+        "sweet": 3,
+        "sour": 1,
+        "bitter": 0,
+        "strength": 2
+      },
+      "difficulty": 1,
+      "tags": [
+        "sweet",
+        "summer"
+      ],
+      "ir": {
+        "schemaVersion": 1,
+        "glass": "highball",
+        "method": "built",
+        "servings": 1,
+        "ingredients": [
+          {
+            "slot": "i1",
+            "ingredientId": "tequila-blanco",
+            "role": "base",
+            "unit": "ml",
+            "amount": 45
+          },
+          {
+            "slot": "i2",
+            "ingredientId": "orange-juice",
+            "role": "lengthener",
+            "unit": "ml",
+            "amount": 90
+          },
+          {
+            "slot": "i3",
+            "ingredientId": "grenadine",
+            "role": "sweetener",
+            "unit": "ml",
+            "amount": 15
+          }
+        ],
+        "steps": [
+          {
+            "action": "ICE",
+            "id": "s1",
+            "target": "glass",
+            "iceType": "cube",
+            "fill": 0.75
+          },
+          {
+            "action": "ADD",
+            "id": "s2",
+            "target": "glass",
+            "items": [
+              "i1",
+              "i2"
+            ]
+          },
+          {
+            "action": "STIR",
+            "id": "s3",
+            "target": "glass",
+            "durationSec": 5
+          },
+          {
+            "action": "ADD",
+            "id": "s4",
+            "target": "glass",
+            "items": [
+              "i3"
+            ]
+          },
+          {
+            "action": "WAIT",
+            "id": "s5",
+            "target": "glass",
+            "durationSec": 20,
+            "reason": "settle"
+          },
+          {
+            "action": "GARNISH",
+            "id": "s6",
+            "target": "glass",
+            "garnishId": "orange-wheel",
+            "position": "rim",
+            "prep": "wheel"
+          }
+        ]
+      }
+    },
+    {
+      "title": "Mojito",
+      "subtitle": "白朗姆 · 薄荷 · 青柠 · 苏打",
+      "slug": "mojito",
+      "classicKey": "mojito",
+      "ibaCategory": "contemporary",
+      "family": "smash_julep",
+      "descriptionMd": "捣压薄荷、青柠与白朗姆，苏打水补满的清凉古巴经典。",
+      "lang": "zh",
+      "tasteProfile": {
+        "sweet": 2,
+        "sour": 3,
+        "bitter": 0,
+        "strength": 2
+      },
+      "difficulty": 2,
+      "tags": [
+        "refreshing",
+        "summer"
+      ],
+      "ir": {
+        "schemaVersion": 1,
+        "glass": "collins",
+        "method": "built",
+        "servings": 1,
+        "ingredients": [
+          {
+            "slot": "i1",
+            "ingredientId": "mint-leaf",
+            "role": "garnish",
+            "unit": "leaf",
+            "amount": 10
+          },
+          {
+            "slot": "i2",
+            "ingredientId": "lime-juice",
+            "role": "souring",
+            "unit": "ml",
+            "amount": 25
+          },
+          {
+            "slot": "i3",
+            "ingredientId": "simple-syrup",
+            "role": "sweetener",
+            "unit": "ml",
+            "amount": 20
+          },
+          {
+            "slot": "i4",
+            "ingredientId": "rum-white",
+            "role": "base",
+            "unit": "ml",
+            "amount": 50
+          },
+          {
+            "slot": "i5",
+            "ingredientId": "soda-water",
+            "role": "lengthener",
+            "unit": "top_up"
+          },
+          {
+            "slot": "i6",
+            "ingredientId": "mint-sprig",
+            "role": "garnish",
+            "unit": "piece",
+            "amount": 1
+          }
+        ],
+        "steps": [
+          {
+            "action": "ADD",
+            "id": "s1",
+            "target": "glass",
+            "items": [
+              "i2",
+              "i3"
+            ]
+          },
+          {
+            "action": "MUDDLE",
+            "id": "s2",
+            "target": "glass",
+            "items": [
+              "i1"
+            ],
+            "intensity": "gentle"
+          },
+          {
+            "action": "ADD",
+            "id": "s3",
+            "target": "glass",
+            "items": [
+              "i4"
+            ]
+          },
+          {
+            "action": "ICE",
+            "id": "s4",
+            "target": "glass",
+            "iceType": "crushed",
+            "fill": 0.85
+          },
+          {
+            "action": "TOP_UP",
+            "id": "s5",
+            "target": "glass",
+            "items": [
+              "i5"
+            ]
+          },
+          {
+            "action": "SWIZZLE",
+            "id": "s6",
+            "target": "glass",
+            "durationSec": 6
+          },
+          {
+            "action": "GARNISH",
+            "id": "s7",
+            "target": "glass",
+            "items": [
+              "i6"
+            ],
+            "position": "in_glass",
+            "prep": "slapped"
+          }
+        ]
+      }
+    },
+    {
+      "title": "Whiskey Sour",
+      "subtitle": "波本 · 柠檬 · 糖浆 · 蛋清",
+      "slug": "whiskey-sour",
+      "classicKey": "whiskey-sour",
+      "ibaCategory": "unforgettable",
+      "family": "sour",
+      "descriptionMd": "波本、柠檬与蛋清干摇出的绵密泡沫冠。",
+      "lang": "zh",
+      "tasteProfile": {
+        "sweet": 3,
+        "sour": 3,
+        "bitter": 0,
+        "strength": 3
+      },
+      "difficulty": 2,
+      "tags": [
+        "sour",
+        "smooth"
+      ],
+      "ir": {
+        "schemaVersion": 1,
+        "glass": "sour-glass",
+        "method": "shaken",
+        "servings": 1,
+        "ingredients": [
+          {
+            "slot": "i1",
+            "ingredientId": "bourbon",
+            "role": "base",
+            "unit": "ml",
+            "amount": 50
+          },
+          {
+            "slot": "i2",
+            "ingredientId": "lemon-juice",
+            "role": "souring",
+            "unit": "ml",
+            "amount": 25
+          },
+          {
+            "slot": "i3",
+            "ingredientId": "simple-syrup",
+            "role": "sweetener",
+            "unit": "ml",
+            "amount": 15
+          },
+          {
+            "slot": "i4",
+            "ingredientId": "egg-white",
+            "role": "texture",
+            "unit": "ml",
+            "amount": 20
+          },
+          {
+            "slot": "i5",
+            "ingredientId": "angostura",
+            "role": "bittering",
+            "unit": "dash",
+            "amount": 3
+          }
+        ],
+        "steps": [
+          {
+            "action": "ADD",
+            "id": "s1",
+            "target": "shaker",
+            "items": [
+              "i1",
+              "i2",
+              "i3",
+              "i4"
+            ]
+          },
+          {
+            "action": "SHAKE",
+            "id": "s2",
+            "target": "shaker",
+            "durationSec": 10,
+            "intensity": "hard",
+            "dryShake": true
+          },
+          {
+            "action": "ICE",
+            "id": "s3",
+            "target": "shaker",
+            "iceType": "cube",
+            "fill": 0.8
+          },
+          {
+            "action": "SHAKE",
+            "id": "s4",
+            "target": "shaker",
+            "durationSec": 12,
+            "intensity": "hard"
+          },
+          {
+            "action": "STRAIN",
+            "id": "s5",
+            "from": "shaker",
+            "to": "glass",
+            "strainer": "fine",
+            "double": true
+          },
+          {
+            "action": "WAIT",
+            "id": "s6",
+            "target": "glass",
+            "durationSec": 15,
+            "reason": "bloom"
+          },
+          {
+            "action": "ADD",
+            "id": "s7",
+            "target": "glass",
+            "items": [
+              "i5"
+            ]
+          }
+        ]
+      }
+    }
+  ]
+}

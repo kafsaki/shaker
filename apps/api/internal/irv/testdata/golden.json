@@ -1,0 +1,463 @@
+{
+  "ingredients": {
+    "rum-white": {
+      "abv": 40,
+      "density": 0.94
+    },
+    "gin-london-dry": {
+      "abv": 40,
+      "density": 0.94
+    },
+    "tequila-blanco": {
+      "abv": 38,
+      "density": 0.94
+    },
+    "bourbon": {
+      "abv": 45,
+      "density": 0.94
+    },
+    "campari": {
+      "abv": 24,
+      "density": 1.09
+    },
+    "angostura": {
+      "abv": 44,
+      "density": 1.05
+    },
+    "vermouth-rosso": {
+      "abv": 16,
+      "density": 1.05
+    },
+    "lime-juice": {
+      "abv": 0,
+      "density": 1.03
+    },
+    "lemon-juice": {
+      "abv": 0,
+      "density": 1.03
+    },
+    "orange-juice": {
+      "abv": 0,
+      "density": 1.05
+    },
+    "simple-syrup": {
+      "abv": 0,
+      "density": 1.26
+    },
+    "grenadine": {
+      "abv": 0,
+      "density": 1.18
+    },
+    "soda-water": {
+      "abv": 0,
+      "density": 1
+    },
+    "egg-white": {
+      "abv": 0,
+      "density": 1.04
+    },
+    "mint-leaf": {
+      "abv": null,
+      "density": 1
+    },
+    "lime-wheel": {
+      "abv": null,
+      "density": null
+    },
+    "orange-peel": {
+      "abv": null,
+      "density": null
+    },
+    "orange-wheel": {
+      "abv": null,
+      "density": null
+    },
+    "cherry": {
+      "abv": null,
+      "density": null
+    },
+    "mint-sprig": {
+      "abv": null,
+      "density": null
+    }
+  },
+  "glassware": {
+    "coupe": {
+      "capacityMl": 180
+    },
+    "martini": {
+      "capacityMl": 150
+    },
+    "rocks": {
+      "capacityMl": 240
+    },
+    "highball": {
+      "capacityMl": 300
+    },
+    "collins": {
+      "capacityMl": 350
+    },
+    "sour-glass": {
+      "capacityMl": 180
+    },
+    "__shaker": {
+      "capacityMl": 530
+    },
+    "__mixing_glass": {
+      "capacityMl": 600
+    },
+    "__blender": {
+      "capacityMl": 1200
+    },
+    "__secondary": {
+      "capacityMl": 400
+    }
+  },
+  "cases": [
+    {
+      "name": "daiquiri-硬摇12秒-25%稀释",
+      "ir": {
+        "schemaVersion": 1,
+        "glass": "coupe",
+        "method": "shaken",
+        "ingredients": [
+          {
+            "slot": "i1",
+            "ingredientId": "rum-white",
+            "amount": 60,
+            "unit": "ml",
+            "role": "base"
+          },
+          {
+            "slot": "i2",
+            "ingredientId": "lime-juice",
+            "amount": 25,
+            "unit": "ml",
+            "role": "souring"
+          },
+          {
+            "slot": "i3",
+            "ingredientId": "simple-syrup",
+            "amount": 15,
+            "unit": "ml",
+            "role": "sweetener"
+          }
+        ],
+        "steps": [
+          {
+            "id": "s1",
+            "action": "ADD",
+            "target": "shaker",
+            "items": [
+              "i1",
+              "i2",
+              "i3"
+            ]
+          },
+          {
+            "id": "s2",
+            "action": "ICE",
+            "target": "shaker",
+            "iceType": "cube",
+            "fill": 0.8
+          },
+          {
+            "id": "s3",
+            "action": "SHAKE",
+            "target": "shaker",
+            "durationSec": 12,
+            "intensity": "hard"
+          },
+          {
+            "id": "s4",
+            "action": "STRAIN",
+            "from": "shaker",
+            "to": "glass",
+            "strainer": "hawthorne"
+          }
+        ]
+      },
+      "expectedAbv": 19.2
+    },
+    {
+      "name": "negroni-搅拌不计稀释",
+      "ir": {
+        "schemaVersion": 1,
+        "glass": "rocks",
+        "method": "stirred",
+        "ingredients": [
+          {
+            "slot": "i1",
+            "ingredientId": "gin-london-dry",
+            "amount": 30,
+            "unit": "ml",
+            "role": "base"
+          },
+          {
+            "slot": "i2",
+            "ingredientId": "campari",
+            "amount": 30,
+            "unit": "ml",
+            "role": "bittering"
+          },
+          {
+            "slot": "i3",
+            "ingredientId": "vermouth-rosso",
+            "amount": 30,
+            "unit": "ml",
+            "role": "modifier"
+          }
+        ],
+        "steps": [
+          {
+            "id": "s1",
+            "action": "ADD",
+            "target": "glass",
+            "items": [
+              "i1",
+              "i2",
+              "i3"
+            ]
+          },
+          {
+            "id": "s2",
+            "action": "STIR",
+            "target": "glass",
+            "durationSec": 25
+          }
+        ]
+      },
+      "expectedAbv": 26.666666666666668
+    },
+    {
+      "name": "whiskey-sour-干摇不计稀释",
+      "ir": {
+        "schemaVersion": 1,
+        "glass": "sour-glass",
+        "method": "shaken",
+        "ingredients": [
+          {
+            "slot": "i1",
+            "ingredientId": "bourbon",
+            "amount": 50,
+            "unit": "ml",
+            "role": "base"
+          },
+          {
+            "slot": "i2",
+            "ingredientId": "lemon-juice",
+            "amount": 25,
+            "unit": "ml",
+            "role": "souring"
+          },
+          {
+            "slot": "i3",
+            "ingredientId": "simple-syrup",
+            "amount": 15,
+            "unit": "ml",
+            "role": "sweetener"
+          },
+          {
+            "slot": "i4",
+            "ingredientId": "egg-white",
+            "amount": 20,
+            "unit": "ml",
+            "role": "texture"
+          }
+        ],
+        "steps": [
+          {
+            "id": "s1",
+            "action": "ADD",
+            "target": "shaker",
+            "items": [
+              "i1",
+              "i2",
+              "i3",
+              "i4"
+            ]
+          },
+          {
+            "id": "s2",
+            "action": "SHAKE",
+            "target": "shaker",
+            "durationSec": 10,
+            "intensity": "hard",
+            "dryShake": true
+          },
+          {
+            "id": "s3",
+            "action": "SHAKE",
+            "target": "shaker",
+            "durationSec": 12,
+            "intensity": "hard"
+          },
+          {
+            "id": "s4",
+            "action": "STRAIN",
+            "from": "shaker",
+            "to": "glass",
+            "strainer": "fine",
+            "double": true
+          }
+        ]
+      },
+      "expectedAbv": 16.363636363636363
+    },
+    {
+      "name": "oz与barspoon换算",
+      "ir": {
+        "schemaVersion": 1,
+        "glass": "martini",
+        "method": "stirred",
+        "ingredients": [
+          {
+            "slot": "i1",
+            "ingredientId": "gin-london-dry",
+            "amount": 2,
+            "unit": "oz",
+            "role": "base"
+          },
+          {
+            "slot": "i2",
+            "ingredientId": "vermouth-rosso",
+            "amount": 1,
+            "unit": "barspoon",
+            "role": "modifier"
+          }
+        ],
+        "steps": [
+          {
+            "id": "s1",
+            "action": "ADD",
+            "target": "mixing_glass",
+            "items": [
+              "i1",
+              "i2"
+            ]
+          },
+          {
+            "id": "s2",
+            "action": "STIR",
+            "target": "mixing_glass",
+            "durationSec": 30
+          },
+          {
+            "id": "s3",
+            "action": "STRAIN",
+            "from": "mixing_glass",
+            "to": "glass",
+            "strainer": "julep"
+          }
+        ]
+      },
+      "expectedAbv": 38.12929677147802
+    },
+    {
+      "name": "top_up与dash-不计入液体",
+      "ir": {
+        "schemaVersion": 1,
+        "glass": "collins",
+        "method": "built",
+        "ingredients": [
+          {
+            "slot": "i1",
+            "ingredientId": "rum-white",
+            "amount": 50,
+            "unit": "ml",
+            "role": "base"
+          },
+          {
+            "slot": "i2",
+            "ingredientId": "angostura",
+            "amount": 3,
+            "unit": "dash",
+            "role": "bittering"
+          },
+          {
+            "slot": "i3",
+            "ingredientId": "soda-water",
+            "unit": "top_up",
+            "role": "lengthener"
+          }
+        ],
+        "steps": [
+          {
+            "id": "s1",
+            "action": "ADD",
+            "target": "glass",
+            "items": [
+              "i1",
+              "i2"
+            ]
+          },
+          {
+            "id": "s2",
+            "action": "ICE",
+            "target": "glass",
+            "iceType": "cube",
+            "fill": 0.85
+          },
+          {
+            "id": "s3",
+            "action": "TOP_UP",
+            "target": "glass",
+            "items": [
+              "i3"
+            ]
+          }
+        ]
+      },
+      "expectedAbv": 40
+    },
+    {
+      "name": "无酒精-返回null",
+      "ir": {
+        "schemaVersion": 1,
+        "glass": "highball",
+        "method": "built",
+        "ingredients": [
+          {
+            "slot": "i1",
+            "ingredientId": "orange-juice",
+            "amount": 120,
+            "unit": "ml",
+            "role": "base"
+          },
+          {
+            "slot": "i2",
+            "ingredientId": "soda-water",
+            "unit": "top_up",
+            "role": "lengthener"
+          }
+        ],
+        "steps": [
+          {
+            "id": "s1",
+            "action": "ADD",
+            "target": "glass",
+            "items": [
+              "i1"
+            ]
+          },
+          {
+            "id": "s2",
+            "action": "ICE",
+            "target": "glass",
+            "iceType": "cube",
+            "fill": 0.8
+          },
+          {
+            "id": "s3",
+            "action": "TOP_UP",
+            "target": "glass",
+            "items": [
+              "i2"
+            ]
+          }
+        ]
+      },
+      "expectedAbv": null
+    }
+  ]
+}

@@ -11,6 +11,8 @@
     "typecheck": "pnpm -r typecheck",
     "test": "pnpm -r test",
     "gen:schema": "pnpm --filter @shaker/recipe-ir gen:schema",
+    "gen:golden": "node --experimental-strip-types packages/recipe-ir/scripts/gen-golden.ts",
+    "gen:seed": "node --experimental-strip-types packages/seed/scripts/export.ts",
     "check:schema": "pnpm gen:schema && git diff --exit-code schema/recipe-ir.schema.json"
   },
   "devDependencies": {

@@ -6,6 +6,9 @@
  * CI 里跑：
  *   pnpm gen:schema && git diff --exit-code schema/recipe-ir.schema.json
  * 漂移就红。
+ *
+ * 同一份产物写两处：仓库根 schema/（文档与前端引用）与 apps/api/internal/irv/
+ * （go:embed 不能引用模块外路径，只能靠同脚本双写保证一致）。
  */
 import { writeFileSync, mkdirSync } from "node:fs";
 import { dirname, resolve } from "node:path";
@@ -14,7 +17,10 @@ import { z } from "zod";
 import { RecipeIR, SCHEMA_VERSION } from "../src/ir.ts";
 
 const here = dirname(fileURLToPath(import.meta.url));
-const outPath = resolve(here, "../../../schema/recipe-ir.schema.json");
+const outPaths = [
+  resolve(here, "../../../schema/recipe-ir.schema.json"),
+  resolve(here, "../../../apps/api/internal/irv/recipe-ir.schema.json"),
+];
 
 /**
  * `io: "input"` 是必须的，不是可选优化。
@@ -37,6 +43,9 @@ const doc = {
   ...jsonSchema,
 };
 
-mkdirSync(dirname(outPath), { recursive: true });
-writeFileSync(outPath, JSON.stringify(doc, null, 2) + "\n", "utf8");
-console.log(`已写出 ${outPath}`);
+for (const outPath of outPaths) {
+  mkdirSync(dirname(outPath), { recursive: true });
+  writeFileSync(outPath, JSON.stringify(doc, null, 2) + "\n", "utf8");
+  console.log(`已写出 ${outPath}`);
+}
+

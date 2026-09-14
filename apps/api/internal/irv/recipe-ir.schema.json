@@ -1,0 +1,1678 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://shaker.local/schema/recipe-ir/v1.json",
+  "title": "Recipe IR v1",
+  "description": "配方中间表示。由 packages/recipe-ir 的 zod schema 生成 —— 不要手改这个文件，改 zod 再跑 pnpm gen:schema。",
+  "type": "object",
+  "properties": {
+    "schemaVersion": {
+      "type": "number",
+      "const": 1
+    },
+    "glass": {
+      "type": "string",
+      "maxLength": 64,
+      "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$"
+    },
+    "method": {
+      "type": "string",
+      "enum": [
+        "shaken",
+        "stirred",
+        "built",
+        "blended",
+        "thrown",
+        "swizzled",
+        "rolled",
+        "layered"
+      ]
+    },
+    "servings": {
+      "default": 1,
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 50
+    },
+    "ingredients": {
+      "minItems": 1,
+      "maxItems": 30,
+      "type": "array",
+      "items": {
+        "anyOf": [
+          {
+            "type": "object",
+            "properties": {
+              "slot": {
+                "type": "string",
+                "pattern": "^[a-z][a-z0-9_]{0,15}$"
+              },
+              "ingredientId": {
+                "type": "string",
+                "maxLength": 64,
+                "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$"
+              },
+              "role": {
+                "type": "string",
+                "enum": [
+                  "base",
+                  "modifier",
+                  "sweetener",
+                  "souring",
+                  "bittering",
+                  "lengthener",
+                  "texture",
+                  "rinse",
+                  "garnish",
+                  "ice"
+                ]
+              },
+              "note": {
+                "type": "string",
+                "maxLength": 200
+              },
+              "optional": {
+                "type": "boolean"
+              },
+              "unit": {
+                "type": "string",
+                "enum": [
+                  "ml",
+                  "cl",
+                  "oz"
+                ]
+              },
+              "amount": {
+                "type": "number",
+                "exclusiveMinimum": 0,
+                "maximum": 5000
+              }
+            },
+            "required": [
+              "slot",
+              "ingredientId",
+              "role",
+              "unit",
+              "amount"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "slot": {
+                "type": "string",
+                "pattern": "^[a-z][a-z0-9_]{0,15}$"
+              },
+              "ingredientId": {
+                "type": "string",
+                "maxLength": 64,
+                "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$"
+              },
+              "role": {
+                "type": "string",
+                "enum": [
+                  "base",
+                  "modifier",
+                  "sweetener",
+                  "souring",
+                  "bittering",
+                  "lengthener",
+                  "texture",
+                  "rinse",
+                  "garnish",
+                  "ice"
+                ]
+              },
+              "note": {
+                "type": "string",
+                "maxLength": 200
+              },
+              "optional": {
+                "type": "boolean"
+              },
+              "unit": {
+                "type": "string",
+                "enum": [
+                  "barspoon",
+                  "tsp"
+                ]
+              },
+              "amount": {
+                "type": "number",
+                "exclusiveMinimum": 0,
+                "maximum": 50
+              }
+            },
+            "required": [
+              "slot",
+              "ingredientId",
+              "role",
+              "unit",
+              "amount"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "slot": {
+                "type": "string",
+                "pattern": "^[a-z][a-z0-9_]{0,15}$"
+              },
+              "ingredientId": {
+                "type": "string",
+                "maxLength": 64,
+                "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$"
+              },
+              "role": {
+                "type": "string",
+                "enum": [
+                  "base",
+                  "modifier",
+                  "sweetener",
+                  "souring",
+                  "bittering",
+                  "lengthener",
+                  "texture",
+                  "rinse",
+                  "garnish",
+                  "ice"
+                ]
+              },
+              "note": {
+                "type": "string",
+                "maxLength": 200
+              },
+              "optional": {
+                "type": "boolean"
+              },
+              "unit": {
+                "type": "string",
+                "enum": [
+                  "dash",
+                  "drop"
+                ]
+              },
+              "amount": {
+                "type": "number",
+                "exclusiveMinimum": 0,
+                "maximum": 100
+              }
+            },
+            "required": [
+              "slot",
+              "ingredientId",
+              "role",
+              "unit",
+              "amount"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "slot": {
+                "type": "string",
+                "pattern": "^[a-z][a-z0-9_]{0,15}$"
+              },
+              "ingredientId": {
+                "type": "string",
+                "maxLength": 64,
+                "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$"
+              },
+              "role": {
+                "type": "string",
+                "enum": [
+                  "base",
+                  "modifier",
+                  "sweetener",
+                  "souring",
+                  "bittering",
+                  "lengthener",
+                  "texture",
+                  "rinse",
+                  "garnish",
+                  "ice"
+                ]
+              },
+              "note": {
+                "type": "string",
+                "maxLength": 200
+              },
+              "optional": {
+                "type": "boolean"
+              },
+              "unit": {
+                "type": "string",
+                "enum": [
+                  "piece",
+                  "leaf",
+                  "wedge",
+                  "slice"
+                ]
+              },
+              "amount": {
+                "type": "integer",
+                "exclusiveMinimum": 0,
+                "maximum": 100
+              }
+            },
+            "required": [
+              "slot",
+              "ingredientId",
+              "role",
+              "unit",
+              "amount"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "slot": {
+                "type": "string",
+                "pattern": "^[a-z][a-z0-9_]{0,15}$"
+              },
+              "ingredientId": {
+                "type": "string",
+                "maxLength": 64,
+                "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$"
+              },
+              "role": {
+                "type": "string",
+                "enum": [
+                  "base",
+                  "modifier",
+                  "sweetener",
+                  "souring",
+                  "bittering",
+                  "lengthener",
+                  "texture",
+                  "rinse",
+                  "garnish",
+                  "ice"
+                ]
+              },
+              "note": {
+                "type": "string",
+                "maxLength": 200
+              },
+              "optional": {
+                "type": "boolean"
+              },
+              "unit": {
+                "type": "string",
+                "enum": [
+                  "top_up",
+                  "rim",
+                  "to_taste"
+                ]
+              }
+            },
+            "required": [
+              "slot",
+              "ingredientId",
+              "role",
+              "unit"
+            ],
+            "additionalProperties": false
+          }
+        ]
+      }
+    },
+    "steps": {
+      "minItems": 1,
+      "maxItems": 40,
+      "type": "array",
+      "items": {
+        "oneOf": [
+          {
+            "type": "object",
+            "properties": {
+              "action": {
+                "type": "string",
+                "const": "CHILL"
+              },
+              "id": {
+                "type": "string",
+                "pattern": "^[a-z][a-z0-9_]{0,15}$"
+              },
+              "text": {
+                "type": "object",
+                "properties": {
+                  "zh": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 500
+                  },
+                  "en": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 500
+                  }
+                }
+              },
+              "note": {
+                "type": "string",
+                "maxLength": 500
+              },
+              "target": {
+                "type": "string",
+                "enum": [
+                  "shaker",
+                  "mixing_glass",
+                  "glass",
+                  "blender",
+                  "secondary"
+                ]
+              },
+              "method": {
+                "type": "string",
+                "enum": [
+                  "ice_water",
+                  "freezer"
+                ]
+              }
+            },
+            "required": [
+              "action",
+              "id",
+              "target"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "action": {
+                "type": "string",
+                "const": "RIM"
+              },
+              "id": {
+                "type": "string",
+                "pattern": "^[a-z][a-z0-9_]{0,15}$"
+              },
+              "text": {
+                "type": "object",
+                "properties": {
+                  "zh": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 500
+                  },
+                  "en": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 500
+                  }
+                }
+              },
+              "note": {
+                "type": "string",
+                "maxLength": 500
+              },
+              "target": {
+                "type": "string",
+                "enum": [
+                  "shaker",
+                  "mixing_glass",
+                  "glass",
+                  "blender",
+                  "secondary"
+                ]
+              },
+              "material": {
+                "type": "string",
+                "pattern": "^[a-z][a-z0-9_]{0,15}$"
+              },
+              "coverage": {
+                "type": "string",
+                "enum": [
+                  "full",
+                  "half"
+                ]
+              }
+            },
+            "required": [
+              "action",
+              "id",
+              "target",
+              "material"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "action": {
+                "type": "string",
+                "const": "RINSE"
+              },
+              "id": {
+                "type": "string",
+                "pattern": "^[a-z][a-z0-9_]{0,15}$"
+              },
+              "text": {
+                "type": "object",
+                "properties": {
+                  "zh": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 500
+                  },
+                  "en": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 500
+                  }
+                }
+              },
+              "note": {
+                "type": "string",
+                "maxLength": 500
+              },
+              "target": {
+                "type": "string",
+                "enum": [
+                  "shaker",
+                  "mixing_glass",
+                  "glass",
+                  "blender",
+                  "secondary"
+                ]
+              },
+              "items": {
+                "minItems": 1,
+                "maxItems": 20,
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "pattern": "^[a-z][a-z0-9_]{0,15}$"
+                }
+              },
+              "discard": {
+                "type": "boolean"
+              }
+            },
+            "required": [
+              "action",
+              "id",
+              "target",
+              "items"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "action": {
+                "type": "string",
+                "const": "ADD"
+              },
+              "id": {
+                "type": "string",
+                "pattern": "^[a-z][a-z0-9_]{0,15}$"
+              },
+              "text": {
+                "type": "object",
+                "properties": {
+                  "zh": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 500
+                  },
+                  "en": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 500
+                  }
+                }
+              },
+              "note": {
+                "type": "string",
+                "maxLength": 500
+              },
+              "target": {
+                "type": "string",
+                "enum": [
+                  "shaker",
+                  "mixing_glass",
+                  "glass",
+                  "blender",
+                  "secondary"
+                ]
+              },
+              "items": {
+                "minItems": 1,
+                "maxItems": 20,
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "pattern": "^[a-z][a-z0-9_]{0,15}$"
+                }
+              },
+              "pour": {
+                "type": "string",
+                "enum": [
+                  "sequential",
+                  "simultaneous"
+                ]
+              }
+            },
+            "required": [
+              "action",
+              "id",
+              "target",
+              "items"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "action": {
+                "type": "string",
+                "const": "ICE"
+              },
+              "id": {
+                "type": "string",
+                "pattern": "^[a-z][a-z0-9_]{0,15}$"
+              },
+              "text": {
+                "type": "object",
+                "properties": {
+                  "zh": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 500
+                  },
+                  "en": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 500
+                  }
+                }
+              },
+              "note": {
+                "type": "string",
+                "maxLength": 500
+              },
+              "target": {
+                "type": "string",
+                "enum": [
+                  "shaker",
+                  "mixing_glass",
+                  "glass",
+                  "blender",
+                  "secondary"
+                ]
+              },
+              "iceType": {
+                "type": "string",
+                "enum": [
+                  "cube",
+                  "large_cube",
+                  "sphere",
+                  "cracked",
+                  "crushed",
+                  "block",
+                  "dry_ice"
+                ]
+              },
+              "fill": {
+                "type": "number",
+                "minimum": 0,
+                "maximum": 1
+              }
+            },
+            "required": [
+              "action",
+              "id",
+              "target",
+              "iceType",
+              "fill"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "action": {
+                "type": "string",
+                "const": "MUDDLE"
+              },
+              "id": {
+                "type": "string",
+                "pattern": "^[a-z][a-z0-9_]{0,15}$"
+              },
+              "text": {
+                "type": "object",
+                "properties": {
+                  "zh": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 500
+                  },
+                  "en": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 500
+                  }
+                }
+              },
+              "note": {
+                "type": "string",
+                "maxLength": 500
+              },
+              "target": {
+                "type": "string",
+                "enum": [
+                  "shaker",
+                  "mixing_glass",
+                  "glass",
+                  "blender",
+                  "secondary"
+                ]
+              },
+              "items": {
+                "minItems": 1,
+                "maxItems": 20,
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "pattern": "^[a-z][a-z0-9_]{0,15}$"
+                }
+              },
+              "intensity": {
+                "type": "string",
+                "enum": [
+                  "gentle",
+                  "firm"
+                ]
+              }
+            },
+            "required": [
+              "action",
+              "id",
+              "target",
+              "items"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "action": {
+                "type": "string",
+                "const": "SHAKE"
+              },
+              "id": {
+                "type": "string",
+                "pattern": "^[a-z][a-z0-9_]{0,15}$"
+              },
+              "text": {
+                "type": "object",
+                "properties": {
+                  "zh": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 500
+                  },
+                  "en": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 500
+                  }
+                }
+              },
+              "note": {
+                "type": "string",
+                "maxLength": 500
+              },
+              "target": {
+                "type": "string",
+                "enum": [
+                  "shaker",
+                  "mixing_glass",
+                  "glass",
+                  "blender",
+                  "secondary"
+                ]
+              },
+              "durationSec": {
+                "type": "number",
+                "exclusiveMinimum": 0,
+                "maximum": 600
+              },
+              "intensity": {
+                "type": "string",
+                "enum": [
+                  "gentle",
+                  "standard",
+                  "hard"
+                ]
+              },
+              "dryShake": {
+                "type": "boolean"
+              }
+            },
+            "required": [
+              "action",
+              "id",
+              "target"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "action": {
+                "type": "string",
+                "const": "STIR"
+              },
+              "id": {
+                "type": "string",
+                "pattern": "^[a-z][a-z0-9_]{0,15}$"
+              },
+              "text": {
+                "type": "object",
+                "properties": {
+                  "zh": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 500
+                  },
+                  "en": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 500
+                  }
+                }
+              },
+              "note": {
+                "type": "string",
+                "maxLength": 500
+              },
+              "target": {
+                "type": "string",
+                "enum": [
+                  "shaker",
+                  "mixing_glass",
+                  "glass",
+                  "blender",
+                  "secondary"
+                ]
+              },
+              "durationSec": {
+                "type": "number",
+                "exclusiveMinimum": 0,
+                "maximum": 600
+              },
+              "revolutions": {
+                "type": "integer",
+                "exclusiveMinimum": 0,
+                "maximum": 200
+              }
+            },
+            "required": [
+              "action",
+              "id",
+              "target"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "action": {
+                "type": "string",
+                "const": "SWIZZLE"
+              },
+              "id": {
+                "type": "string",
+                "pattern": "^[a-z][a-z0-9_]{0,15}$"
+              },
+              "text": {
+                "type": "object",
+                "properties": {
+                  "zh": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 500
+                  },
+                  "en": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 500
+                  }
+                }
+              },
+              "note": {
+                "type": "string",
+                "maxLength": 500
+              },
+              "target": {
+                "type": "string",
+                "enum": [
+                  "shaker",
+                  "mixing_glass",
+                  "glass",
+                  "blender",
+                  "secondary"
+                ]
+              },
+              "durationSec": {
+                "type": "number",
+                "exclusiveMinimum": 0,
+                "maximum": 600
+              }
+            },
+            "required": [
+              "action",
+              "id",
+              "target"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "action": {
+                "type": "string",
+                "const": "ROLL"
+              },
+              "id": {
+                "type": "string",
+                "pattern": "^[a-z][a-z0-9_]{0,15}$"
+              },
+              "text": {
+                "type": "object",
+                "properties": {
+                  "zh": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 500
+                  },
+                  "en": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 500
+                  }
+                }
+              },
+              "note": {
+                "type": "string",
+                "maxLength": 500
+              },
+              "from": {
+                "type": "string",
+                "enum": [
+                  "shaker",
+                  "mixing_glass",
+                  "glass",
+                  "blender",
+                  "secondary"
+                ]
+              },
+              "to": {
+                "type": "string",
+                "enum": [
+                  "shaker",
+                  "mixing_glass",
+                  "glass",
+                  "blender",
+                  "secondary"
+                ]
+              },
+              "times": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 10
+              }
+            },
+            "required": [
+              "action",
+              "id",
+              "from",
+              "to",
+              "times"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "action": {
+                "type": "string",
+                "const": "THROW"
+              },
+              "id": {
+                "type": "string",
+                "pattern": "^[a-z][a-z0-9_]{0,15}$"
+              },
+              "text": {
+                "type": "object",
+                "properties": {
+                  "zh": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 500
+                  },
+                  "en": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 500
+                  }
+                }
+              },
+              "note": {
+                "type": "string",
+                "maxLength": 500
+              },
+              "from": {
+                "type": "string",
+                "enum": [
+                  "shaker",
+                  "mixing_glass",
+                  "glass",
+                  "blender",
+                  "secondary"
+                ]
+              },
+              "to": {
+                "type": "string",
+                "enum": [
+                  "shaker",
+                  "mixing_glass",
+                  "glass",
+                  "blender",
+                  "secondary"
+                ]
+              },
+              "times": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 10
+              },
+              "height": {
+                "type": "string",
+                "enum": [
+                  "low",
+                  "high"
+                ]
+              }
+            },
+            "required": [
+              "action",
+              "id",
+              "from",
+              "to",
+              "times"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "action": {
+                "type": "string",
+                "const": "BLEND"
+              },
+              "id": {
+                "type": "string",
+                "pattern": "^[a-z][a-z0-9_]{0,15}$"
+              },
+              "text": {
+                "type": "object",
+                "properties": {
+                  "zh": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 500
+                  },
+                  "en": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 500
+                  }
+                }
+              },
+              "note": {
+                "type": "string",
+                "maxLength": 500
+              },
+              "target": {
+                "type": "string",
+                "enum": [
+                  "shaker",
+                  "mixing_glass",
+                  "glass",
+                  "blender",
+                  "secondary"
+                ]
+              },
+              "durationSec": {
+                "type": "number",
+                "exclusiveMinimum": 0,
+                "maximum": 600
+              },
+              "speed": {
+                "type": "string",
+                "enum": [
+                  "low",
+                  "high"
+                ]
+              }
+            },
+            "required": [
+              "action",
+              "id",
+              "target"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "action": {
+                "type": "string",
+                "const": "STRAIN"
+              },
+              "id": {
+                "type": "string",
+                "pattern": "^[a-z][a-z0-9_]{0,15}$"
+              },
+              "text": {
+                "type": "object",
+                "properties": {
+                  "zh": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 500
+                  },
+                  "en": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 500
+                  }
+                }
+              },
+              "note": {
+                "type": "string",
+                "maxLength": 500
+              },
+              "from": {
+                "type": "string",
+                "enum": [
+                  "shaker",
+                  "mixing_glass",
+                  "glass",
+                  "blender",
+                  "secondary"
+                ]
+              },
+              "to": {
+                "type": "string",
+                "enum": [
+                  "shaker",
+                  "mixing_glass",
+                  "glass",
+                  "blender",
+                  "secondary"
+                ]
+              },
+              "strainer": {
+                "type": "string",
+                "enum": [
+                  "hawthorne",
+                  "julep",
+                  "fine",
+                  "none"
+                ]
+              },
+              "double": {
+                "type": "boolean"
+              }
+            },
+            "required": [
+              "action",
+              "id",
+              "from",
+              "to"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "action": {
+                "type": "string",
+                "const": "DUMP"
+              },
+              "id": {
+                "type": "string",
+                "pattern": "^[a-z][a-z0-9_]{0,15}$"
+              },
+              "text": {
+                "type": "object",
+                "properties": {
+                  "zh": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 500
+                  },
+                  "en": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 500
+                  }
+                }
+              },
+              "note": {
+                "type": "string",
+                "maxLength": 500
+              },
+              "from": {
+                "type": "string",
+                "enum": [
+                  "shaker",
+                  "mixing_glass",
+                  "glass",
+                  "blender",
+                  "secondary"
+                ]
+              },
+              "to": {
+                "type": "string",
+                "enum": [
+                  "shaker",
+                  "mixing_glass",
+                  "glass",
+                  "blender",
+                  "secondary"
+                ]
+              }
+            },
+            "required": [
+              "action",
+              "id",
+              "from",
+              "to"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "action": {
+                "type": "string",
+                "const": "TOP_UP"
+              },
+              "id": {
+                "type": "string",
+                "pattern": "^[a-z][a-z0-9_]{0,15}$"
+              },
+              "text": {
+                "type": "object",
+                "properties": {
+                  "zh": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 500
+                  },
+                  "en": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 500
+                  }
+                }
+              },
+              "note": {
+                "type": "string",
+                "maxLength": 500
+              },
+              "target": {
+                "type": "string",
+                "enum": [
+                  "shaker",
+                  "mixing_glass",
+                  "glass",
+                  "blender",
+                  "secondary"
+                ]
+              },
+              "items": {
+                "minItems": 1,
+                "maxItems": 20,
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "pattern": "^[a-z][a-z0-9_]{0,15}$"
+                }
+              }
+            },
+            "required": [
+              "action",
+              "id",
+              "target",
+              "items"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "action": {
+                "type": "string",
+                "const": "FLOAT"
+              },
+              "id": {
+                "type": "string",
+                "pattern": "^[a-z][a-z0-9_]{0,15}$"
+              },
+              "text": {
+                "type": "object",
+                "properties": {
+                  "zh": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 500
+                  },
+                  "en": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 500
+                  }
+                }
+              },
+              "note": {
+                "type": "string",
+                "maxLength": 500
+              },
+              "target": {
+                "type": "string",
+                "enum": [
+                  "shaker",
+                  "mixing_glass",
+                  "glass",
+                  "blender",
+                  "secondary"
+                ]
+              },
+              "items": {
+                "minItems": 1,
+                "maxItems": 20,
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "pattern": "^[a-z][a-z0-9_]{0,15}$"
+                }
+              },
+              "technique": {
+                "type": "string",
+                "enum": [
+                  "over_spoon",
+                  "gentle_pour"
+                ]
+              }
+            },
+            "required": [
+              "action",
+              "id",
+              "target",
+              "items"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "action": {
+                "type": "string",
+                "const": "GARNISH"
+              },
+              "id": {
+                "type": "string",
+                "pattern": "^[a-z][a-z0-9_]{0,15}$"
+              },
+              "text": {
+                "type": "object",
+                "properties": {
+                  "zh": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 500
+                  },
+                  "en": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 500
+                  }
+                }
+              },
+              "note": {
+                "type": "string",
+                "maxLength": 500
+              },
+              "target": {
+                "type": "string",
+                "enum": [
+                  "shaker",
+                  "mixing_glass",
+                  "glass",
+                  "blender",
+                  "secondary"
+                ]
+              },
+              "garnishId": {
+                "type": "string",
+                "maxLength": 64,
+                "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$"
+              },
+              "items": {
+                "minItems": 1,
+                "maxItems": 20,
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "pattern": "^[a-z][a-z0-9_]{0,15}$"
+                }
+              },
+              "position": {
+                "type": "string",
+                "enum": [
+                  "rim",
+                  "in_glass",
+                  "float",
+                  "skewer",
+                  "side"
+                ]
+              },
+              "prep": {
+                "type": "string",
+                "enum": [
+                  "twist",
+                  "wheel",
+                  "wedge",
+                  "flag",
+                  "dehydrated",
+                  "expressed",
+                  "slapped",
+                  "none"
+                ]
+              },
+              "discard": {
+                "type": "boolean"
+              }
+            },
+            "required": [
+              "action",
+              "id",
+              "target",
+              "position"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "action": {
+                "type": "string",
+                "const": "SPRITZ"
+              },
+              "id": {
+                "type": "string",
+                "pattern": "^[a-z][a-z0-9_]{0,15}$"
+              },
+              "text": {
+                "type": "object",
+                "properties": {
+                  "zh": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 500
+                  },
+                  "en": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 500
+                  }
+                }
+              },
+              "note": {
+                "type": "string",
+                "maxLength": 500
+              },
+              "target": {
+                "type": "string",
+                "enum": [
+                  "shaker",
+                  "mixing_glass",
+                  "glass",
+                  "blender",
+                  "secondary"
+                ]
+              },
+              "items": {
+                "minItems": 1,
+                "maxItems": 20,
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "pattern": "^[a-z][a-z0-9_]{0,15}$"
+                }
+              },
+              "sprays": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 10
+              }
+            },
+            "required": [
+              "action",
+              "id",
+              "target",
+              "items"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "action": {
+                "type": "string",
+                "const": "FLAME"
+              },
+              "id": {
+                "type": "string",
+                "pattern": "^[a-z][a-z0-9_]{0,15}$"
+              },
+              "text": {
+                "type": "object",
+                "properties": {
+                  "zh": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 500
+                  },
+                  "en": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 500
+                  }
+                }
+              },
+              "note": {
+                "type": "string",
+                "maxLength": 500
+              },
+              "target": {
+                "type": "string",
+                "enum": [
+                  "shaker",
+                  "mixing_glass",
+                  "glass",
+                  "blender",
+                  "secondary"
+                ]
+              },
+              "subject": {
+                "type": "string",
+                "enum": [
+                  "garnish",
+                  "surface",
+                  "peel_oil"
+                ]
+              },
+              "durationSec": {
+                "type": "number",
+                "exclusiveMinimum": 0,
+                "maximum": 600
+              }
+            },
+            "required": [
+              "action",
+              "id",
+              "target"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "action": {
+                "type": "string",
+                "const": "SMOKE"
+              },
+              "id": {
+                "type": "string",
+                "pattern": "^[a-z][a-z0-9_]{0,15}$"
+              },
+              "text": {
+                "type": "object",
+                "properties": {
+                  "zh": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 500
+                  },
+                  "en": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 500
+                  }
+                }
+              },
+              "note": {
+                "type": "string",
+                "maxLength": 500
+              },
+              "target": {
+                "type": "string",
+                "enum": [
+                  "shaker",
+                  "mixing_glass",
+                  "glass",
+                  "blender",
+                  "secondary"
+                ]
+              },
+              "method": {
+                "type": "string",
+                "enum": [
+                  "smoking_gun",
+                  "torched_wood",
+                  "dry_ice"
+                ]
+              },
+              "cover": {
+                "type": "boolean"
+              },
+              "durationSec": {
+                "type": "number",
+                "exclusiveMinimum": 0,
+                "maximum": 600
+              }
+            },
+            "required": [
+              "action",
+              "id",
+              "target"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "action": {
+                "type": "string",
+                "const": "WAIT"
+              },
+              "id": {
+                "type": "string",
+                "pattern": "^[a-z][a-z0-9_]{0,15}$"
+              },
+              "text": {
+                "type": "object",
+                "properties": {
+                  "zh": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 500
+                  },
+                  "en": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 500
+                  }
+                }
+              },
+              "note": {
+                "type": "string",
+                "maxLength": 500
+              },
+              "target": {
+                "type": "string",
+                "enum": [
+                  "shaker",
+                  "mixing_glass",
+                  "glass",
+                  "blender",
+                  "secondary"
+                ]
+              },
+              "durationSec": {
+                "type": "number",
+                "exclusiveMinimum": 0,
+                "maximum": 600
+              },
+              "reason": {
+                "type": "string",
+                "enum": [
+                  "settle",
+                  "bloom",
+                  "infuse"
+                ]
+              }
+            },
+            "required": [
+              "action",
+              "id",
+              "target",
+              "durationSec"
+            ],
+            "additionalProperties": false
+          }
+        ]
+      }
+    }
+  },
+  "required": [
+    "schemaVersion",
+    "glass",
+    "method",
+    "ingredients",
+    "steps"
+  ],
+  "additionalProperties": false
+}
