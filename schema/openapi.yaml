@@ -588,6 +588,83 @@ components:
         - identifier
         - password
       type: object
+    Media-commitResponse:
+      additionalProperties: false
+      properties:
+        $schema:
+          description: A URL to the JSON Schema for this object.
+          examples:
+            - https://example.com/schemas/Media-commitResponse.json
+          format: uri
+          readOnly: true
+          type: string
+        url:
+          type: string
+      required:
+        - url
+      type: object
+    Media-upload-urlRequest:
+      additionalProperties: false
+      properties:
+        $schema:
+          description: A URL to the JSON Schema for this object.
+          examples:
+            - https://example.com/schemas/Media-upload-urlRequest.json
+          format: uri
+          readOnly: true
+          type: string
+        byteSize:
+          format: int64
+          maximum: 10485760
+          minimum: 1
+          type: integer
+        entityId:
+          format: uuid
+          type: string
+        mimeType:
+          enum:
+            - image/png
+            - image/jpeg
+            - image/webp
+          type: string
+        purpose:
+          enum:
+            - recipe_cover
+            - user_avatar
+            - menu_cover
+          type: string
+      required:
+        - purpose
+        - entityId
+        - mimeType
+        - byteSize
+      type: object
+    Media-upload-urlResponse:
+      additionalProperties: false
+      properties:
+        $schema:
+          description: A URL to the JSON Schema for this object.
+          examples:
+            - https://example.com/schemas/Media-upload-urlResponse.json
+          format: uri
+          readOnly: true
+          type: string
+        assetId:
+          format: uuid
+          type: string
+        expiresIn:
+          format: int64
+          type: integer
+        storageKey:
+          type: string
+        uploadUrl:
+          type: string
+      required:
+        - assetId
+        - uploadUrl
+        - storageKey
+        - expiresIn
+      type: object
     MenuAddItemInputBody:
       additionalProperties: false
       properties:
@@ -2748,6 +2825,59 @@ paths:
       security:
         - bearerAuth: []
       summary: 修改密码
+  /api/v1/media/upload-url:
+    post:
+      description: 三步直传的第一步（§2.10）：签发 → 客户端 PUT 直传 MinIO → /media/{assetId}/commit 确认。key 服务端生成，客户端不能自选路径。
+      operationId: media-upload-url
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/Media-upload-urlRequest"
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Media-upload-urlResponse"
+          description: OK
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+          description: Error
+      security:
+        - bearerAuth: []
+      summary: 签发预签名直传 URL
+  /api/v1/media/{assetId}/commit:
+    post:
+      description: HEAD 校验对象已存在后置 committed_at，返回公网 URL。幂等：已确认的直接返回。
+      operationId: media-commit
+      parameters:
+        - in: path
+          name: assetId
+          required: true
+          schema:
+            format: uuid
+            type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Media-commitResponse"
+          description: OK
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+          description: Error
+      security:
+        - bearerAuth: []
+      summary: 确认直传完成
   /api/v1/menus:
     post:
       operationId: menus-create

@@ -40,9 +40,9 @@ services:
       timeout: 3s
       retries: 12
 
-  # 建桶。跑一次就退出。
+  # 建桶。跑一次就退出。minio 服务器镜像自带 mc，不再单独拉 mc 镜像。
   minio-init:
-    image: minio/mc:latest
+    image: minio/minio:latest
     depends_on:
       minio:
         condition: service_healthy
