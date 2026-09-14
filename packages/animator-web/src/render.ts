@@ -686,18 +686,26 @@ function drawIce(
   const bobX = Math.round(Math.cos(fxMs * 0.016 + salt) * agit * 1.4);
   const bobY = Math.round(Math.sin(fxMs * 0.021 + salt * 1.7) * agit * 1.8);
   const x = cx + Math.round(ice.x * hw * 0.7) + bobX;
-  const y = cy - Math.round(gyUp) + bobY;
+  // 沉底钳位：静止冰块贴住杯底（不悬空、不穿底）—— block 走底对齐，crushed 颗粒云不钳
+  let y = cy - Math.round(gyUp);
+  if (ice.kind === "sphere") {
+    y = Math.min(y, cy - Math.max(2, sizePx) - 1);
+  } else if (ice.kind !== "block" && ice.kind !== "crushed") {
+    const s2 = ice.kind === "large_cube" ? sizePx + 1 : sizePx;
+    y = Math.min(y, cy - s2 - 1);
+  }
+  y += bobY;
 
   // 冰体近全透明：极低系数的混色，隐约带一层冷色调
   const body = (xx: number, yy: number): string => mixOver(underAt(xx, yy), "#dceef8", 0.15);
 
   switch (ice.kind) {
     case "block": {
-      // 长条冰柱：近透明体 + 左棱高光 + 右棱暗线（棱线是存在感的来源）
+      // 长条冰柱：底边 = y + 半高（静止时 y≈0 贴杯底；落冰编排插值 y 时整根下落）
       const w = Math.max(3, sizePx);
       const hPx = Math.min(Math.round(gh * 0.86), sizePx * 5);
-      const yTop = Math.max(cy - gh + 2, y - Math.round(hPx / 2));
-      const yBot = Math.min(cy - 1, yTop + hPx);
+      const yBot = Math.min(cy - 1, y + Math.round(hPx / 2));
+      const yTop = Math.max(cy - gh + 2, yBot - hPx);
       for (let yy = yTop; yy <= yBot; yy++) {
         for (let xx = x - (w >> 1); xx <= x + (w >> 1); xx++) {
           dot(b, xx, yy, body(xx, yy));
@@ -721,8 +729,9 @@ function drawIce(
         dot(b, x - half, y + dy, dy <= 0 ? theme.frost : "#9cc0d8");
         dot(b, x + half, y + dy, dy >= 0 ? "#9cc0d8" : theme.frost);
       }
-      hline(b, x - rr, x + rr, y - rr, theme.hi);
-      dot(b, x - 1, y - 1, theme.hi);
+      // 顶点高光：点，不画横线（圆顶上平线会像一条横杠）
+      dot(b, x - 1, y - rr + 1, theme.hi);
+      dot(b, x, y - rr + 1, theme.hi);
       break;
     }
     case "crushed": {

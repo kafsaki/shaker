@@ -250,15 +250,38 @@ export function addIce(c: ContainerState, kind: IceType, fill: number): void {
   const perPiece = occ.solidMl / Math.max(1, count);
   const rnd = makeRandom(hashString(`${c.id}:${kind}:${c.ice.length}`));
 
-  for (let i = 0; i < count; i++) {
-    c.ice.push({
-      kind,
-      solidMl: perPiece,
-      x: (rnd() * 2 - 1) * 0.62,
-      y: (i + 0.5) / count * fill,
-      size: size * (0.85 + rnd() * 0.3),
-      rot: rnd() * Math.PI * 2,
-    });
+  // 堆叠排布（模拟落底碰撞）：方冰/裂冰/球冰从杯底按行堆起，
+  // 同行错开、行距 = 冰块尺寸 → 不重叠；同类型尺寸一致（真实制冰模具）。
+  const half = size / 2;
+  if (kind === "crushed" || kind === "dry_ice") {
+    // 碎冰/干冰：颗粒云均匀散布，尺寸统一、朝向随机
+    for (let i = 0; i < count; i++) {
+      c.ice.push({
+        kind,
+        solidMl: perPiece,
+        x: (rnd() * 2 - 1) * 0.62,
+        y: (i + 0.5) / count * fill,
+        size,
+        rot: rnd() * Math.PI * 2,
+      });
+    }
+  } else {
+    // 纵向摞高：居中叠起，行距 = 冰块尺寸 → 不重叠；
+    // 横向/朝向加确定性小抖动 —— 自然堆放，不是笔直一摞
+    let pileTop = 0; // 当前堆到的杯高分数
+    for (let i = 0; i < count; i++) {
+      const y = Math.min(pileTop + half, 1 - half); // 底块中心 = 半高 → 底边贴杯底
+      const jitterX = (rnd() * 2 - 1) * 0.16; // ±0.16 杯宽内的自然偏移
+      c.ice.push({
+        kind,
+        solidMl: perPiece,
+        x: jitterX,
+        y,
+        size,
+        rot: rnd() * Math.PI * 2, // 只有朝向随机，尺寸统一
+      });
+      pileTop += size; // 行距 = 冰块尺寸，不交叠
+    }
   }
 
   // 碎冰让液体变浑浊
@@ -287,8 +310,8 @@ function iceCount(kind: IceType, fill: number): number {
 function iceSize(kind: IceType): number {
   const s: Record<IceType, number> = {
     cube: 0.2,
-    large_cube: 0.34,
-    sphere: 0.44,
+    large_cube: 0.5,
+    sphere: 0.62,
     cracked: 0.15,
     crushed: 0.08,
     block: 0.3,
