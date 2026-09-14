@@ -154,6 +154,30 @@
     border-left: 2px solid var(--accent);
   }
   .hint { font-size: 11.5px; color: var(--ink-dim); margin: 8px 0 0; }
+
+  /* 实时渲染状态 */
+  #rtstate { font: 11.5px/1.55 ui-monospace, "Cascadia Code", Consolas, monospace; }
+  #rtstate .row { display: flex; gap: 8px; padding: 2px 0; border-bottom: 1px dashed var(--line); }
+  #rtstate .row:last-child { border-bottom: none; }
+  #rtstate .rk { width: 92px; flex-shrink: 0; color: var(--ink-dim); }
+  #rtstate .rv { white-space: pre-wrap; word-break: break-all; font-variant-numeric: tabular-nums; }
+  #rtstate .dim { color: var(--ink-dim); }
+
+  /* IR JSON 查看器 */
+  #irwrap { position: relative; }
+  #irbox {
+    max-height: 420px; overflow: auto; margin: 0; padding: 10px;
+    font: 11.5px/1.55 ui-monospace, "Cascadia Code", Consolas, monospace;
+    background: rgba(0,0,0,0.04); border-radius: 7px;
+    white-space: pre; tab-size: 2;
+  }
+  body.dark #irbox { background: rgba(0,0,0,0.28); }
+  #irbox .k { color: var(--accent); }
+  #irbox .s { color: var(--ok); }
+  #irbox .n { color: #7048b5; }
+  body.dark #irbox .n { color: #b596f0; }
+  #irbox .b { color: var(--warn); }
+  #irbox .nul { color: var(--ink-dim); }
 </style>
 </head>
 <body class="dark">
@@ -221,6 +245,16 @@
     <div class="panel" style="margin-top:12px">
       <h2>业务校验（规范 §10）</h2>
       <div id="diagnostics"></div>
+    </div>
+    <div class="panel" style="margin-top:12px">
+      <h2>实时渲染状态（当前帧）</h2>
+      <div id="rtstate"></div>
+    </div>
+    <div class="panel" style="margin-top:12px" id="irwrap">
+      <h2>配方 IR（数据库同构数据）
+        <button id="ircopy" style="float:right;padding:2px 9px;font-size:11.5px" title="复制 JSON">复制</button>
+      </h2>
+      <div id="irbox"></div>
     </div>
   </section>
 </main>

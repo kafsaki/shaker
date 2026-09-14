@@ -8,7 +8,7 @@
  *
  * 所以帧率读数是一等公民，不是调试彩蛋。
  */
-import { compile, sample, type Timeline } from "@shaker/animator-core";
+import { compile, sample, type Timeline, type Scene } from "@shaker/animator-core";
 import { estimateAbv, totalLiquidMl, displayAmount, toParts, validateRecipeIR } from "@shaker/recipe-ir";
 import { DARK_THEME, LIGHT_THEME, renderScene } from "@shaker/animator-web";
 import { FIXTURES, ASSET_TEST_FIXTURES, VOCAB, vesselLookup, type Fixture } from "@shaker/seed";
@@ -50,6 +50,9 @@ const diagEl = $<HTMLDivElement>("diagnostics");
 const bannerEl = $<HTMLDivElement>("banner");
 const unitBtn = $<HTMLButtonElement>("units");
 const partsChk = $<HTMLInputElement>("parts");
+const rtEl = $<HTMLDivElement>("rtstate");
+const irBox = $<HTMLDivElement>("irbox");
+const irCopyBtn = $<HTMLButtonElement>("ircopy");
 
 /* ────────────────────────── 状态 ────────────────────────── */
 
@@ -127,6 +130,7 @@ function draw(): void {
     debug: debugChk.checked,
   });
   highlightStep(stepIndex);
+  updateRtState(scene, stepIndex, stepProgress);
 }
 
 function updateFpsReadout(dt: number): void {
@@ -164,6 +168,7 @@ function selectFixture(f: Fixture): void {
   fixture = f;
   timeline = compileFixture(f);
   tMs = 0;
+  rtLastT = -1;
   playing = true;
   playBtn.textContent = "暂停";
   buildTabs();
@@ -171,7 +176,123 @@ function selectFixture(f: Fixture): void {
   buildMeta();
   buildIngredients();
   runDiagnostics();
+  buildIrView();
   testNote.textContent = f.tests;
+}
+
+/* ────────────────────────── IR 查看器 ────────────────────────── */
+
+/** JSON 语法高亮（原型级实现：token 正则，不做完整解析器）。 */
+function highlightJson(json: string): string {
+  const esc = json.replace(/&/g, "&amp;").replace(/</g, "&lt;");
+  return esc.replace(
+    /("(?:\\.|[^"\\])*")(\s*:)?|\b(true|false)\b|\bnull\b|(-?\d+(?:\.\d+)?(?:e[+-]?\d+)?)/gi,
+    (m, str: string | undefined, colon: string | undefined, bool: string | undefined, num: string | undefined) => {
+      if (str !== undefined) {
+        return colon !== undefined
+          ? `<span class="k">${str}</span>${colon}`
+          : `<span class="s">${str}</span>`;
+      }
+      if (bool !== undefined) return `<span class="b">${m}</span>`;
+      if (num !== undefined) return `<span class="n">${m}</span>`;
+      return `<span class="nul">null</span>`;
+    },
+  );
+}
+
+function buildIrView(): void {
+  const json = JSON.stringify(fixture.ir, null, 2);
+  irBox.innerHTML = highlightJson(json);
+  irCopyBtn.onclick = () => {
+    navigator.clipboard.writeText(json).then(
+      () => {
+        irCopyBtn.textContent = "已复制";
+        setTimeout(() => (irCopyBtn.textContent = "复制"), 1200);
+      },
+      () => (irCopyBtn.textContent = "复制失败"),
+    );
+  };
+}
+
+/* ────────────────────────── 实时渲染状态 ────────────────────────── */
+
+/** 状态行：label + 值（值用等宽表格数字排版）。 */
+function rtRow(k: string, v: string, dim = false): void {
+  const row = document.createElement("div");
+  row.className = "row";
+  const rk = document.createElement("span");
+  rk.className = "rk";
+  rk.textContent = k;
+  const rv = document.createElement("span");
+  rv.className = "rv" + (dim ? " dim" : "");
+  rv.textContent = v;
+  row.append(rk, rv);
+  rtEl.appendChild(row);
+}
+
+const ICE_ZH: Record<string, string> = {
+  cube: "方冰", large_cube: "大冰", sphere: "球冰", cracked: "裂冰",
+  crushed: "碎冰", block: "长条冰", dry_ice: "干冰",
+};
+const PROP_ZH: Record<string, string> = {
+  jigger: "量酒器", bottle: "瓶子", lid: "盖", barspoon: "吧勺",
+  strainer: "滤网", muddler: "捣棒", swizzle: "搅棒", spray: "喷雾",
+  peel: "皮油", blender_lid: "搅拌机盖", pour_vessel: "倾倒容器",
+};
+
+/**
+ * 每帧更新渲染状态面板。几何量化 80ms，状态只有 5~6 行文本 ——
+ * 但 DOM 写入仍按 80ms 节流（和场景量化同步），避免读数抖动。
+ */
+let rtLastT = -1;
+function updateRtState(scene: Scene, stepIndex: number, stepProgress: number): void {
+  const q = Math.floor(tMs / 80);
+  if (q === rtLastT) return;
+  rtLastT = q;
+
+  rtEl.innerHTML = "";
+  const focus = scene.containers.find((c) => c.id === scene.focus) ?? scene.containers[0];
+  rtRow("时间", `${tMs.toFixed(0)} / ${timeline.totalMs.toFixed(0)} ms`);
+  rtRow(
+    "步骤",
+    `${stepIndex + 1}/${timeline.steps.length} · ${(stepProgress * 100).toFixed(0)}%`,
+  );
+
+  if (focus) {
+    const layersDesc =
+      focus.layers.length === 0
+        ? "（空）"
+        : focus.layers
+            .map((l) => `${(l.toH * 100).toFixed(0)}%·${l.color}${l.blend > 0.02 ? `~b${(l.blend * 100).toFixed(0)}` : ""}`)
+            .join(" | ");
+    rtRow("焦点容器", `${focus.vesselId}`);
+    rtRow("液层", layersDesc);
+    rtRow(
+      "冰",
+      focus.ice.length === 0
+        ? "—"
+        : focus.ice.map((i) => ICE_ZH[i.kind] ?? i.kind).join(" "),
+    );
+    const flags: string[] = [];
+    if (focus.shake) flags.push("摇");
+    if (Math.abs(focus.tilt) > 0.05) flags.push(`倾${Math.round((focus.tilt * 180) / Math.PI)}°`);
+    if (focus.foam) flags.push("泡沫");
+    if (focus.rim) flags.push("盐边");
+    if (focus.coat) flags.push("挂壁");
+    if (focus.lidOn) flags.push("盖");
+    if (focus.smoke > 0.02) flags.push("烟");
+    if (focus.frost > 0.02) flags.push("霜");
+    rtRow("容器状态", flags.length ? flags.join(" ") : "静止", flags.length === 0);
+    rtRow("扰动度", focus.agitation.toFixed(2));
+  }
+  rtRow(
+    "道具",
+    scene.props.length === 0
+      ? "—"
+      : scene.props.map((p) => PROP_ZH[p.kind] ?? p.kind).join(" "),
+    scene.props.length === 0,
+  );
+  rtRow("其他容器", `${scene.containers.length - 1} 个`, scene.containers.length <= 1);
 }
 
 function buildSteps(): void {
