@@ -17,8 +17,10 @@ import (
 	"github.com/kafsaki/shaker/apps/api/internal/config"
 	"github.com/kafsaki/shaker/apps/api/internal/interact"
 	"github.com/kafsaki/shaker/apps/api/internal/menu"
+	"github.com/kafsaki/shaker/apps/api/internal/notify"
 	"github.com/kafsaki/shaker/apps/api/internal/ratelimit"
 	"github.com/kafsaki/shaker/apps/api/internal/recipe"
+	"github.com/kafsaki/shaker/apps/api/internal/report"
 	"github.com/kafsaki/shaker/apps/api/internal/user"
 	"github.com/kafsaki/shaker/apps/api/internal/vocab"
 )
@@ -34,6 +36,8 @@ type API struct {
 	interact *interact.Store
 	users  *user.Store
 	menus  *menu.Store
+	notifies *notify.Store
+	reports  *report.Store
 	// limiters 路径 → 限流器。敏感端点按 IP 计数。
 	limiters map[string]*ratelimit.Limiter
 	// writeLimiter 全部写操作（API 定义 §4：每用户 60 次/分钟）。
@@ -74,6 +78,8 @@ func setupRouter(pool *pgxpool.Pool, cfg config.Config) (*chi.Mux, huma.API) {
 	a.interact = interact.NewStore(pool)
 	a.users = user.NewStore(pool)
 	a.menus = menu.NewStore(pool)
+	a.notifies = notify.NewStore(pool)
+	a.reports = report.NewStore(pool)
 	a.limiters = map[string]*ratelimit.Limiter{
 		// 认证端点按 IP 限流：登录防撞库、注册防批量、刷新防穷举、改密防试旧密码
 		"/api/v1/auth/login":    ratelimit.New(10, time.Minute),
@@ -97,6 +103,8 @@ func setupRouter(pool *pgxpool.Pool, cfg config.Config) (*chi.Mux, huma.API) {
 	a.registerSearch(api)
 	a.registerClassics(api)
 	a.registerMenus(api)
+	a.registerNotifications(api)
+	a.registerReports(api)
 	return r, api
 }
 

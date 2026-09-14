@@ -16,6 +16,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/kafsaki/shaker/apps/api/internal/cursor"
+	"github.com/kafsaki/shaker/apps/api/internal/notify"
 	"github.com/kafsaki/shaker/apps/api/internal/recipe"
 )
 
@@ -98,14 +99,15 @@ func (s *Store) toggleRecipeLike(ctx context.Context, userID, recipeID uuid.UUID
 	defer tx.Rollback(ctx) //nolint:errcheck
 
 	// 只对已发布配方开放（草稿不泄露存在性 → 404 语义）
-	var ok bool
+	// 顺带取 author_id：点赞要给作者发通知
+	var authorID uuid.UUID
 	if err := tx.QueryRow(ctx, `
-		SELECT EXISTS(SELECT 1 FROM recipes
-			WHERE id = $1 AND status = 'published' AND deleted_at IS NULL)`, recipeID).Scan(&ok); err != nil {
+		SELECT author_id FROM recipes
+		WHERE id = $1 AND status = 'published' AND deleted_at IS NULL`, recipeID).Scan(&authorID); err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return 0, ErrRecipeNotFound
+		}
 		return 0, fmt.Errorf("查询配方: %w", err)
-	}
-	if !ok {
-		return 0, ErrRecipeNotFound
 	}
 
 	sql := `INSERT INTO likes (user_id, recipe_id) VALUES ($1, $2) ON CONFLICT DO NOTHING`
@@ -127,6 +129,11 @@ func (s *Store) toggleRecipeLike(ctx context.Context, userID, recipeID uuid.UUID
 		}
 		if err := recipe.TouchHot(ctx, tx, recipeID); err != nil {
 			return 0, err
+		}
+		if like {
+			if err := notify.Insert(ctx, tx, authorID, notify.TypeLike, &userID, "recipe", &recipeID, nil); err != nil {
+				return 0, err
+			}
 		}
 	}
 
@@ -373,22 +380,23 @@ func (s *Store) CreateComment(ctx context.Context, userID, recipeID uuid.UUID, b
 	}
 	defer tx.Rollback(ctx) //nolint:errcheck
 
-	var ok bool
+	var authorID uuid.UUID
 	if err := tx.QueryRow(ctx, `
-		SELECT EXISTS(SELECT 1 FROM recipes
-			WHERE id = $1 AND status = 'published' AND deleted_at IS NULL)`, recipeID).Scan(&ok); err != nil {
+		SELECT author_id FROM recipes
+		WHERE id = $1 AND status = 'published' AND deleted_at IS NULL`, recipeID).Scan(&authorID); err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil, ErrRecipeNotFound
+		}
 		return nil, fmt.Errorf("查询配方: %w", err)
 	}
-	if !ok {
-		return nil, ErrRecipeNotFound
-	}
 
+	var parentAuthor *uuid.UUID // 回复要通知父评论作者
 	if parentID != nil {
 		var parentRecipe uuid.UUID
 		var grandParent *uuid.UUID
 		err := tx.QueryRow(ctx, `
-			SELECT recipe_id, parent_id FROM comments WHERE id = $1 AND deleted_at IS NULL`, *parentID).
-			Scan(&parentRecipe, &grandParent)
+			SELECT recipe_id, parent_id, user_id FROM comments WHERE id = $1 AND deleted_at IS NULL`, *parentID).
+			Scan(&parentRecipe, &grandParent, &parentAuthor)
 		if errors.Is(err, pgx.ErrNoRows) {
 			return nil, ErrCommentNotFound
 		}
@@ -424,6 +432,18 @@ func (s *Store) CreateComment(ctx context.Context, userID, recipeID uuid.UUID, b
 	}
 	if err := recipe.TouchHot(ctx, tx, recipeID); err != nil {
 		return nil, err
+	}
+	// 通知：回复 → 父评论作者（type=reply，entity=评论）；顶层 → 配方作者（type=comment，entity=配方）。
+	// notify.Insert 自动静默「自己通知自己」。
+	cid := id
+	if parentID != nil {
+		if err := notify.Insert(ctx, tx, *parentAuthor, notify.TypeReply, &userID, "comment", &cid, nil); err != nil {
+			return nil, err
+		}
+	} else {
+		if err := notify.Insert(ctx, tx, authorID, notify.TypeComment, &userID, "recipe", &recipeID, nil); err != nil {
+			return nil, err
+		}
 	}
 	if err := tx.Commit(ctx); err != nil {
 		return nil, fmt.Errorf("提交事务: %w", err)
@@ -545,14 +565,14 @@ func (s *Store) toggleCommentLike(ctx context.Context, userID, commentID uuid.UU
 	}
 	defer tx.Rollback(ctx) //nolint:errcheck
 
-	var ok bool
+	var commentAuthor uuid.UUID // 点赞要通知评论作者
 	if err := tx.QueryRow(ctx, `
-		SELECT EXISTS(SELECT 1 FROM comments WHERE id = $1 AND deleted_at IS NULL)`,
-		commentID).Scan(&ok); err != nil {
+		SELECT user_id FROM comments WHERE id = $1 AND deleted_at IS NULL`,
+		commentID).Scan(&commentAuthor); err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return 0, ErrCommentNotFound
+		}
 		return 0, fmt.Errorf("查询评论: %w", err)
-	}
-	if !ok {
-		return 0, ErrCommentNotFound
 	}
 
 	sql := `INSERT INTO comment_likes (user_id, comment_id) VALUES ($1, $2) ON CONFLICT DO NOTHING`
@@ -571,6 +591,11 @@ func (s *Store) toggleCommentLike(ctx context.Context, userID, commentID uuid.UU
 		if _, err := tx.Exec(ctx,
 			`UPDATE comments SET like_count = like_count + $1 WHERE id = $2`, delta, commentID); err != nil {
 			return 0, fmt.Errorf("更新评论点赞数: %w", err)
+		}
+		if like {
+			if err := notify.Insert(ctx, tx, commentAuthor, notify.TypeLike, &userID, "comment", &commentID, nil); err != nil {
+				return 0, err
+			}
 		}
 	}
 

@@ -22,6 +22,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/kafsaki/shaker/apps/api/internal/irv"
+	"github.com/kafsaki/shaker/apps/api/internal/notify"
 )
 
 // DBTX pool 与事务共用的最小接口（pgxpool.Pool、pgx.Tx 均满足）。
@@ -540,6 +541,12 @@ func (s *Store) Publish(ctx context.Context, id, authorID uuid.UUID, vocab *irv.
 
 	// 初始热度（v1 内联；见 TouchHot 注释）
 	if err := TouchHot(ctx, tx, id); err != nil {
+		return nil, err
+	}
+
+	// 9. 给关注者发发布动态（v1 内联扇出，上量后由 river 异步化）
+	if err := notify.FanoutToFollowers(ctx, tx, authorID, "recipe", id,
+		map[string]any{"kind": "publish", "title": r.Title}); err != nil {
 		return nil, err
 	}
 

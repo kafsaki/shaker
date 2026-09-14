@@ -16,6 +16,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/kafsaki/shaker/apps/api/internal/cursor"
+	"github.com/kafsaki/shaker/apps/api/internal/notify"
 )
 
 var (
@@ -154,6 +155,13 @@ func (s *Store) followTx(ctx context.Context, followerID, followeeID uuid.UUID, 
 	}
 	if tag.RowsAffected() == 0 {
 		return tx.Commit(ctx) // 幂等：状态没变，只回计数现状
+	}
+
+	// 关注成功 → 通知被关注者（取关不发）
+	if follow {
+		if err := notify.Insert(ctx, tx, followeeID, notify.TypeFollow, &followerID, "user", &followerID, nil); err != nil {
+			return err
+		}
 	}
 
 	delta := 1
