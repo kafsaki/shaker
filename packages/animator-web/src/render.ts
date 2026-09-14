@@ -409,6 +409,12 @@ function drawContainer(
   const opacity = c.opacity;
   if (opacity < 0.02) return;
 
+  // ── 倾倒（RINSE discard）：整只容器绕杯底旋转 + 丢弃液流 ──
+  if (Math.abs(c.tilt) > 0.05) {
+    drawTiltedContainer(b, c, vessel, cx, cy, gh, profile, theme);
+    return;
+  }
+
   const halfWAt = (gyUp: number): number => {
     // gyUp：距杯底的像素行数（0..gh）
     const yn = clamp01(gyUp / gh);
@@ -1073,6 +1079,90 @@ function drawPourVessel(
   // 口沿亮缘（倒酒侧 = 旋转后外侧端点）
   const [spX, spY] = rotPx(hwT, -gh);
   dot(b, spX, spY, theme.hi);
+}
+
+/**
+ * 倾倒中的容器（RINSE discard）：绕**杯底中心**旋转整只杯（高脚杯含柱脚），
+ * 旋转方向 = 倒向右侧。液面在旋转坐标里保持水平，杯内余酒随 tilt 变薄。
+ * 液体去哪由关键帧插值的液面缩水交代 —— 不画丢弃液流（量太少读不清）。
+ */
+function drawTiltedContainer(
+  b: PCtx,
+  c: RenderedContainer,
+  vessel: VesselSpec,
+  cx: number,
+  cy: number,
+  gh: number,
+  profile: { y: number; r: number }[],
+  theme: RenderTheme,
+): void {
+  const ang = c.tilt; // 正 = 右倾（口朝右下）
+  const cos = Math.cos(ang);
+  const sin = Math.sin(ang);
+  // 杯内坐标 (dx, dy)：dy 向上（0=杯底），旋转绕 (cx, cy)
+  const rot = (dx: number, dy: number): [number, number] => [
+    Math.round(cx + dx * cos + dy * sin), // 右倾：杯体向右上抬起
+    Math.round(cy - dx * sin + dy * cos),
+  ];
+  const halfWAt = (fy: number): number => {
+    const yn = clamp01(fy);
+    return Math.max(1, Math.round(radAt(profile, yn) * gh));
+  };
+  const stem = vessel.def.shape.stem;
+  const stemPx = stem ? Math.round(stem.height * gh) : 0;
+
+  // 杯体轮廓（壁）+ 余酒
+  const N = Math.max(8, gh);
+  const top = c.layers[c.layers.length - 1];
+  const rp = top ? rampOf(top.color) : null;
+  // 倾斜时液面缩水比例：tilt 越满剩得越少（1 → 剩 ~30%）
+  const fillRatio = Math.max(0.25, 1 - Math.abs(ang) * 0.62);
+  for (let i = 0; i <= N; i++) {
+    const fy = i / N;
+    const hw = halfWAt(fy);
+    const dy = Math.round(fy * gh);
+    for (const s of [-1, 1]) {
+      const [px, py] = rot(s * hw, dy);
+      dot(b, px, py, theme.glassStroke);
+    }
+    // 余酒：倾斜坐标里贴"下坡侧"的液体（重力仍向下，倾倒侧薄层）
+    if (rp && fy < fillRatio) {
+      // 杯内横向：从下坡壁往里填（倾倒侧 s=+1 露出玻璃）
+      const fillW = Math.max(0, hw - Math.max(2, Math.round(hw * Math.abs(Math.sin(ang)) * 1.1)));
+      for (let dx = -hw + 1; dx <= -hw + 1 + fillW; dx++) {
+        const [px, py] = rot(dx, dy);
+        dot(b, px, py, rp.base);
+      }
+    } else if (hw > 2) {
+      // 干壁内衬
+      for (const s of [-1, 1]) {
+        const [px, py] = rot(s * (hw - 1), dy);
+        dot(b, px, py, theme.glassFill);
+      }
+    }
+  }
+  // 口沿/杯底封线
+  const hwT = halfWAt(1);
+  const hwB = halfWAt(0);
+  line(b, rot(-hwT, gh), rot(hwT, gh), theme.glassStroke);
+  line(b, rot(-hwB, 0), rot(hwB, 0), theme.glassStroke);
+  // 柱脚 + 底座（跟着旋转，画在杯底延长线上）
+  if (stem) {
+    const sw = Math.max(1, Math.round(stem.width * gh * 0.5));
+    for (let k = 1; k <= stemPx; k++) {
+      for (const s of [-1, 1]) {
+        const [px, py] = rot(s * sw, -k);
+        dot(b, px, py, theme.glassStroke);
+      }
+    }
+    if (vessel.def.shape.base) {
+      const br = Math.max(2, Math.round(vessel.def.shape.base.radius * gh));
+      line(b, rot(-br, -stemPx), rot(br, -stemPx), theme.glassStroke);
+    }
+  }
+
+  // 倒掉时只画杯身旋转（液面缩水由关键帧插值交代），不画丢弃液流/水洼 ——
+  // 2ml 的涮杯量画液流在像素尺度上是一根横跨台面的脏线，反而读不清。
 }
 
 /** Bresenham 风格像素线（像素质感）。 */

@@ -232,6 +232,10 @@ function defaultDuration(step: Step): number {
   if ("durationSec" in step && step.durationSec !== undefined) {
     return physics.realToAnimMs(step.durationSec, d ?? 800);
   }
+  // discard 的 RINSE 要完整走完「涮杯 → 倾倒 → 转回」，倒掉是主角不是过场
+  if (step.action === "RINSE" && "discard" in step && step.discard) {
+    return Math.max(2600, d ?? 1000);
+  }
   if (step.action === "ADD" || step.action === "FLOAT" || step.action === "TOP_UP") {
     // 倒注时长按原料数量加权，但设上限避免六种原料的配方拖太久
     const n = "items" in step ? step.items.length : 1;
@@ -506,7 +510,7 @@ function applyStep(step: Step, ctx: Ctx): void {
       const refs = refsOf(step.items, bySlot);
       emit.at(0, { focus: c.id });
       addToContainer(c, refs, vocab);
-      emit.at(0.5, { focus: c.id, props: [swirlProp(c)] });
+      emit.at(0.25, { focus: c.id, props: [swirlProp(c)] });
       if (step.discard) {
         // 倒掉多余：只留挂壁膜 + 杯底 2ml 小水洼
         const tint = c.layers[c.layers.length - 1];
@@ -514,8 +518,16 @@ function applyStep(step: Step, ctx: Ctx): void {
         c.coat = tint
           ? { color: tint.color, strength: Math.min(0.85, tint.opacity + 0.25) }
           : null;
+        // 倾倒编排：涮杯（0→0.5）与倒掉（0.5→1）1:1。
+        // 液面缩水由关键帧插值在倾倒段完成（不画丢弃液流，量太少）。
+        emit.at(0.5, { focus: c.id });
+        emit.at(0.88, { focus: c.id });
+        emit.at(1, { focus: c.id });
+        // tilt 写进 0.5 之后的帧（编译后处理，与 markShake 同风格）
+        markDiscardTilt(emit, c.id);
+      } else {
+        emit.at(1, { focus: c.id });
       }
-      emit.at(1, { focus: c.id });
       break;
     }
 
@@ -924,6 +936,24 @@ function markShake(emit: StepEmitter, id: ContainerId, intensity: string): void 
       ? { ampX: amp, ampY: amp * 0.55, rot: 0.07 * (amp / 9), freqHz: 9, phase: f.t * Math.PI * 2 }
       : null;
     c.lidOn = active;
+  }
+}
+
+/**
+ * RINSE discard 的倾倒姿态：0.5 前正立（涮杯），0.5→0.62 抬到 ~66°，
+ * 0.62→0.85 保持倾倒，0.85→1 转回正立。tilt 期间液面按关键帧插值缩水，
+ * 渲染端叠加从杯口流出的丢弃液流。
+ */
+function markDiscardTilt(emit: StepEmitter, id: ContainerId): void {
+  const frames = emit.frames;
+  for (const f of frames) {
+    if (f.t <= 0.48) continue;
+    const c = f.scene.containers.find((x) => x.id === id);
+    if (!c) continue;
+    // 三段：抬起（easeIn 感）→ 保持倾倒 → 放回
+    const up = Math.min(1, Math.max(0, (f.t - 0.5) / 0.12));
+    const down = Math.min(1, Math.max(0, (f.t - 0.85) / 0.15));
+    c.tilt = 1.15 * up * (1 - down) * (up * (2 - up)); // 峰值 ~66°
   }
 }
 
