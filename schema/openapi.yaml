@@ -588,6 +588,285 @@ components:
         - identifier
         - password
       type: object
+    MenuAddItemInputBody:
+      additionalProperties: false
+      properties:
+        $schema:
+          description: A URL to the JSON Schema for this object.
+          examples:
+            - https://example.com/schemas/MenuAddItemInputBody.json
+          format: uri
+          readOnly: true
+          type: string
+        note:
+          maxLength: 500
+          type:
+            - string
+            - "null"
+      type: object
+    MenuBody:
+      additionalProperties: false
+      properties:
+        $schema:
+          description: A URL to the JSON Schema for this object.
+          examples:
+            - https://example.com/schemas/MenuBody.json
+          format: uri
+          readOnly: true
+          type: string
+        coverUrl:
+          type:
+            - string
+            - "null"
+        createdAt:
+          format: date-time
+          type: string
+        description:
+          type:
+            - string
+            - "null"
+        id:
+          type: string
+        itemCount:
+          format: int64
+          type: integer
+        shareToken:
+          type: string
+        title:
+          type: string
+        updatedAt:
+          format: date-time
+          type: string
+        visibility:
+          type: string
+      required:
+        - id
+        - title
+        - description
+        - coverUrl
+        - visibility
+        - itemCount
+        - createdAt
+        - updatedAt
+      type: object
+    MenuDetailOutputBody:
+      additionalProperties: false
+      properties:
+        $schema:
+          description: A URL to the JSON Schema for this object.
+          examples:
+            - https://example.com/schemas/MenuDetailOutputBody.json
+          format: uri
+          readOnly: true
+          type: string
+        items:
+          items:
+            $ref: "#/components/schemas/MenuItemBody"
+          type:
+            - array
+            - "null"
+        menu:
+          $ref: "#/components/schemas/MenuBody"
+      required:
+        - menu
+        - items
+      type: object
+    MenuItemBody:
+      additionalProperties: false
+      properties:
+        addedAt:
+          format: date-time
+          type: string
+        note:
+          type:
+            - string
+            - "null"
+        recipe:
+          $ref: "#/components/schemas/MenuRecipeCardBody"
+      required:
+        - recipe
+        - note
+        - addedAt
+      type: object
+    MenuListOutputBody:
+      additionalProperties: false
+      properties:
+        $schema:
+          description: A URL to the JSON Schema for this object.
+          examples:
+            - https://example.com/schemas/MenuListOutputBody.json
+          format: uri
+          readOnly: true
+          type: string
+        items:
+          items:
+            $ref: "#/components/schemas/MenuBody"
+          type:
+            - array
+            - "null"
+        nextCursor:
+          type:
+            - string
+            - "null"
+      required:
+        - items
+        - nextCursor
+      type: object
+    MenuRecipeCardBody:
+      additionalProperties: false
+      properties:
+        classicKey:
+          type:
+            - string
+            - "null"
+        commentCount:
+          format: int64
+          type: integer
+        coverUrl:
+          type:
+            - string
+            - "null"
+        id:
+          type: string
+        isCanonical:
+          type: boolean
+        likeCount:
+          format: int64
+          type: integer
+        slug:
+          type: string
+        title:
+          type: string
+      required:
+        - id
+        - slug
+        - title
+        - classicKey
+        - isCanonical
+        - coverUrl
+        - likeCount
+        - commentCount
+      type: object
+    MenuReorderInputBody:
+      additionalProperties: false
+      properties:
+        $schema:
+          description: A URL to the JSON Schema for this object.
+          examples:
+            - https://example.com/schemas/MenuReorderInputBody.json
+          format: uri
+          readOnly: true
+          type: string
+        afterRecipeId:
+          format: uuid
+          type: string
+        recipeId:
+          format: uuid
+          type: string
+      required:
+        - recipeId
+      type: object
+    MenuUpdateInputBody:
+      additionalProperties: false
+      properties:
+        $schema:
+          description: A URL to the JSON Schema for this object.
+          examples:
+            - https://example.com/schemas/MenuUpdateInputBody.json
+          format: uri
+          readOnly: true
+          type: string
+        description:
+          maxLength: 2000
+          type:
+            - string
+            - "null"
+        title:
+          maxLength: 120
+          minLength: 1
+          type:
+            - string
+            - "null"
+        visibility:
+          enum:
+            - private
+            - unlisted
+            - public
+          type:
+            - string
+            - "null"
+      type: object
+    Menus-createRequest:
+      additionalProperties: false
+      properties:
+        $schema:
+          description: A URL to the JSON Schema for this object.
+          examples:
+            - https://example.com/schemas/Menus-createRequest.json
+          format: uri
+          readOnly: true
+          type: string
+        description:
+          maxLength: 2000
+          type:
+            - string
+            - "null"
+        title:
+          maxLength: 120
+          minLength: 1
+          type: string
+        visibility:
+          default: private
+          enum:
+            - private
+            - unlisted
+            - public
+          type: string
+      required:
+        - title
+      type: object
+    Menus-shareResponse:
+      additionalProperties: false
+      properties:
+        $schema:
+          description: A URL to the JSON Schema for this object.
+          examples:
+            - https://example.com/schemas/Menus-shareResponse.json
+          format: uri
+          readOnly: true
+          type: string
+        shareToken:
+          type: string
+      required:
+        - shareToken
+      type: object
+    MyMenuBody:
+      additionalProperties: false
+      properties:
+        containsRecipe:
+          type: boolean
+      required:
+        - containsRecipe
+      type: object
+    MyMenusOutputBody:
+      additionalProperties: false
+      properties:
+        $schema:
+          description: A URL to the JSON Schema for this object.
+          examples:
+            - https://example.com/schemas/MyMenusOutputBody.json
+          format: uri
+          readOnly: true
+          type: string
+        items:
+          items:
+            $ref: "#/components/schemas/MyMenuBody"
+          type:
+            - array
+            - "null"
+      required:
+        - items
+      type: object
     PublicUserBody:
       additionalProperties: false
       properties:
@@ -2274,6 +2553,32 @@ paths:
       security:
         - bearerAuth: []
       summary: 我的草稿
+  /api/v1/me/menus:
+    get:
+      description: 含私密。containsRecipe=<uuid> 时附带每个酒单是否已含该配方（「加进酒单」弹层用）。
+      operationId: me-menus
+      parameters:
+        - explode: false
+          in: query
+          name: containsRecipe
+          schema:
+            type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MyMenusOutputBody"
+          description: OK
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+          description: Error
+      security:
+        - bearerAuth: []
+      summary: 我的全部酒单
   /api/v1/me/password:
     post:
       description: 成功后撤销除当前会话以外的全部会话。
@@ -2296,6 +2601,251 @@ paths:
       security:
         - bearerAuth: []
       summary: 修改密码
+  /api/v1/menus:
+    post:
+      operationId: menus-create
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/Menus-createRequest"
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MenuBody"
+          description: OK
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+          description: Error
+      security:
+        - bearerAuth: []
+      summary: 建酒单
+  /api/v1/menus/shared/{shareToken}:
+    get:
+      operationId: menus-get-shared
+      parameters:
+        - in: path
+          name: shareToken
+          required: true
+          schema:
+            maxLength: 64
+            minLength: 16
+            type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MenuDetailOutputBody"
+          description: OK
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+          description: Error
+      summary: 分享链接访问 unlisted 酒单
+  /api/v1/menus/{id}:
+    delete:
+      operationId: menus-delete
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            format: uuid
+            type: string
+      responses:
+        "204":
+          description: No Content
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+          description: Error
+      security:
+        - bearerAuth: []
+      summary: 删除酒单（软删）
+    get:
+      description: 按 visibility 鉴权：public 对所有人；private/unlisted 仅主人（分享访问走 /menus/shared/{shareToken}）。
+      operationId: menus-get
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            format: uuid
+            type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MenuDetailOutputBody"
+          description: OK
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+          description: Error
+      summary: 酒单详情
+    patch:
+      operationId: menus-update
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            format: uuid
+            type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/MenuUpdateInputBody"
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MenuBody"
+          description: OK
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+          description: Error
+      security:
+        - bearerAuth: []
+      summary: 改标题/描述/可见性
+  /api/v1/menus/{id}/items/reorder:
+    post:
+      description: "{recipeId, afterRecipeId?}——afterRecipeId 省略则移到最前；服务端取中点插值。"
+      operationId: menu-items-reorder
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            format: uuid
+            type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/MenuReorderInputBody"
+        required: true
+      responses:
+        "204":
+          description: No Content
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+          description: Error
+      security:
+        - bearerAuth: []
+      summary: 重排酒单条目
+  /api/v1/menus/{id}/items/{recipeId}:
+    delete:
+      description: 幂等。
+      operationId: menu-items-remove
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            format: uuid
+            type: string
+        - in: path
+          name: recipeId
+          required: true
+          schema:
+            format: uuid
+            type: string
+      responses:
+        "204":
+          description: No Content
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+          description: Error
+      security:
+        - bearerAuth: []
+      summary: 配方移出酒单
+    put:
+      description: 幂等：已在酒单里则刷新 note。body 可带 note。
+      operationId: menu-items-add
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            format: uuid
+            type: string
+        - in: path
+          name: recipeId
+          required: true
+          schema:
+            format: uuid
+            type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/MenuAddItemInputBody"
+        required: true
+      responses:
+        "204":
+          description: No Content
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+          description: Error
+      security:
+        - bearerAuth: []
+      summary: 配方加入酒单
+  /api/v1/menus/{id}/share:
+    post:
+      operationId: menus-share
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            format: uuid
+            type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Menus-shareResponse"
+          description: OK
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+          description: Error
+      security:
+        - bearerAuth: []
+      summary: 生成/轮换分享令牌
   /api/v1/r/{slug}:
     get:
       description: 公开页面用（SEO 友好）；只返回已发布配方。
@@ -3061,6 +3611,43 @@ paths:
                 $ref: "#/components/schemas/ApiError"
           description: Error
       summary: 某人点赞过的配方
+  /api/v1/users/{handle}/menus:
+    get:
+      operationId: users-menus
+      parameters:
+        - in: path
+          name: handle
+          required: true
+          schema:
+            pattern: ^[a-zA-Z0-9_]{3,24}$
+            type: string
+        - explode: false
+          in: query
+          name: cursor
+          schema:
+            type: string
+        - explode: false
+          in: query
+          name: limit
+          schema:
+            format: int64
+            maximum: 50
+            minimum: 1
+            type: integer
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MenuListOutputBody"
+          description: OK
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+          description: Error
+      summary: 某人的公开酒单
   /api/v1/users/{handle}/recipes:
     get:
       operationId: users-recipes
