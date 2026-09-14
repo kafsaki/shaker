@@ -156,8 +156,9 @@ function lerpContainer(a: RenderedContainer, b: RenderedContainer, t: number): R
     layers: lerpLayers(a.layers, b.layers, t),
     ice: lerpIce(a.ice, b.ice, t),
     foam: lerpFoam(a, b, t),
-    // rim 是离散状态，取后一帧
+    // rim/coat 是离散状态，取后一帧
     rim: t < 0.5 ? a.rim : b.rim,
+    coat: t < 0.5 ? a.coat : b.coat,
     garnishes: lerpGarnishes(a.garnishes, b.garnishes, t),
     smoke: n(a.smoke, b.smoke, t),
     lidOn: t < 0.5 ? a.lidOn : b.lidOn,

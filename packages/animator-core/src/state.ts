@@ -66,6 +66,8 @@ export interface ContainerState {
   /** 0..1，连续的混合度（规范 §4.1）。 */
   mixedness: number;
   rim: { coverage: "full" | "half"; color: string } | null;
+  /** 挂壁膜（RINSE discard 后留下）：颜色 + 附着强度。 */
+  coat: { color: string; strength: number } | null;
   smokeDensity: number;
   aromaMist: number;
   lidOn: boolean;
@@ -88,6 +90,7 @@ export function newContainer(id: ContainerId, vessel: VesselSpec): ContainerStat
     dilutionMl: 0,
     mixedness: 0,
     rim: null,
+    coat: null,
     smokeDensity: 0,
     aromaMist: 0,
     lidOn: false,

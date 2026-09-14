@@ -75,6 +75,8 @@ export interface RenderedContainer {
   /** 泡沫冠，归一化高度区间。 */
   foam: { fromH: number; toH: number; color: string } | null;
   rim: { coverage: "full" | "half"; color: string } | null;
+  /** 挂壁膜（RINSE discard 后留下）：杯壁内侧染色薄膜。 */
+  coat: { color: string; strength: number } | null;
   garnishes: RenderedGarnish[];
   /** 杯内烟雾浓度 0..1。 */
   smoke: number;

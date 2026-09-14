@@ -276,6 +276,7 @@ function toScene(
       })),
       foam: foamBand(c),
       rim: c.rim,
+      coat: c.coat,
       // 装饰来自容器状态：加入后跨步骤持久存在（GARNISH 步骤内的落位动画由 attachGarnish 覆写）
       garnishes: c.garnishes.map((g) => ({
         garnishId: g.garnishId,
@@ -507,9 +508,12 @@ function applyStep(step: Step, ctx: Ctx): void {
       addToContainer(c, refs, vocab);
       emit.at(0.5, { focus: c.id, props: [swirlProp(c)] });
       if (step.discard) {
-        // 倒掉多余，只留挂壁着色
+        // 倒掉多余：只留挂壁膜 + 杯底 2ml 小水洼
         const tint = c.layers[c.layers.length - 1];
         c.layers = tint ? [{ ...tint, volumeMl: 2, opacity: 0.35 }] : [];
+        c.coat = tint
+          ? { color: tint.color, strength: Math.min(0.85, tint.opacity + 0.25) }
+          : null;
       }
       emit.at(1, { focus: c.id });
       break;

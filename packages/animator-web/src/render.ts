@@ -594,6 +594,29 @@ function drawContainer(
   hline(b, cx - hwT, cx + hwT, cy - gh, theme.glassStroke);
   if (!stem) hline(b, cx - hwB, cx + hwB, cy + 1, theme.glassFill); // 无脚杯厚底
 
+  // ── 挂壁膜（RINSE discard）：杯壁内侧染色 —— 上浓下淡，液面以上整段覆盖 ──
+  if (c.coat && c.coat.strength > 0.02) {
+    const rp = rampOf(c.coat.color);
+    const top = layers[layers.length - 1];
+    const surfRow = top ? cy - Math.round(top.toH * gh) : cy;
+    for (let gyUp = 0; gyUp <= gh; gyUp++) {
+      const y = cy - gyUp;
+      if (y >= surfRow) continue; // 只染液面以上的干壁
+      const hw = halfWAt(gyUp);
+      if (hw < 2) continue;
+      // 强度沿壁面向下衰减（酒膜往下流、变薄），隔行抖一档像液痕
+      const fade = c.coat.strength * (0.45 + 0.55 * (gyUp / gh));
+      const k = Math.min(0.9, fade * (gyUp % 3 === 0 ? 1.15 : 0.85));
+      dot(b, cx - hw + 1, y, mixOver(theme.glassFill, rp.base, k));
+      dot(b, cx + hw - 1, y, mixOver(theme.glassFill, rp.base, k * 0.8));
+      // 偶尔一道往下淌的浓痕
+      if (hash01(gyUp, 77) < 0.06) {
+        const side = hash01(gyUp, 99) < 0.5 ? -1 : 1;
+        dot(b, cx + side * (hw - 2), y, rp.base);
+      }
+    }
+  }
+
   // ── 盐/糖边 + 闪光 ──
   if (c.rim) {
     const rr = rampOf(c.rim.color);
