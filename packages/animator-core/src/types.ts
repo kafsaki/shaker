@@ -156,12 +156,15 @@ export interface Prop {
     | "swizzle"
     | "spray"
     | "peel"
-    | "blender_lid";
+    | "blender_lid"
+    | "pour_vessel";
   x: number;
   y: number;
   rot: number;
   scale: number;
   opacity: number;
+  /** pour_vessel：画的源容器杯型 id。 */
+  vesselId?: string;
   /** 长杆道具（吧勺/搅棒/捣棒）尖端的舞台 y —— 杆身画到杯底附近。 */
   tipY?: number;
   /** 倒注流。存在时渲染一条液流。 */

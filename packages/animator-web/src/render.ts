@@ -331,7 +331,7 @@ export function renderScene(
   }
 
   // ── 道具与液流 ──
-  for (const p of scene.props) drawProp(b, p, theme, fxMs);
+  for (const p of scene.props) drawProp(b, p, theme, fxMs, opts);
 
   // ── 舞台级粒子 ──
   for (const e of scene.effects) drawEffect(b, e, fxMs, theme);
@@ -890,10 +890,32 @@ const PROP_SPRITES: Record<string, string[]> = {
   barspoon_head: ["..mm..", ".mmmm.", "..mm.."],
 };
 
-function drawProp(b: PCtx, p: Prop, theme: RenderTheme, fxMs: number): void {
+function drawProp(b: PCtx, p: Prop, theme: RenderTheme, fxMs: number, opts: RenderOptions): void {
   const gx = Math.round(p.x / PS);
   const gy = Math.round(p.y / PS);
   if (p.opacity < 0.05) return;
+
+  // 倒酒姿态：画源容器本身（倾斜剪影 + 余酒），液流从口沿流出。
+  // 画完直接 return —— pour_vessel 没有 sprite，落到下面会画出"兜底小方块"
+  //（曾表现为量杯左下角多出半截滤网）。
+  if (p.kind === "pour_vessel") {
+    if (p.vesselId) {
+      const vessel = opts.vessel(p.vesselId);
+      if (vessel) drawPourVessel(b, p, vessel, gx, gy, theme);
+    }
+    if (p.stream) {
+      drawStream(
+        b,
+        Math.round((p.stream.fromX ?? p.x) / PS),
+        Math.round((p.stream.fromY ?? p.y) / PS),
+        p.stream,
+        theme,
+        fxMs,
+        p.opacity,
+      );
+    }
+    return;
+  }
 
   // 液流先画（道具压在上面）—— 起点用壶口坐标（缺省回退道具中心）
   if (p.stream) {
@@ -937,12 +959,119 @@ function drawProp(b: PCtx, p: Prop, theme: RenderTheme, fxMs: number): void {
   }
   const ox = gx - Math.round(rows[0]!.length / 2);
   const tilt = Math.round(p.rot * 3); // 倾斜量化成整体横移，像素质感
+  // 像素放大（最近邻，整数倍）：strainer 等需要覆盖杯口的道具
+  const zoom = Math.max(1, Math.round(p.scale));
   for (let r = 0; r < rows.length; r++) {
     const row = rows[r]!;
     const rowShift = Math.round(tilt * (1 - r / rows.length));
     for (let i = 0; i < row.length; i++) {
       const col = pal(row[i]!);
-      if (col) dot(b, ox + i + rowShift, gy + r, col);
+      if (!col) continue;
+      // sprite 原点为锚点，向下、向右扩展放大
+      for (let zy = 0; zy < zoom; zy++) {
+        for (let zx = 0; zx < zoom; zx++) {
+          dot(b, ox - Math.round((zoom - 1) * row.length / 2) + i * zoom + zx + rowShift, gy + r * zoom + zy, col);
+        }
+      }
+    }
+  }
+}
+
+/**
+ * 倒酒姿态的源容器：剖面点绕容器中心**旋转**（约 105°，杯口朝向右下），
+ * 旋转后逐行画轮廓 + 余酒 —— 真正"横过来"的倾倒，不是 shear。
+ * 余酒液面在旋转坐标里保持水平（重力方向不变）。
+ */
+function drawPourVessel(
+  b: PCtx,
+  p: Prop,
+  vessel: VesselSpec,
+  gx: number,
+  gy: number,
+  theme: RenderTheme,
+): void {
+  const gh = Math.max(4, Math.round(p.scale / PS));
+  const profile = vessel.def.shape.profile;
+  const halfWAt = (fy: number): number => {
+    const y = Math.max(0, Math.min(1, fy));
+    for (let i = 0; i < profile.length - 1; i++) {
+      const a = profile[i]!;
+      const c = profile[i + 1]!;
+      if (y >= a.y && y <= c.y) return a.r + ((c.r - a.r) * (y - a.y)) / Math.max(1e-6, c.y - a.y);
+    }
+    return profile[profile.length - 1]!.r;
+  };
+  // 旋转：绕杯体中心（gx, gy - gh/2），rot 是弧度倾角（1.8 ≈ 105°，杯口转向右下）
+  const ang = p.rot * 2; // rot≈0.5 → ~57°*2 … 统一用 rot 直接当半倾角，0.9→~103°
+  const ctrX = gx;
+  const ctrY = gy - (gh >> 1);
+  const cos = Math.cos(ang);
+  const sin = Math.sin(ang);
+  const rotPx = (dx: number, dy: number): [number, number] => [
+    Math.round(ctrX + dx * cos - dy * sin),
+    Math.round(ctrY + dx * sin + dy * cos),
+  ];
+  const rp = p.stream ? rampOf(p.stream.color) : null;
+
+  // 轮廓：沿剖面上下两条边采样旋转
+  const N = Math.max(6, gh);
+  for (let i = 0; i <= N; i++) {
+    const fy = i / N;
+    const hw = Math.max(1, Math.round((halfWAt(fy) * p.scale) / PS));
+    const dy = -Math.round(fy * gh); // 杯内坐标：底 dy=0，口 dy=-gh
+    // 左右壁（杯内坐标 dx = ±hw）
+    for (const s of [-1, 1]) {
+      const [px, py] = rotPx(s * hw, dy);
+      dot(b, px, py, theme.glassStroke);
+      // 壁内侧
+      const [ix, iy] = rotPx(s * (hw - 1), dy);
+      if (hw > 2) dot(b, ix, iy, theme.glassFill);
+    }
+  }
+  // 口沿线 + 底线（旋转后的两个端点连线）
+  const hwT = Math.max(1, Math.round((halfWAt(1) * p.scale) / PS));
+  const hwB = Math.max(1, Math.round((halfWAt(0) * p.scale) / PS));
+  line(b, rotPx(-hwT, -gh), rotPx(hwT, -gh), theme.glassStroke);
+  line(b, rotPx(-hwB, 0), rotPx(hwB, 0), theme.glassStroke);
+
+  // 余酒：杯内坐标下半部（旋转前），旋转到屏幕后填色
+  if (rp) {
+    for (let i = 0; i <= N; i++) {
+      const fy = 1 - i / N; // 从底往上
+      if (fy > 0.62) break; // 上部留空
+      const hw = Math.max(1, Math.round((halfWAt(fy) * p.scale) / PS));
+      const dy = -Math.round(fy * gh);
+      for (let dx = -hw + 1; dx <= hw - 1; dx++) {
+        const [px, py] = rotPx(dx, dy);
+        dot(b, px, py, rp.base);
+      }
+    }
+  }
+  // 口沿亮缘（倒酒侧 = 旋转后外侧端点）
+  const [spX, spY] = rotPx(hwT, -gh);
+  dot(b, spX, spY, theme.hi);
+}
+
+/** Bresenham 风格像素线（像素质感）。 */
+function line(b: PCtx, a: [number, number], c: [number, number], color: string): void {
+  let [x0, y0] = a;
+  const [x1, y1] = c;
+  const dx = Math.abs(x1 - x0);
+  const dy = Math.abs(y1 - y0);
+  const sx = x0 < x1 ? 1 : -1;
+  const sy = y0 < y1 ? 1 : -1;
+  let err = dx - dy;
+  for (;;) {
+    dot(b, x0, y0, color);
+    if (x0 === x1 && y0 === y1) break;
+    const e2 = 2 * err;
+    if (e2 > -dy) {
+      err -= dy;
+      x0 += sx;
+    }
+    if (e2 < dx) {
+      err += dx;
+      y0 += sy;
     }
   }
 }

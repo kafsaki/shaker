@@ -49,8 +49,6 @@ const DEFAULT_STAGE = { width: 400, height: 520 };
 const UNITS_PER_CM = 20;
 /** 主位置：舞台中下。 */
 const MAIN_POS = { x: 200, y: 448 };
-/** 倾倒位置：主位置上方。 */
-const POUR_POS = { x: 232, y: 206 };
 /** 双容器并列时的左右位置。 */
 const LEFT_POS = { x: 126, y: 448 };
 
@@ -689,14 +687,17 @@ function applyStep(step: Step, ctx: Ctx): void {
       const from = ensure(step.from);
       const to = ensure(step.to);
       from.agitation = 0.5;
+      to.active = true; // 倒换前目标杯先到位（占据主位）
+      const pourColor = from.layers[0]?.color ?? "#e8d9b0"; // transfer 前捕获
       emit.at(0, { focus: from.id });
       dilute(from, step.action === "ROLL" ? physics.ROLL_DILUTION : physics.THROW_DILUTION);
       mix(from, physics.MIXEDNESS_TARGET[step.action]);
-      emit.at(0.45, { focus: from.id, props: [streamBetween(from, to)] });
+      from.active = false; // 源容器由 pour_vessel 道具接管
+      emit.at(0.4, { focus: to.id, props: [pourVesselProp(from, to, pourColor)], ease: "easeIn" });
       transfer(from, to, { carryIce: false });
       to.agitation = 0.55; // 倒进目标杯激起波纹
-      from.active = false;
-      emit.at(1, { focus: to.id });
+      emit.at(0.9, { focus: to.id, props: [pourVesselProp(from, to, pourColor)] });
+      emit.at(1, { focus: to.id, props: [] });
       break;
     }
 
@@ -730,14 +731,15 @@ function applyStep(step: Step, ctx: Ctx): void {
       const to = ensure(step.to);
       to.active = true;
       to.agitation = 0.5; // 滤入激起波纹
+      const pourColor = from.layers[0]?.color ?? "#e8d9b0"; // transfer 前捕获
       emit.at(0, { focus: to.id });
-      emit.at(0.2, { focus: to.id, props: [strainerProp(from, to, 0.4)], ease: "easeIn" });
+      from.active = false; // 摇壶由 pour_vessel + strainer 道具接管
+      emit.at(0.2, { focus: to.id, props: strainPourProps(from, to, pourColor), ease: "easeIn" });
       transfer(from, to, {
         carryIce: false,
         fineStrain: step.double === true || step.strainer === "fine",
       });
-      emit.at(0.85, { focus: to.id, props: [strainerProp(from, to, 1)] });
-      from.active = false;
+      emit.at(0.85, { focus: to.id, props: strainPourProps(from, to, pourColor) });
       emit.at(1, { focus: to.id, props: [] });
       break;
     }
@@ -747,10 +749,12 @@ function applyStep(step: Step, ctx: Ctx): void {
       const to = ensure(step.to);
       to.active = true;
       to.agitation = 0.7; // 连冰带酒倒入，扰动更强
+      const pourColor = from.layers[0]?.color ?? "#e8d9b0"; // transfer 前捕获
       emit.at(0, { focus: to.id });
-      emit.at(0.25, { focus: to.id, props: [streamBetween(from, to)] });
+      from.active = false; // 源容器由 pour_vessel 道具接管
+      emit.at(0.2, { focus: to.id, props: [pourVesselProp(from, to, pourColor)], ease: "easeIn" });
       transfer(from, to, { carryIce: true });
-      from.active = false;
+      emit.at(0.85, { focus: to.id, props: [pourVesselProp(from, to, pourColor)] });
       emit.at(1, { focus: to.id, props: [] });
       break;
     }
@@ -955,18 +959,9 @@ function surfaceStreamY(c: ContainerState): number {
 }
 
 /**
- * 倒酒道具的壶口位置：道具绕自身中心倾转，液流从口沿流出 ——
- * 倾角越大，口沿越低、越朝目标杯偏移（旋转点在道具底部）。
+ * 加料倒注：量酒器（pour_vessel，真容器旋转）贴着被倒方杯口上方倾斜，
+ * 口沿对准液流起点倒出 —— 不再是固定位置的 sprite 量杯。
  */
-function spoutOf(x: number, y: number, rot: number): { x: number; y: number } {
-  const armY = 14; // 中心到口沿的半高（舞台单位）
-  const armX = 10; // 口沿的横向半径
-  return {
-    x: x - Math.sin(rot) * armY - armX,
-    y: y - Math.cos(rot) * armY + armY,
-  };
-}
-
 function pourProp(
   c: ContainerState,
   refs: readonly IngredientRef[],
@@ -977,61 +972,118 @@ function pourProp(
   const color = meta?.viz.color ?? "#d8d2c4";
   const visc = meta?.viz.viscosity ?? "low";
   const width = { low: 2.6, medium: 3.4, high: 4.6 }[visc];
-  const rot = active * 0.85;
-  const spout = spoutOf(POUR_POS.x, POUR_POS.y, rot);
+  // 量酒器杯型（词表注册的 __jigger）
+  const jigger = vocab.vessel("__jigger");
+  const h = jigger ? jigger.scale * UNITS_PER_CM : 60;
+  const rimR = jigger
+    ? jigger.def.shape.profile[jigger.def.shape.profile.length - 1]!.r * h
+    : 14;
+  // 口沿目标：被倒方杯口左上方一点（贴着杯口倒）
+  const lipX = MAIN_POS.x - rimR * 0.6;
+  const lipY = rimYOf(c) - 10;
+  const ang = POUR_ROT * 2;
+  // 与渲染端一致的旋转三角函数，由口沿位置反推量杯中心（px 系）
+  const gh = h / STAGE_PX;
+  const hwT = rimR / STAGE_PX;
+  const ctrX = lipX / STAGE_PX - (hwT * Math.cos(ang) + gh * Math.sin(ang));
+  const ctrY = lipY / STAGE_PX - (hwT * Math.sin(ang) - gh * Math.cos(ang));
+  const rot = active > 0.5 ? POUR_ROT : POUR_ROT * 0.55 * active; // 从半倾到全倒
   return {
-    kind: "jigger",
-    x: POUR_POS.x,
-    y: POUR_POS.y,
+    kind: "pour_vessel",
+    vesselId: "__jigger",
+    x: ctrX * STAGE_PX,
+    y: (ctrY + gh / 2) * STAGE_PX,
     rot,
-    scale: 1,
-    opacity: 0.9,
+    scale: h,
+    opacity: 0.95,
     stream:
       active > 0.5
-        ? { fromX: spout.x, fromY: spout.y, toX: MAIN_POS.x, toY: surfaceStreamY(c), width, color }
+        ? { fromX: lipX, fromY: lipY, toX: MAIN_POS.x, toY: surfaceStreamY(c), width, color }
         : undefined,
   };
 }
 
-function strainerProp(from: ContainerState, to: ContainerState, active: number): Prop {
-  const top = from.layers[0];
-  const rot = 0.4 + active * 0.6;
-  const spout = spoutOf(POUR_POS.x - 10, POUR_POS.y, rot);
-  return {
-    kind: "strainer",
-    x: POUR_POS.x - 10,
-    y: POUR_POS.y,
-    rot,
-    scale: 1,
-    opacity: 1,
-    stream:
-      active > 0.2
-        ? { fromX: spout.x, fromY: spout.y, toX: MAIN_POS.x, toY: surfaceStreamY(to), width: 3, color: top?.color ?? "#e8d9b0" }
-        : undefined,
-  };
+/** pour_vessel 的倾角（rot，渲染端实际旋转角 = rot × 2 ≈ 103°）。 */
+const POUR_ROT = 0.9;
+/** 与渲染器一致的舞台像素（PS）。 */
+const STAGE_PX = 4;
+
+/**
+ * 由「想要的出液口（lip = 旋转后的杯口右端点）位置」反推 pour_vessel 的 x/y。
+ * 渲染端 drawPourVessel 绕杯体中心旋转剖面 —— 这里用同一套三角函数把 lip
+ * 钉在指定舞台坐标上，保证**口沿精确对准液流起点**（不靠目测偏移）。
+ */
+function pourPose(from: ContainerState, lipX: number, lipY: number): { x: number; y: number } {
+  const h = from.vessel.scale * UNITS_PER_CM;
+  const rimR = from.vessel.def.shape.profile[from.vessel.def.shape.profile.length - 1]!.r * h;
+  const ang = POUR_ROT * 2;
+  const gh = h / STAGE_PX; // px
+  const hwT = rimR / STAGE_PX;
+  // lip 局部坐标 (hwT, -gh) 旋转 ang 后落在 (ctrX + hwT·cosA + gh·sinA, ctrY + hwT·sinA − gh·cosA)
+  const ctrX = lipX / STAGE_PX - (hwT * Math.cos(ang) + gh * Math.sin(ang));
+  const ctrY = lipY / STAGE_PX - (hwT * Math.sin(ang) - gh * Math.cos(ang));
+  // 渲染端 gy = y/PS 且 ctr = (gx, gy − gh/2) → 反解 prop 坐标
+  return { x: ctrX * STAGE_PX, y: (ctrY + gh / 2) * STAGE_PX };
 }
 
-function streamBetween(from: ContainerState, to: ContainerState): Prop {
-  const top = from.layers[0];
-  const fromBowlY = restBowlY(from.vessel);
-  const fromH = from.vessel.scale * UNITS_PER_CM;
-  // 双容器倒换：从源容器口沿流出（位置随源容器实际渲染位置）
-  const srcX = from.id === "secondary" ? LEFT_POS.x : MAIN_POS.x;
-  return {
-    kind: "bottle",
-    x: srcX,
-    y: fromBowlY - fromH,
-    rot: 0.9,
-    scale: 1,
-    opacity: 1,
-    stream: {
-      fromX: srcX - 6,
-      fromY: fromBowlY - fromH - 2,
-      toX: MAIN_POS.x,
-      toY: surfaceStreamY(to),
-      width: 3.2,
-      color: top?.color ?? "#e8d9b0",
+/** 目标杯口沿的舞台 y。 */
+function rimYOf(to: ContainerState): number {
+  return restBowlY(to.vessel) - to.vessel.scale * UNITS_PER_CM;
+}
+
+/**
+ * 滤酒姿态：摇壶横倒，液流从口沿先落进滤网；滤网**平摊在目标杯口上方
+ * （平行于被倒方杯口）**，过滤后短液流落入杯中 —— 口沿、滤网、液流三点连贯。
+ */
+function strainPourProps(from: ContainerState, to: ContainerState, color: string): Prop[] {
+  const strX = MAIN_POS.x; // 滤网中心 = 目标杯口中心
+  const strY = rimYOf(to) - 48; // 滤网底部略高于杯口
+  // 摇壶口沿：滤网正上方、抬高留出间隙 —— 103° 倾倒下壶身朝上，
+  // 口部（宽约 rimR×2）不能横跨到滤网 sprite 上（否则壶左下角叠着半截滤网）
+  const lipX = strX - 8;
+  const lipY = strY - 46;
+  const pose = pourPose(from, lipX, lipY);
+  return [
+    {
+      kind: "pour_vessel",
+      vesselId: from.vessel.def.id,
+      x: pose.x,
+      y: pose.y,
+      rot: POUR_ROT,
+      scale: from.vessel.scale * UNITS_PER_CM,
+      opacity: 1,
+      stream: { fromX: lipX, fromY: lipY, toX: strX, toY: strY + 8, width: 3.2, color },
     },
+    {
+      kind: "strainer",
+      x: strX,
+      y: strY,
+      rot: 0, // 平行于被倒方杯口（水平）
+      scale: 2.2,
+      opacity: 1,
+      stream: { fromX: strX, fromY: strY + 36, toX: MAIN_POS.x, toY: surfaceStreamY(to), width: 3, color },
+    },
+  ];
+}
+
+/**
+ * 倒酒姿态：源容器**本身**（不是瓶子）横倒，口沿对准液流起点流出。
+ * 倒酒帧里真实源容器被隐藏（from.active=false），由这个道具接管绘制，避免双重出现。
+ * 颜色在 transfer 之前捕获 —— transfer 会清空源容器的层。
+ */
+function pourVesselProp(from: ContainerState, to: ContainerState, color: string): Prop {
+  const lipX = MAIN_POS.x - 16; // 口沿落在目标杯口左上方
+  const lipY = rimYOf(to) - 16;
+  const pose = pourPose(from, lipX, lipY);
+  return {
+    kind: "pour_vessel",
+    vesselId: from.vessel.def.id,
+    x: pose.x,
+    y: pose.y,
+    rot: POUR_ROT,
+    scale: from.vessel.scale * UNITS_PER_CM,
+    opacity: 1,
+    stream: { fromX: lipX, fromY: lipY, toX: MAIN_POS.x, toY: surfaceStreamY(to), width: 3.2, color },
   };
 }
 
