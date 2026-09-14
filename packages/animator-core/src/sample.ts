@@ -161,6 +161,7 @@ function lerpContainer(a: RenderedContainer, b: RenderedContainer, t: number): R
     garnishes: lerpGarnishes(a.garnishes, b.garnishes, t),
     smoke: n(a.smoke, b.smoke, t),
     lidOn: t < 0.5 ? a.lidOn : b.lidOn,
+    agitation: n(a.agitation, b.agitation, t),
   };
 }
 

@@ -110,10 +110,24 @@ export function compile(ir: RecipeIR, vocab: ResolvedVocab, opts: CompileOptions
   let cursorMs = 0;
 
   for (const step of ir.steps) {
+    // 扰动衰减：上一步动作留下的余波（波浪/冰块晃动）逐步平息
+    for (const c of containers.values()) {
+      if (c.active) c.agitation = Math.max(0, c.agitation * 0.3);
+    }
     const emit = new StepEmitter(step, containers, stage);
     applyStep(step, { containers, ensure, bySlot, vocab, emit });
 
     const durationMs = Math.max(120, Math.round(emit.durationMs / speed));
+    // emit.at 拍下的效果用步骤内相对时间 —— 这里换成时间轴绝对时间（渲染器按 fxMs 取样）
+    const shifted = new Set<Effect>();
+    for (const f of emit.frames) {
+      for (const e of f.scene.effects) {
+        if (shifted.has(e)) continue;
+        shifted.add(e);
+        e.startMs += cursorMs;
+        e.endMs += cursorMs;
+      }
+    }
     steps.push({
       stepId: step.id,
       action: step.action,
@@ -277,6 +291,7 @@ function toScene(
       })),
       smoke: c.smokeDensity,
       lidOn: c.lidOn,
+      agitation: c.agitation,
     });
   }
 
@@ -507,6 +522,7 @@ function applyStep(step: Step, ctx: Ctx): void {
       const c = ensure(step.target);
       const refs = refsOf(step.items, bySlot);
       c.active = true;
+      c.agitation = 0.55; // 倒酒激起液面波纹
       if (refs.length <= 1 || step.pour === "simultaneous") {
         emit.at(0, { focus: c.id, props: [pourProp(c, refs, vocab, 0)] });
         emit.at(0.18, { focus: c.id, props: [pourProp(c, refs, vocab, 1)], ease: "easeOut" });
@@ -535,9 +551,46 @@ function applyStep(step: Step, ctx: Ctx): void {
     case "ICE": {
       const c = ensure(step.target);
       c.active = true;
-      emit.at(0, { focus: c.id });
       addIce(c, step.iceType, step.fill);
-      emit.at(1, { focus: c.id, ease: "easeOut" });
+
+      // 落冰编排：杯口上方 → 自由落体 → 冲击下压（碰撞）→ 回弹 → 静止
+      const rest = c.ice.map((i) => ({ ...i }));
+      const lifted = rest.map((i) => ({ ...i, y: 1.25 }));
+      const sunk = rest.map((i) => ({ ...i, y: Math.max(0.02, i.y - 0.07) }));
+      const landT = 0.5;
+
+      // 水花：冲击液面时溅起（粒子是 fxMs 的纯函数，可 seek）
+      const h = c.vessel.scale * UNITS_PER_CM;
+      const radius = c.vessel.def.shape.profile[c.vessel.def.shape.profile.length - 1]!.r * h;
+      const surfaceH = heightForVolume(c.vessel, occupiedMl(c));
+      const splashMs = Math.round(landT * emit.durationMs);
+      const splash: Effect = {
+        kind: "splash",
+        seed: hashString(`splash:${step.id}`),
+        startMs: splashMs,
+        endMs: splashMs + 700,
+        rate: 14,
+        region: {
+          x: MAIN_POS.x - radius * 0.75,
+          y: restBowlY(c.vessel) - Math.max(0.04, surfaceH) * h - 3,
+          w: radius * 1.5,
+          h: 6,
+        },
+        drift: { vx: 0, vy: 0 },
+        size: { min: 1, max: 2 },
+        color: c.layers.length > 0 ? c.layers[c.layers.length - 1]!.color : "#dceef8",
+        opacity: 0.9,
+      };
+      c.ice = lifted;
+      emit.at(0, { focus: c.id, effects: [splash] });
+      c.ice = rest;
+      emit.at(landT, { focus: c.id, ease: "easeIn", effects: [splash] });
+      c.ice = sunk;
+      c.agitation = 0.95;
+      emit.at(landT + 0.12, { focus: c.id, ease: "easeOut", effects: [splash] });
+      c.ice = rest;
+      c.agitation = 0.5;
+      emit.at(1, { focus: c.id, effects: [splash] });
       break;
     }
 
@@ -545,6 +598,7 @@ function applyStep(step: Step, ctx: Ctx): void {
       const c = ensure(step.target);
       const refs = refsOf(step.items, bySlot);
       c.active = true;
+      c.agitation = 0.6; // 捣压搅动
       emit.at(0, { focus: c.id, props: [muddlerProp(c, 0)] });
       emit.at(0.3, { focus: c.id, props: [muddlerProp(c, 1)] });
       // firm 捣压出汁
@@ -574,6 +628,7 @@ function applyStep(step: Step, ctx: Ctx): void {
       const refs = [...bySlot.values()];
 
       c.lidOn = true;
+      c.agitation = 1; // 剧烈摇晃：冰块乱撞、液面狂乱
       emit.at(0, { focus: c.id });
       // 摇晃姿态由渲染器按 shake 参数叠加正弦，这里只给幅度
       const shakeFrames = 3;
@@ -602,6 +657,7 @@ function applyStep(step: Step, ctx: Ctx): void {
     case "STIR": {
       const c = ensure(step.target);
       c.active = true;
+      c.agitation = 0.55; // 搅动液面与冰块
       emit.at(0, { focus: c.id, props: [barspoonProp(c, 0)] });
       emit.at(0.4, { focus: c.id, props: [barspoonProp(c, 1)], ease: "linear" });
       dilute(
@@ -618,6 +674,7 @@ function applyStep(step: Step, ctx: Ctx): void {
     case "SWIZZLE": {
       const c = ensure(step.target);
       c.active = true;
+      c.agitation = 0.6; // 搅拌棒搅动碎冰
       emit.at(0, { focus: c.id, props: [swizzleProp(c)] });
       dilute(c, physics.SWIZZLE_DILUTION);
       mix(c, physics.MIXEDNESS_TARGET.SWIZZLE, { cloudy: true });
@@ -631,11 +688,13 @@ function applyStep(step: Step, ctx: Ctx): void {
     case "THROW": {
       const from = ensure(step.from);
       const to = ensure(step.to);
+      from.agitation = 0.5;
       emit.at(0, { focus: from.id });
       dilute(from, step.action === "ROLL" ? physics.ROLL_DILUTION : physics.THROW_DILUTION);
       mix(from, physics.MIXEDNESS_TARGET[step.action]);
       emit.at(0.45, { focus: from.id, props: [streamBetween(from, to)] });
       transfer(from, to, { carryIce: false });
+      to.agitation = 0.55; // 倒进目标杯激起波纹
       from.active = false;
       emit.at(1, { focus: to.id });
       break;
@@ -645,6 +704,7 @@ function applyStep(step: Step, ctx: Ctx): void {
       const c = ensure(step.target);
       c.active = true;
       c.lidOn = true;
+      c.agitation = 0.85; // 搅拌机全速搅打
       emit.at(0, { focus: c.id });
       dilute(
         c,
@@ -669,6 +729,7 @@ function applyStep(step: Step, ctx: Ctx): void {
       const from = ensure(step.from);
       const to = ensure(step.to);
       to.active = true;
+      to.agitation = 0.5; // 滤入激起波纹
       emit.at(0, { focus: to.id });
       emit.at(0.2, { focus: to.id, props: [strainerProp(from, to, 0.4)], ease: "easeIn" });
       transfer(from, to, {
@@ -685,6 +746,7 @@ function applyStep(step: Step, ctx: Ctx): void {
       const from = ensure(step.from);
       const to = ensure(step.to);
       to.active = true;
+      to.agitation = 0.7; // 连冰带酒倒入，扰动更强
       emit.at(0, { focus: to.id });
       emit.at(0.25, { focus: to.id, props: [streamBetween(from, to)] });
       transfer(from, to, { carryIce: true });
@@ -698,6 +760,7 @@ function applyStep(step: Step, ctx: Ctx): void {
       const c = ensure(step.target);
       const refs = refsOf(step.items, bySlot);
       c.active = true;
+      c.agitation = 0.5; // 补满激起波纹
       emit.at(0, { focus: c.id, props: [pourProp(c, refs, vocab, 0)] });
       emit.at(0.15, { focus: c.id, props: [pourProp(c, refs, vocab, 1)] });
 
@@ -718,6 +781,7 @@ function applyStep(step: Step, ctx: Ctx): void {
       const c = ensure(step.target);
       const refs = refsOf(step.items, bySlot);
       c.active = true;
+      c.agitation = 0.3; // 沿吧勺背面缓倒，扰动轻
       emit.at(0, { focus: c.id, props: [barspoonProp(c, 0.6)] });
       // forceNewLayer：作者的显式意图优先于物理（规范 §7.3）
       addToContainer(c, refs, vocab, true);

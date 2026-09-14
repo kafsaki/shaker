@@ -95,6 +95,37 @@ test("IR 的每个步骤都在 Timeline 里有对应项", () => {
   }
 });
 
+test("物理扰动：落冰带水花（绝对时间），冲击扰动高，后续步骤衰减", () => {
+  const { tl } = compiled.find((c) => c.f.title === "Negroni")!;
+  const iceStep = tl.steps.find((s) => s.action === "ICE")!;
+
+  // 水花效果存在，且已换算成时间轴绝对时间（渲染器按 fxMs 取样）
+  const splash = iceStep.keyframes
+    .flatMap((k) => k.scene.effects)
+    .find((e) => e.kind === "splash") as Effect | undefined;
+  assert.ok(splash, "ICE 步骤应有水花效果");
+  assert.ok(splash!.startMs >= iceStep.startMs, "水花 startMs 应是绝对时间");
+  assert.ok(splash!.endMs > splash!.startMs);
+
+  // 落冰冲击帧扰动 0.95，收尾帧回落到 0.5
+  const frames = iceStep.keyframes;
+  const agitOf = (i: number): number | undefined =>
+    frames[i]!.scene.containers.find((c) => c.id === "glass")?.agitation;
+  assert.ok((agitOf(frames.length - 2) ?? 0) > 0.9, "冲击帧扰动应接近 1");
+  assert.ok((agitOf(frames.length - 1) ?? 1) < 0.6, "收尾帧扰动应回落");
+
+  // STIR 期间扰动 ~0.55；下一步（GARNISH）衰减到 ≤ 0.2
+  const stirStep = tl.steps.find((s) => s.action === "STIR")!;
+  const stirAgit = stirStep.keyframes[0]!.scene.containers.find((c) => c.id === "glass")!.agitation;
+  assert.ok(stirAgit > 0.3, `STIR 扰动应 >0.3，实际 ${stirAgit}`);
+  const stirIdx = tl.steps.indexOf(stirStep);
+  const after = tl.steps[stirIdx + 1]!;
+  if (after.stepId !== "__final") {
+    const afterAgit = after.keyframes[0]!.scene.containers.find((c) => c.id === "glass")!.agitation;
+    assert.ok(afterAgit <= stirAgit * 0.4 + 0.01, `下一步扰动应大幅衰减，实际 ${afterAgit}`);
+  }
+});
+
 /* ══════════════════════════ compile 是纯函数 ══════════════════════════ */
 
 test("同一份输入编译两次得到逐字节相同的结果 —— 规范 §9.2 的核心承诺", () => {

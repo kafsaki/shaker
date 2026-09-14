@@ -447,10 +447,18 @@ function drawContainer(
     const alpha = clamp01(l.opacity);
     const belowTop = below ? cy - Math.round(below.toH * gh) : 0;
     const belowBot = below ? cy - Math.round(below.fromH * gh) : 0;
-    for (let y = rowTop; y <= rowBot; y++) {
+    // 液面波浪：扰动度驱动的行波 + 交叉短波，只在顶层
+    const isTop = i === layers.length - 1;
+    const waveAmp = isTop ? Math.min(2, c.agitation * 2.2) : 0;
+    const waveAt = (px: number): number =>
+      waveAmp * Math.sin(fxMs * 0.012 + px * 0.8) + waveAmp * 0.5 * Math.sin(fxMs * 0.023 + px * 2.1);
+    const yStart = rowTop - Math.ceil(waveAmp * 1.5) - 1;
+    for (let y = Math.min(yStart, rowTop); y <= rowBot; y++) {
       const gyUp = cy - y;
       const hw = Math.max(1, halfWAt(gyUp) - 1);
       for (let x = cx - hw; x <= cx + hw; x++) {
+        // 波谷上方的空隙不画（顶层液面起伏）
+        if (isTop && y < rowTop + Math.round(waveAt(x))) continue;
         let col: string;
         // 层间过渡带：Bayer 抖动
         const fromBound = y - rowTop;
@@ -476,13 +484,15 @@ function drawContainer(
         dot(b, hx, y, rp.light);
       }
     }
-    // meniscus：液面一行亮色 + 缓慢游走的高光点
+    // meniscus：液面亮线跟随波浪起伏 + 缓慢游走的高光点
     if (i === layers.length - 1) {
       const hw = Math.max(1, halfWAt(cy - rowTop) - 1);
-      hline(b, cx - hw, cx + hw, rowTop, rp.hi);
+      for (let px = cx - hw; px <= cx + hw; px++) {
+        dot(b, px, rowTop + Math.round(waveAt(px)), rp.hi);
+      }
       const glintX = cx + Math.round(Math.sin(fxMs * 0.0011) * hw * 0.5);
-      dot(b, glintX, rowTop, theme.hi);
-      dot(b, glintX + 1, rowTop, theme.hi);
+      dot(b, glintX, rowTop + Math.round(waveAt(glintX)), theme.hi);
+      dot(b, glintX + 1, rowTop + Math.round(waveAt(glintX + 1)), theme.hi);
     }
   }
 
@@ -522,7 +532,7 @@ function drawContainer(
       }
       return hex;
     };
-    for (const ice of c.ice) drawIce(b, ice, halfWAt, gh, cx, cy, theme, underAt);
+    for (const ice of c.ice) drawIce(b, ice, halfWAt, gh, cx, cy, theme, underAt, c.agitation, fxMs);
   }
 
   // ── 泡沫冠（白噪点带，顶部起伏） ──
@@ -664,13 +674,19 @@ function drawIce(
   theme: RenderTheme,
   /** 冰体透明合成：取此刻 buffer（背景+液体）的颜色。 */
   underAt: (x: number, y: number) => string,
+  /** 扰动度：驱动冰块浮动/晃动（摇、搅、落冰余波）。 */
+  agit: number,
+  fxMs: number,
 ): void {
   const sizePx = Math.max(2, Math.round((ice.size * gh) / 2));
   const gyUp = ice.y * gh;
   const hw = halfWAt(Math.round(gyUp));
-  const x = cx + Math.round(ice.x * hw * 0.7);
-  const y = cy - Math.round(gyUp);
   const salt = Math.round(ice.rot * 100);
+  // 浮动/晃动：确定性正弦，每块冰相位不同（salt 派生）
+  const bobX = Math.round(Math.cos(fxMs * 0.016 + salt) * agit * 1.4);
+  const bobY = Math.round(Math.sin(fxMs * 0.021 + salt * 1.7) * agit * 1.8);
+  const x = cx + Math.round(ice.x * hw * 0.7) + bobX;
+  const y = cy - Math.round(gyUp) + bobY;
 
   // 冰体近全透明：极低系数的混色，隐约带一层冷色调
   const body = (xx: number, yy: number): string => mixOver(underAt(xx, yy), "#dceef8", 0.15);
@@ -970,6 +986,10 @@ function drawStream(
 /* ══════════════════════════ 效果粒子 ══════════════════════════ */
 
 function drawEffect(b: PCtx, e: Effect, fxMs: number, theme: RenderTheme): void {
+  if (e.kind === "splash") {
+    drawSplash(b, e, fxMs);
+    return;
+  }
   const ps = particlesAt(e, fxMs);
   for (const p of ps) {
     const x = Math.round(p.x / PS);
@@ -989,6 +1009,33 @@ function drawEffect(b: PCtx, e: Effect, fxMs: number, theme: RenderTheme): void 
         if (p.size > 6) dot(b, x + 1, y, e.color);
       }
     }
+  }
+}
+
+/**
+ * 水花：冰块冲击液面时溅起的液滴 —— 抛物线（初速向上 + 重力），
+ * 每滴的初速/方向/延迟由 (seed, i) 确定，是 fxMs 的纯函数，可 seek。
+ */
+function drawSplash(b: PCtx, e: Effect, fxMs: number): void {
+  if (fxMs < e.startMs || fxMs > e.endMs) return;
+  const lifeMs = e.endMs - e.startMs;
+  const n = Math.round(e.rate);
+  for (let i = 0; i < n; i++) {
+    const delay = hash01(i * 3 + 1, e.seed) * 0.15 * lifeMs;
+    const age = fxMs - e.startMs - delay;
+    if (age < 0 || age > lifeMs * 0.8) continue;
+    const tSec = age / 1000;
+    // 舞台单位/秒：向上初速 + 重力回落（20 单位 ≈ 1cm）
+    const vy0 = -(50 + hash01(i * 3 + 2, e.seed) * 36);
+    const vx = (hash01(i * 3 + 3, e.seed) * 2 - 1) * 30;
+    const x =
+      e.region.x + e.region.w * 0.5 + (hash01(i * 5 + 7, e.seed) * 2 - 1) * e.region.w * 0.4 + vx * tSec;
+    const y = e.region.y + vy0 * tSec + 150 * tSec * tSec;
+    const px = Math.round(x / PS);
+    const py = Math.round(y / PS);
+    // 回落到液面以下后不再画
+    if (py > Math.round((e.region.y + e.region.h) / PS)) continue;
+    dot(b, px, py, e.color);
   }
 }
 

@@ -73,6 +73,8 @@ export interface ContainerState {
   garnishes: PlacedGarnish[];
   /** 是否已出现在场景里。 */
   active: boolean;
+  /** 扰动度 0..1：倒酒/落冰/摇/搅升高，之后衰减。驱动波浪与冰块余波。 */
+  agitation: number;
 }
 
 export function newContainer(id: ContainerId, vessel: VesselSpec): ContainerState {
@@ -91,6 +93,7 @@ export function newContainer(id: ContainerId, vessel: VesselSpec): ContainerStat
     lidOn: false,
     garnishes: [],
     active: false,
+    agitation: 0,
   };
 }
 

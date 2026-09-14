@@ -80,6 +80,11 @@ export interface RenderedContainer {
   smoke: number;
   /** 是否加盖（SHAKE / SMOKE cover）。 */
   lidOn: boolean;
+  /**
+   * 扰动度 0..1 —— 倒酒/落冰/摇/搅时升高，之后逐步衰减。
+   * 渲染器据此驱动液面波浪幅度与冰块浮动/碰撞后的余波。
+   */
+  agitation: number;
 }
 
 export interface ShakeMotion {
@@ -168,7 +173,7 @@ export interface Prop {
 
 /* ════════════════════════════ 效果 ════════════════════════════ */
 
-export type EffectKind = "bubbles" | "smoke" | "flame" | "mist" | "sparks";
+export type EffectKind = "bubbles" | "smoke" | "flame" | "mist" | "sparks" | "splash";
 
 export interface Effect {
   kind: EffectKind;
