@@ -162,8 +162,13 @@ export interface Prop {
   rot: number;
   scale: number;
   opacity: number;
+  /** 长杆道具（吧勺/搅棒/捣棒）尖端的舞台 y —— 杆身画到杯底附近。 */
+  tipY?: number;
   /** 倒注流。存在时渲染一条液流。 */
   stream?: {
+    /** 液流起点（道具壶口，随倾角偏移）。缺省则从道具中心流出。 */
+    fromX?: number;
+    fromY?: number;
     toX: number;
     toY: number;
     width: number;

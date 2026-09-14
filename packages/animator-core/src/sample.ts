@@ -302,9 +302,12 @@ function lerpProp(a: Prop, b: Prop, t: number): Prop {
     rot: n(a.rot, b.rot, t),
     scale: n(a.scale, b.scale, t),
     opacity: n(a.opacity, b.opacity, t),
+    tipY: a.tipY !== undefined && b.tipY !== undefined ? n(a.tipY, b.tipY, t) : (b.tipY ?? a.tipY),
     stream:
       a.stream && b.stream
         ? {
+            fromX: n(a.stream.fromX ?? a.x, b.stream.fromX ?? b.x, t),
+            fromY: n(a.stream.fromY ?? a.y, b.stream.fromY ?? b.y, t),
             toX: n(a.stream.toX, b.stream.toX, t),
             toY: n(a.stream.toY, b.stream.toY, t),
             width: n(a.stream.width, b.stream.width, t),

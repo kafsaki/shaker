@@ -895,8 +895,18 @@ function drawProp(b: PCtx, p: Prop, theme: RenderTheme, fxMs: number): void {
   const gy = Math.round(p.y / PS);
   if (p.opacity < 0.05) return;
 
-  // 液流先画（道具压在上面）
-  if (p.stream) drawStream(b, gx, gy + 1, p.stream, theme, fxMs, p.opacity);
+  // 液流先画（道具压在上面）—— 起点用壶口坐标（缺省回退道具中心）
+  if (p.stream) {
+    drawStream(
+      b,
+      Math.round((p.stream.fromX ?? p.x) / PS),
+      Math.round((p.stream.fromY ?? p.y) / PS),
+      p.stream,
+      theme,
+      fxMs,
+      p.opacity,
+    );
+  }
 
   const pal = (ch: string): string | null => {
     switch (ch) {
@@ -913,17 +923,8 @@ function drawProp(b: PCtx, p: Prop, theme: RenderTheme, fxMs: number): void {
     }
   };
 
-  if (p.kind === "barspoon") {
-    // 杆（1px 竖线 + 螺旋 tick）+ 勺头
-    vline(b, gx, gy - 3, gy + 36, theme.metalHi);
-    for (let i = 0; i < 5; i++) dot(b, gx + (i % 2 === 0 ? 1 : -1), gy + i * 7, theme.metalLo);
-    const rows = PROP_SPRITES["barspoon_head"]!;
-    for (let r = 0; r < rows.length; r++) {
-      for (let i = 0; i < rows[r]!.length; i++) {
-        const col = pal(rows[r]![i]!);
-        if (col) dot(b, gx - 3 + i, gy + 37 + r, col);
-      }
-    }
+  if (p.kind === "barspoon" || p.kind === "swizzle" || p.kind === "muddler") {
+    drawRodProp(b, p, theme, fxMs);
     return;
   }
 
@@ -946,7 +947,67 @@ function drawProp(b: PCtx, p: Prop, theme: RenderTheme, fxMs: number): void {
   }
 }
 
-/** 液流：像素柱 + 向下滚动的亮条纹；细流（dash 等）画成下落的像素滴。 */
+/**
+ * 长杆道具（吧勺/搅棒/捣棒）：杆身从杯口上方直插杯底（tipY），
+ * 搅拌时杆身 + 头部画圆（正视投影 = 正弦横移，fxMs 确定性驱动，可 seek）。
+ */
+function drawRodProp(b: PCtx, p: Prop, theme: RenderTheme, fxMs: number): void {
+  const gx = Math.round(p.x / PS);
+  const gy = Math.round(p.y / PS);
+  const tip = p.tipY !== undefined ? Math.round(p.tipY / PS) : gy + 40;
+  const stirring = p.kind !== "muddler"; // 捣棒只上下捣压，不画圈
+  // 圆周投影：顶部摆幅大（柄尾画圈）、尖端贴底几乎不动
+  const amp = stirring ? 2 : 0;
+  const phase = fxMs * 0.02;
+  const swayAt = (yy: number): number => {
+    if (!stirring) return 0;
+    const k = (tip - yy) / Math.max(1, tip - gy); // 0 尖端 → 1 顶部
+    return Math.round(Math.sin(phase + k * 0.6) * amp * k);
+  };
+
+  // 杆身：1px 竖线 + 沿杆滚动的螺旋 tick（像金属反光在转）
+  for (let yy = gy; yy <= tip; yy++) {
+    const dx = swayAt(yy);
+    dot(b, gx + dx, yy, theme.metalHi);
+    if ((yy + Math.floor(fxMs / 90)) % 5 === 0) dot(b, gx + dx + 1, yy, theme.metalLo);
+  }
+
+  if (p.kind === "barspoon") {
+    // 勺头：小圆勺，画圈时横移
+    const hx = gx + swayAt(tip - 1);
+    const rows = PROP_SPRITES["barspoon_head"]!;
+    for (let r = 0; r < rows.length; r++) {
+      for (let i = 0; i < rows[r]!.length; i++) {
+        if (rows[r]![i]! !== ".") dot(b, hx - 2 + i, tip - 2 + r, theme.metalLo);
+      }
+    }
+    dot(b, hx - 1, tip - 2, theme.metalHi);
+  } else if (p.kind === "swizzle") {
+    // 搅棒头：底端三根枝杈（真实 swizzle stick 的分叉在底端）
+    const hx = gx + swayAt(tip - 1);
+    dot(b, hx, tip, theme.metalLo);
+    dot(b, hx - 1, tip - 2, theme.metalLo);
+    dot(b, hx + 1, tip - 2, theme.metalLo);
+    dot(b, hx - 2, tip - 4, theme.metalHi);
+    dot(b, hx + 2, tip - 4, theme.metalHi);
+    dot(b, hx, tip - 5, theme.metalLo);
+  } else {
+    // 捣棒头：宽扁捣头（3px 宽）
+    vline(b, gx - 1, tip - 3, tip, theme.metalLo);
+    vline(b, gx, tip - 3, tip, theme.metalHi);
+    vline(b, gx + 1, tip - 3, tip, theme.metalLo);
+    hline(b, gx - 1, gx + 1, tip, theme.metalHi);
+    // 柄尾加粗
+    vline(b, gx - 1, gy, gy + 3, theme.metalLo);
+    vline(b, gx + 1, gy, gy + 3, theme.metalLo);
+  }
+}
+
+/**
+ * 液流：从壶口到液面的重力抛物线。
+ * 物理表现：出口段粗、下落中加速变细（流量守恒 v↑ → 截面↓）、
+ * 表面张力让液流末端收成滴；细流（dash 等）画成下落的像素滴。
+ */
 function drawStream(
   b: PCtx,
   gx: number,
@@ -959,13 +1020,13 @@ function drawStream(
   const tx = Math.round(s.toX / PS);
   const ty = Math.round(s.toY / PS);
   const rp = rampOf(s.color);
-  const w = s.width >= 4.4 ? 2 : 1;
+  const topW = s.width >= 4.4 ? 3 : s.width >= 2.4 ? 2 : 1;
 
   if (s.width < 2.4) {
-    // 小剂量：3 滴错相下落的像素滴
+    // 小剂量：3 滴错相下落的像素滴（初速 0、加速下坠）
     for (let i = 0; i < 3; i++) {
       const ph = frac(fxMs / 640 + i / 3);
-      const y = gy + Math.round(ph * (ty - gy));
+      const y = gy + Math.round(ph * ph * (ty - gy));
       const x = gx + Math.round((tx - gx) * ph * ph);
       dot(b, x, y, rp.light);
       if (ph > 0.5) dot(b, x, y - 1, rp.base);
@@ -973,9 +1034,19 @@ function drawStream(
   } else {
     for (let y = gy; y <= ty; y++) {
       const t = (y - gy) / Math.max(1, ty - gy);
+      // 重力抛物线：水平速度恒定 → x 随 t² 走
       const x = gx + Math.round((tx - gx) * t * t * 0.9);
-      const stripe = (y + Math.floor(fxMs / 70)) % 3 === 0;
-      hline(b, x - (w - 1), x + (w - 1), y, stripe ? rp.light : rp.base);
+      // 流量守恒：v ∝ √(下落高度) → 截面宽 ∝ 1/√(1+t)，出口宽末端细
+      const wNow = Math.max(1, Math.round(topW / Math.sqrt(1 + t * 2.2)));
+      // 加速感：条纹间隔越靠下越密
+      const gap = 3 + Math.round((1 - t) * 2);
+      const stripe = (y + Math.floor(fxMs / 70)) % gap === 0;
+      hline(b, x - (wNow - 1), x + (wNow - 1), y, stripe ? rp.light : rp.base);
+      // 出口段两侧亮边（表面张力收缩出的亮缘）
+      if (t < 0.2 && topW >= 2) {
+        dot(b, x - wNow, y, rp.light);
+        dot(b, x + wNow, y, rp.light);
+      }
     }
   }
 

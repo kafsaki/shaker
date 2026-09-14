@@ -954,6 +954,19 @@ function surfaceStreamY(c: ContainerState): number {
   return restBowlY(c.vessel) - Math.max(0.02, surfaceH) * h - 2;
 }
 
+/**
+ * 倒酒道具的壶口位置：道具绕自身中心倾转，液流从口沿流出 ——
+ * 倾角越大，口沿越低、越朝目标杯偏移（旋转点在道具底部）。
+ */
+function spoutOf(x: number, y: number, rot: number): { x: number; y: number } {
+  const armY = 14; // 中心到口沿的半高（舞台单位）
+  const armX = 10; // 口沿的横向半径
+  return {
+    x: x - Math.sin(rot) * armY - armX,
+    y: y - Math.cos(rot) * armY + armY,
+  };
+}
+
 function pourProp(
   c: ContainerState,
   refs: readonly IngredientRef[],
@@ -964,60 +977,103 @@ function pourProp(
   const color = meta?.viz.color ?? "#d8d2c4";
   const visc = meta?.viz.viscosity ?? "low";
   const width = { low: 2.6, medium: 3.4, high: 4.6 }[visc];
+  const rot = active * 0.85;
+  const spout = spoutOf(POUR_POS.x, POUR_POS.y, rot);
   return {
     kind: "jigger",
     x: POUR_POS.x,
     y: POUR_POS.y,
-    rot: active * 0.85,
+    rot,
     scale: 1,
     opacity: 0.9,
     stream:
       active > 0.5
-        ? { toX: MAIN_POS.x, toY: surfaceStreamY(c), width, color }
+        ? { fromX: spout.x, fromY: spout.y, toX: MAIN_POS.x, toY: surfaceStreamY(c), width, color }
         : undefined,
   };
 }
 
 function strainerProp(from: ContainerState, to: ContainerState, active: number): Prop {
   const top = from.layers[0];
+  const rot = 0.4 + active * 0.6;
+  const spout = spoutOf(POUR_POS.x - 10, POUR_POS.y, rot);
   return {
     kind: "strainer",
     x: POUR_POS.x - 10,
     y: POUR_POS.y,
-    rot: 0.4 + active * 0.6,
+    rot,
     scale: 1,
     opacity: 1,
     stream:
       active > 0.2
-        ? { toX: MAIN_POS.x, toY: surfaceStreamY(to), width: 3, color: top?.color ?? "#e8d9b0" }
+        ? { fromX: spout.x, fromY: spout.y, toX: MAIN_POS.x, toY: surfaceStreamY(to), width: 3, color: top?.color ?? "#e8d9b0" }
         : undefined,
   };
 }
 
 function streamBetween(from: ContainerState, to: ContainerState): Prop {
   const top = from.layers[0];
+  const fromBowlY = restBowlY(from.vessel);
+  const fromH = from.vessel.scale * UNITS_PER_CM;
+  // 双容器倒换：从源容器口沿流出（位置随源容器实际渲染位置）
+  const srcX = from.id === "secondary" ? LEFT_POS.x : MAIN_POS.x;
   return {
     kind: "bottle",
-    x: LEFT_POS.x,
-    y: restBowlY(from.vessel) - from.vessel.scale * UNITS_PER_CM,
+    x: srcX,
+    y: fromBowlY - fromH,
     rot: 0.9,
     scale: 1,
     opacity: 1,
-    stream: { toX: MAIN_POS.x, toY: surfaceStreamY(to), width: 3.2, color: top?.color ?? "#e8d9b0" },
+    stream: {
+      fromX: srcX - 6,
+      fromY: fromBowlY - fromH - 2,
+      toX: MAIN_POS.x,
+      toY: surfaceStreamY(to),
+      width: 3.2,
+      color: top?.color ?? "#e8d9b0",
+    },
+  };
+}
+
+/** 杆长基准：吧勺/swizzle 从杯口上方伸入，尖端探到杯底附近。 */
+function rodProp(
+  kind: "barspoon" | "swizzle",
+  c: ContainerState,
+  active: number,
+): Prop {
+  const bowlY = restBowlY(c.vessel);
+  const h = c.vessel.scale * UNITS_PER_CM;
+  return {
+    kind,
+    x: MAIN_POS.x + 6,
+    y: bowlY - h - 26, // 杆顶在杯口上方（吧勺柄尾）
+    rot: active * 0.3,
+    scale: 1,
+    opacity: 1,
+    tipY: bowlY - 8, // 尖端到杯底附近
   };
 }
 
 function barspoonProp(c: ContainerState, active: number): Prop {
-  const y = restBowlY(c.vessel);
-  return { kind: "barspoon", x: MAIN_POS.x + 6, y: y - 150, rot: active * 0.3, scale: 1, opacity: 1 };
+  return rodProp("barspoon", c, active);
 }
 
 function swizzleProp(c: ContainerState): Prop {
-  return { kind: "swizzle", x: MAIN_POS.x, y: restBowlY(c.vessel) - 160, rot: 0, scale: 1, opacity: 1 };
+  return rodProp("swizzle", c, 0);
 }
 
 function muddlerProp(c: ContainerState, depth: number): Prop {
-  return { kind: "muddler", x: MAIN_POS.x, y: restBowlY(c.vessel) - 170 + depth * 40, rot: 0, scale: 1, opacity: 1 };
+  const bowlY = restBowlY(c.vessel);
+  const h = c.vessel.scale * UNITS_PER_CM;
+  return {
+    kind: "muddler",
+    x: MAIN_POS.x,
+    y: bowlY - h - 20 + depth * 10,
+    rot: 0,
+    scale: 1,
+    opacity: 1,
+    tipY: bowlY - 6 - depth * 14, // 捣压时尖端下探
+  };
 }
 
 function sprayProp(c: ContainerState): Prop {
