@@ -169,6 +169,17 @@ function rampOf(hex: string): Ramp {
   return { dark: shade(hex, -0.3), base: hex, light: shade(hex, 0.28), hi: shade(hex, 0.55) };
 }
 
+/** 混色叠加：t=1 全为 over。冰体用它以极低系数与背后液体合成 —— 近全透明。 */
+function mixOver(under: string, over: string, t: number): string {
+  const u = hexToRgb(under);
+  const o = hexToRgb(over);
+  return rgbToHex({
+    r: u.r + (o.r - u.r) * t,
+    g: u.g + (o.g - u.g) * t,
+    b: u.b + (o.b - u.b) * t,
+  });
+}
+
 /* ── 离屏 buffer（按舞台尺寸缓存一个，别每帧建） ── */
 
 interface Buf {
@@ -220,15 +231,6 @@ function vline(c: PCtx, x: number, y0: number, y1: number, color: string): void 
 function rectPx(c: PCtx, x: number, y: number, w: number, h: number, color: string): void {
   c.fillStyle = color;
   c.fillRect(x | 0, y | 0, Math.max(1, w | 0), Math.max(1, h | 0));
-}
-
-/** 填充像素圆盘。 */
-function disc(c: PCtx, cx: number, cy: number, r: number, color: string): void {
-  const rr = Math.max(1, Math.round(r));
-  for (let dy = -rr; dy <= rr; dy++) {
-    const half = Math.floor(Math.sqrt(rr * rr - dy * dy));
-    hline(c, cx - half, cx + half, cy + dy, color);
-  }
 }
 
 /** 四角星闪光：小加号（phase<0.5）或大星芒。 */
@@ -295,6 +297,20 @@ export function renderScene(
   // ── 背景（像素渐变 + 抖动） ──
   drawBackdrop(b, gw, gh, theme);
 
+  // 背景快照（0-255 → 0-1 归一化）：液体透明度按混色叠加透出背景，深浅主题自动适配
+  const bgSnap = b.getImageData(0, 0, gw, gh);
+  const bgCache = new Map<number, string>();
+  const bgUnderAt = (x: number, y: number): string => {
+    const k = y * gw + x;
+    let hex = bgCache.get(k);
+    if (hex === undefined) {
+      const o = k * 4;
+      hex = rgbToHex({ r: bgSnap.data[o]! / 255, g: bgSnap.data[o + 1]! / 255, b: bgSnap.data[o + 2]! / 255 });
+      bgCache.set(k, hex);
+    }
+    return hex;
+  };
+
   // ── 整屏 1px 震动（有容器在摇时） ──
   let shakeX = 0;
   let shakeY = 0;
@@ -311,7 +327,7 @@ export function renderScene(
   for (const c of sorted) {
     const vessel = opts.vessel(c.vesselId);
     if (!vessel) continue;
-    drawContainer(b, c, vessel, theme, opts, fxMs);
+    drawContainer(b, c, vessel, theme, opts, fxMs, bgUnderAt);
   }
 
   // ── 道具与液流 ──
@@ -375,6 +391,8 @@ function drawContainer(
   theme: RenderTheme,
   opts: RenderOptions,
   fxMs: number,
+  /** 背景取色（液体透明混色用）。 */
+  underBg: (x: number, y: number) => string,
 ): void {
   const profile = vessel.def.shape.profile;
   const gh = Math.max(4, Math.round((c.height * c.scale) / PS)); // 杯体像素高
@@ -425,6 +443,10 @@ function drawContainer(
     const rowBot = cy - Math.round(l.fromH * gh);
     const below = layers[i - 1];
     const blendRows = Math.round(l.blend * gh);
+    // 透明度：<1 的层与背后混色叠加（上层叠在下层基色上，底层直接叠像素背景）
+    const alpha = clamp01(l.opacity);
+    const belowTop = below ? cy - Math.round(below.toH * gh) : 0;
+    const belowBot = below ? cy - Math.round(below.fromH * gh) : 0;
     for (let y = rowTop; y <= rowBot; y++) {
       const gyUp = cy - y;
       const hw = Math.max(1, halfWAt(gyUp) - 1);
@@ -442,6 +464,10 @@ function drawContainer(
         }
         // 圆柱侧向遮光：贴壁两边暗一档（宽度够时）
         if (hw >= 4 && (x === cx - hw || x === cx + hw)) col = rp.dark;
+        if (alpha < 1) {
+          const under = below && y >= belowTop && y <= belowBot ? below.color : underBg(x, y);
+          col = mixOver(under, col, alpha);
+        }
         dot(b, x, y, col);
       }
       // 浑浊质地：悬浮果粒
@@ -477,7 +503,27 @@ function drawContainer(
   }
 
   // ── 冰 ──
-  for (const ice of c.ice) drawIce(b, ice, halfWAt, gh, cx, cy, theme);
+  // 快照此刻的 buffer（背景+液体已画好）：冰体按极低系数与它混色 → 近全透明
+  if (c.ice.length > 0) {
+    const snap = b.getImageData(0, 0, b.canvas.width, b.canvas.height);
+    const cache = new Map<number, string>();
+    const underAt = (x: number, y: number): string => {
+      const k = y * b.canvas.width + x;
+      let hex = cache.get(k);
+      if (hex === undefined) {
+        const o = k * 4;
+        // rgbToHex 接收 0-1 分量，ImageData 是 0-255 —— 先归一化
+        hex = rgbToHex({
+          r: snap.data[o]! / 255,
+          g: snap.data[o + 1]! / 255,
+          b: snap.data[o + 2]! / 255,
+        });
+        cache.set(k, hex);
+      }
+      return hex;
+    };
+    for (const ice of c.ice) drawIce(b, ice, halfWAt, gh, cx, cy, theme, underAt);
+  }
 
   // ── 泡沫冠（白噪点带，顶部起伏） ──
   if (c.foam) {
@@ -616,6 +662,8 @@ function drawIce(
   cx: number,
   cy: number,
   theme: RenderTheme,
+  /** 冰体透明合成：取此刻 buffer（背景+液体）的颜色。 */
+  underAt: (x: number, y: number) => string,
 ): void {
   const sizePx = Math.max(2, Math.round((ice.size * gh) / 2));
   const gyUp = ice.y * gh;
@@ -624,36 +672,52 @@ function drawIce(
   const y = cy - Math.round(gyUp);
   const salt = Math.round(ice.rot * 100);
 
+  // 冰体近全透明：极低系数的混色，隐约带一层冷色调
+  const body = (xx: number, yy: number): string => mixOver(underAt(xx, yy), "#dceef8", 0.15);
+
   switch (ice.kind) {
     case "block": {
-      // 长条冰柱：竖直条 + 左棱高光 + 右棱暗线
+      // 长条冰柱：近透明体 + 左棱高光 + 右棱暗线（棱线是存在感的来源）
       const w = Math.max(3, sizePx);
       const hPx = Math.min(Math.round(gh * 0.86), sizePx * 5);
       const yTop = Math.max(cy - gh + 2, y - Math.round(hPx / 2));
       const yBot = Math.min(cy - 1, yTop + hPx);
       for (let yy = yTop; yy <= yBot; yy++) {
         for (let xx = x - (w >> 1); xx <= x + (w >> 1); xx++) {
-          const n = hash01(xx * 7 + yy * 3, salt);
-          dot(b, xx, yy, n < 0.12 ? theme.frost : "#cfe8f5");
+          dot(b, xx, yy, body(xx, yy));
         }
         dot(b, x - (w >> 1), yy, theme.hi);
         dot(b, x + (w >> 1), yy, "#8fb4cc");
       }
+      // 顶/底封口
+      hline(b, x - (w >> 1), x + (w >> 1), yTop, theme.frost);
+      hline(b, x - (w >> 1), x + (w >> 1), yBot, "#8fb4cc");
       break;
     }
     case "sphere": {
-      disc(b, x, y, sizePx, "#d8ecf7");
-      disc(b, x, y, Math.max(1, sizePx - 1), "#eef8ff");
+      const rr = Math.max(2, sizePx);
+      // 球体：近透明 + 完整环形描边（上左亮、下右暗）
+      for (let dy = -rr; dy <= rr; dy++) {
+        const half = Math.floor(Math.sqrt(rr * rr - dy * dy));
+        for (let xx = x - half; xx <= x + half; xx++) {
+          dot(b, xx, y + dy, body(xx, y + dy));
+        }
+        dot(b, x - half, y + dy, dy <= 0 ? theme.frost : "#9cc0d8");
+        dot(b, x + half, y + dy, dy >= 0 ? "#9cc0d8" : theme.frost);
+      }
+      hline(b, x - rr, x + rr, y - rr, theme.hi);
       dot(b, x - 1, y - 1, theme.hi);
-      dot(b, x + sizePx - 1, y + sizePx - 1, "#9cc0d8");
       break;
     }
     case "crushed": {
-      // 碎冰：噪点簇
+      // 碎冰：微小近透明颗粒 + 少量亮霜点当"边"
       for (let i = 0; i < sizePx * 2 + 3; i++) {
         const dx2 = Math.round((hash01(i, salt) * 2 - 1) * sizePx);
         const dy2 = Math.round((hash01(i, salt + 7) * 2 - 1) * sizePx * 0.7);
-        dot(b, x + dx2, y + dy2, hash01(i, salt + 13) < 0.4 ? theme.hi : "#d8ecf7");
+        const px = x + dx2;
+        const py = y + dy2;
+        dot(b, px, py, mixOver(underAt(px, py), "#dceef8", 0.3));
+        if (hash01(i, salt + 31) < 0.3) dot(b, px, py - 1, theme.frost);
       }
       break;
     }
@@ -663,16 +727,22 @@ function drawIce(
     case "dry_ice":
     default: {
       const s2 = ice.kind === "large_cube" ? sizePx + 1 : sizePx;
-      rectPx(b, x - s2, y - s2, s2 * 2 + 1, s2 * 2 + 1, "#cfe8f5");
-      // 上棱与左棱高光
-      hline(b, x - s2, x + s2 - 1, y - s2, theme.hi);
-      vline(b, x - s2, y - s2, y + s2 - 1, theme.hi);
-      // 内部囚禁气泡
-      dot(b, x + Math.round(hash01(1, salt) * s2) - 1, y, theme.hi);
-      dot(b, x - 1, y + Math.round(hash01(2, salt) * s2) - 1, "#eef8ff");
+      // 方冰：近透明体 + 四边完整描边（上左亮、下右暗）
+      for (let yy = y - s2; yy <= y + s2; yy++) {
+        for (let xx = x - s2; xx <= x + s2; xx++) {
+          dot(b, xx, yy, body(xx, yy));
+        }
+      }
+      hline(b, x - s2, x + s2, y - s2, theme.frost);
+      vline(b, x - s2, y - s2, y + s2, theme.frost);
+      hline(b, x - s2, x + s2, y + s2, "#9cc0d8");
+      vline(b, x + s2, y - s2, y + s2, "#9cc0d8");
+      // 内部囚禁气泡（亮点）
+      dot(b, x + Math.round(hash01(1, salt) * s2) - 1, y, theme.frost);
+      dot(b, x - 1, y + Math.round(hash01(2, salt) * s2) - 1, theme.hi);
       if (ice.kind === "cracked") {
-        dot(b, x, y, "#8fb4cc");
-        dot(b, x + 1, y + 1, "#8fb4cc");
+        dot(b, x, y, "#9cc0d8");
+        dot(b, x + 1, y + 1, "#9cc0d8");
       }
       break;
     }
