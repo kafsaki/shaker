@@ -616,15 +616,7 @@ func (s *Store) Delete(ctx context.Context, id, authorID uuid.UUID) error {
 		return ErrForbidden
 	}
 
-	// 软删同时释放 slug：改写为 {slug}-{短id}-deleted，让同名后发不递增 -3，
-	// 旧链接从此诚实 404 而不是打开另一杯酒。幂等：已带 -deleted 后缀不再追加。
-	slug := r.Slug
-	if !strings.HasSuffix(slug, "-deleted") {
-		slug = fmt.Sprintf("%s-%s-deleted", slug, strings.ReplaceAll(r.ID.String(), "-", "")[:12])
-	}
-	if _, err := tx.Exec(ctx, `
-		UPDATE recipes SET status = 'removed', deleted_at = now(), slug = $2 WHERE id = $1`,
-		id, slug); err != nil {
+	if _, err := tx.Exec(ctx, `UPDATE recipes SET status = 'removed', deleted_at = now() WHERE id = $1`, id); err != nil {
 		return fmt.Errorf("删除配方: %w", err)
 	}
 	if r.Status == "published" {
