@@ -41,10 +41,15 @@ func (a *API) registerFeed(api huma.API) {
 
 /* ────────────────────────── 响应体 ────────────────────────── */
 
+// RecipeCardBody 是 recipeBody 的导出别名：huma 只合并「已导出」的匿名嵌入字段，
+// 小写类型名会被当作未导出字段跳过，导致 OpenAPI 里 FeedCard 丢了全部配方字段
+//（encoding/json 不区分大小写，运行时响应一直是完整的）。
+type RecipeCardBody = recipeBody
+
 // feedCard 嵌入完整配方体（动画是产品核心，Feed 卡片直接可渲染）
 // + 折叠信息（仅折叠发生时出现）。
 type feedCard struct {
-	recipeBody
+	RecipeCardBody
 	CollapsedVariants *collapsedVariantsBody `json:"collapsedVariants,omitempty"`
 }
 
@@ -123,7 +128,7 @@ func (a *API) feedOut(ctx context.Context, res *recipe.FeedResult, claims *auth.
 	}
 
 	for _, it := range res.Items {
-		card := feedCard{recipeBody: recipeToBody(it.Recipe)}
+		card := feedCard{RecipeCardBody: recipeToBody(it.Recipe)}
 		if it.CollapsedVariants != nil {
 			card.CollapsedVariants = &collapsedVariantsBody{
 				Count: it.CollapsedVariants.Count, URL: it.CollapsedVariants.URL,

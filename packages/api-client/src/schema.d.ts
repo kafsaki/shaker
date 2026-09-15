@@ -1225,7 +1225,43 @@ export interface components {
             path?: string;
         };
         FeedCard: {
+            /** Format: double */
+            abvEst: number | null;
+            author: components["schemas"]["RecipeAuthorBody"];
+            classicKey: string | null;
             collapsedVariants?: components["schemas"]["CollapsedVariantsBody"];
+            counts: components["schemas"]["RecipeCountsBody"];
+            coverUrl: string | null;
+            createdAt: string;
+            /** Format: int64 */
+            derivedCount: number;
+            derivedFrom: string | null;
+            descriptionMd: string | null;
+            /** Format: int64 */
+            difficulty: number | null;
+            family: string | null;
+            ibaCategory: string | null;
+            id: string;
+            ir: unknown;
+            /** Format: int64 */
+            irVersion: number;
+            isCanonical: boolean;
+            lang: string;
+            publishedAt: string | null;
+            /** Format: int64 */
+            servings: number;
+            slug: string;
+            source: string;
+            status: string;
+            subtitle: string | null;
+            tags: string[] | null;
+            tasteProfile: components["schemas"]["RecipeTasteBody"];
+            title: string;
+            /** Format: double */
+            totalVolumeMl: number | null;
+            updatedAt: string;
+            viewerState?: components["schemas"]["RecipeViewerStateBody"];
+            viz?: components["schemas"]["RecipeVizBody"];
         };
         FeedOutputBody: {
             /**

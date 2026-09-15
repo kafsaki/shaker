@@ -347,8 +347,128 @@ components:
     FeedCard:
       additionalProperties: false
       properties:
+        abvEst:
+          format: double
+          type:
+            - number
+            - "null"
+        author:
+          $ref: "#/components/schemas/RecipeAuthorBody"
+        classicKey:
+          type:
+            - string
+            - "null"
         collapsedVariants:
           $ref: "#/components/schemas/CollapsedVariantsBody"
+        counts:
+          $ref: "#/components/schemas/RecipeCountsBody"
+        coverUrl:
+          type:
+            - string
+            - "null"
+        createdAt:
+          type: string
+        derivedCount:
+          format: int64
+          type: integer
+        derivedFrom:
+          type:
+            - string
+            - "null"
+        descriptionMd:
+          type:
+            - string
+            - "null"
+        difficulty:
+          format: int64
+          type:
+            - integer
+            - "null"
+        family:
+          type:
+            - string
+            - "null"
+        ibaCategory:
+          type:
+            - string
+            - "null"
+        id:
+          type: string
+        ir: {}
+        irVersion:
+          format: int64
+          type: integer
+        isCanonical:
+          type: boolean
+        lang:
+          type: string
+        publishedAt:
+          type:
+            - string
+            - "null"
+        servings:
+          format: int64
+          type: integer
+        slug:
+          type: string
+        source:
+          type: string
+        status:
+          type: string
+        subtitle:
+          type:
+            - string
+            - "null"
+        tags:
+          items:
+            type: string
+          type:
+            - array
+            - "null"
+        tasteProfile:
+          $ref: "#/components/schemas/RecipeTasteBody"
+        title:
+          type: string
+        totalVolumeMl:
+          format: double
+          type:
+            - number
+            - "null"
+        updatedAt:
+          type: string
+        viewerState:
+          $ref: "#/components/schemas/RecipeViewerStateBody"
+        viz:
+          $ref: "#/components/schemas/RecipeVizBody"
+      required:
+        - id
+        - slug
+        - title
+        - subtitle
+        - descriptionMd
+        - lang
+        - author
+        - ir
+        - irVersion
+        - family
+        - source
+        - isCanonical
+        - classicKey
+        - ibaCategory
+        - derivedFrom
+        - derivedCount
+        - abvEst
+        - totalVolumeMl
+        - tasteProfile
+        - difficulty
+        - servings
+        - tags
+        - coverUrl
+        - status
+        - counts
+        - publishedAt
+        - createdAt
+        - updatedAt
       type: object
     FeedOutputBody:
       additionalProperties: false
