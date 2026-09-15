@@ -101,7 +101,8 @@ func (a *API) registerMenus(api huma.API) {
 		OperationID: "users-menus",
 		Method:      http.MethodGet,
 		Path:        "/api/v1/users/{handle}/menus",
-		Summary:     "某人的公开酒单",
+		Summary:     "某人的酒单",
+		Description: "本人（携带 Bearer）可见全部含私密；他人仅公开。unlisted 的分享链接走 /menus/shared/{shareToken}。",
 	}, a.userMenusHandler)
 }
 
@@ -427,14 +428,17 @@ func (a *API) userMenusHandler(ctx context.Context, in *struct {
 	if err != nil {
 		return nil, userErr(err)
 	}
-	res, err := a.menus.ListPublicByUser(ctx, p.ID, in.Cursor, limitOf(in.Limit))
+	// 本人视角返回全部酒单（含 private/unlisted）并附 shareToken；他人仅公开。
+	viewer := viewerID(ctx)
+	isSelf := viewer != nil && *viewer == p.ID
+	res, err := a.menus.ListByUser(ctx, p.ID, in.Cursor, limitOf(in.Limit), !isSelf)
 	if err != nil {
 		return nil, listErr(err)
 	}
 	out := &menuListOutput{}
 	out.Body.Items = make([]menuBody, 0, len(res.Items))
 	for i := range res.Items {
-		out.Body.Items = append(out.Body.Items, menuToBody(&res.Items[i], false))
+		out.Body.Items = append(out.Body.Items, menuToBody(&res.Items[i], isSelf))
 	}
 	if res.NextCursor != "" {
 		s := res.NextCursor

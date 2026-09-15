@@ -164,6 +164,14 @@ Check '公开酒单列表 → 只有 1 个' (@($r.json.items).Count -eq 1)
 Check '公开列表标题正确' ($r.json.items[0].title -eq '公开推荐（改）')
 Check '公开列表不含 shareToken' ($null -eq $r.json.items[0].shareToken)
 
+# 本人视角：全部酒单（private/unlisted/public）+ 附带 shareToken
+$r = Call GET "/users/$handle1/menus" $null $tok1
+Check '本人酒单列表 → 3 个（含私密/unlisted）' (@($r.json.items).Count -eq 3)
+$m2row = @($r.json.items | Where-Object { $_.id -eq $menu2 })[0]
+Check '本人列表 unlisted 附带最新 shareToken' ($m2row.shareToken -eq $sh2.json.shareToken)
+$r = Call GET "/users/$handle1/menus" $null $tok2
+Check '他人视角 → 仅公开 1 个' (@($r.json.items).Count -eq 1)
+
 # ── 7. 删除 ──
 $r = Call DELETE "/menus/$menu3" $null $tok1
 Check '删除 → 204' ($r.status -eq 204)
@@ -171,6 +179,8 @@ $r = Call GET "/menus/$menu3"
 Check '删后读取 → 404' ($r.status -eq 404)
 $r = Call GET "/users/$handle1/menus"
 Check '删后公开列表为空' (@($r.json.items).Count -eq 0)
+$r = Call GET "/users/$handle1/menus" $null $tok1
+Check '删后本人列表 → 剩 2 个' (@($r.json.items).Count -eq 2)
 
 } finally {
     # 清理：软删剩余酒单（防残留影响下次 containsRecipe 断言）

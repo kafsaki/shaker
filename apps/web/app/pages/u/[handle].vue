@@ -199,7 +199,9 @@ const menuVis: Record<string, string> = {
             </span>
           </NuxtLink>
         </div>
-        <p v-else class="py-10 text-center text-sm text-muted-foreground">没有公开酒单</p>
+        <p v-else class="py-10 text-center text-sm text-muted-foreground">
+          {{ isSelf ? "还没有酒单" : "没有公开酒单" }}
+        </p>
       </TabsContent>
 
       <TabsContent value="followers" class="mt-4">

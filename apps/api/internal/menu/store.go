@@ -399,27 +399,31 @@ type ListResult struct {
 	NextCursor string
 }
 
-// ListPublicByUser 某人的公开酒单（updated_at DESC，Time 游标）。
-func (s *Store) ListPublicByUser(ctx context.Context, ownerID uuid.UUID, cur string, limit int) (*ListResult, error) {
+// ListByUser 某人的酒单（updated_at DESC，Time 游标）。
+// publicOnly=false（本人视角）返回全部含 private/unlisted。
+func (s *Store) ListByUser(ctx context.Context, ownerID uuid.UUID, cur string, limit int, publicOnly bool) (*ListResult, error) {
 	c, err := cursor.Decode[cursor.Time](cur)
 	if err != nil {
 		return nil, ErrBadCursor
 	}
 	args := []any{ownerID}
 	pred := ""
+	if publicOnly {
+		pred = " AND visibility = 'public'"
+	}
 	if c != nil {
 		args = append(args, time.Unix(0, c.T).UTC(), c.ID)
 		n := len(args)
-		pred = fmt.Sprintf(" AND (updated_at < $%d OR (updated_at = $%d AND id > $%d))", n-1, n-1, n)
+		pred += fmt.Sprintf(" AND (updated_at < $%d OR (updated_at = $%d AND id > $%d))", n-1, n-1, n)
 	}
 	args = append(args, limit+1)
 	rows, err := s.pool.Query(ctx, `
 		SELECT `+menuCols+` FROM menus
-		WHERE owner_id = $1 AND visibility = 'public' AND deleted_at IS NULL`+pred+`
+		WHERE owner_id = $1 AND deleted_at IS NULL`+pred+`
 		ORDER BY updated_at DESC, id ASC
 		LIMIT $`+fmt.Sprint(len(args)), args...)
 	if err != nil {
-		return nil, fmt.Errorf("查询公开酒单: %w", err)
+		return nil, fmt.Errorf("查询酒单: %w", err)
 	}
 	defer rows.Close()
 	var menus []Menu
