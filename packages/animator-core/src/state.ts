@@ -410,6 +410,10 @@ export function transfer(
   to: ContainerState,
   opts: TransferOptions,
 ): void {
+  // 自转移（DUMP/STRAIN 等的 from === to）必须短路：下面的循环边遍历
+  // from.layers 边往 to.layers push，同一数组会无限增长直到 OOM。
+  // 语义上"倒给自己"就是无事发生。
+  if (from === to) return;
   to.active = true;
   for (const l of from.layers) {
     const moved: LiquidLayer = { ...l, sourceSlots: [...l.sourceSlots] };

@@ -557,6 +557,17 @@ function applyStep(step: Step, ctx: Ctx): void {
   const { ensure, bySlot, vocab, emit, containers } = ctx;
   const stage = DEFAULT_STAGE;
 
+  // 自转移（from === to，编辑器可选出这种组合）：无事发生。统一在这里短路，
+  // 否则 DUMP/STRAIN/ROLL/THROW 的"源容器由道具接管"（from.active = false）
+  // 会把目标容器一起藏掉，transfer 也保护不了这种情况。
+  if ("from" in step && "to" in step && step.from === step.to) {
+    const c = ensure(step.from);
+    c.active = true;
+    emit.at(0, { focus: c.id });
+    emit.at(1, { focus: c.id });
+    return;
+  }
+
   switch (step.action) {
     /* ── 准备 ── */
     case "CHILL": {

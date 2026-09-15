@@ -77,6 +77,17 @@ test("servings 省略时由 zod 填默认值 1", () => {
   assert.equal(r.servings, 1);
 });
 
+test("自转移（from === to）给出 warn 提示，不算错误", () => {
+  const ir = RecipeIR.parse(structuredClone(daiquiri));
+  ir.steps.push({ id: "s5", action: "DUMP", from: "glass", to: "glass" });
+  const r = validateRecipeIR(ir, VOCAB);
+  assert.equal(r.ok, true, "warn 不应阻止配方成立");
+  assert.ok(
+    r.warnings.some((w) => w.code === "transfer.self"),
+    "应提示自转移没有效果",
+  );
+});
+
 test("top_up 带 amount 必须被拒 —— ADR-014 的核心约束", () => {
   const bad = structuredClone(daiquiri) as Record<string, unknown>;
   (bad.ingredients as unknown[]).push({

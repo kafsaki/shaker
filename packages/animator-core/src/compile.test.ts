@@ -31,6 +31,28 @@ test("全部配方夹具都能编译", () => {
   }
 });
 
+test("自转移（DUMP 的 from === to）不无限循环，液体留在原容器", () => {
+  // 回归：编辑器允许把 from/to 选成同一容器。修复前 transfer 边遍历
+  // from.layers 边往 to.layers push（同一数组），浏览器直接 OOM 卡死。
+  const ir = {
+    schemaVersion: 1,
+    glass: "coupe",
+    method: "built",
+    ingredients: [
+      { slot: "i1", ingredientId: "rum-white", amount: 45, unit: "ml", role: "base" },
+    ],
+    steps: [
+      { id: "s1", action: "ADD", target: "glass", items: ["i1"] },
+      { id: "s2", action: "DUMP", from: "glass", to: "glass" },
+    ],
+  };
+  const tl = compile(ir as never, VOCAB);
+  assert.ok(tl.totalMs > 0);
+  const end = sample(tl, tl.totalMs);
+  const glass = end.scene.containers.find((c) => c.id === "glass");
+  assert.ok((glass?.layers.length ?? 0) > 0, "自转移不应清空液体");
+});
+
 test("每步至少两个关键帧，且 tMs 单调不减", () => {
   for (const { f, tl } of compiled) {
     for (const s of tl.steps) {

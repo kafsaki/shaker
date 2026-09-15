@@ -234,6 +234,15 @@ export function validateRecipeIR(ir: RecipeIR, vocab?: VocabLookup): ValidationR
           err("container.empty_source", `步骤 "${s.id}"（${s.action}）的源容器 ${s.from} 此时是空的`, path),
         );
       }
+      if ("to" in s && s.from === s.to) {
+        diags.push(
+          warn("transfer.self", `步骤 "${s.id}"（${s.action}）的源与目标是同一个容器，这一步没有效果`, path),
+        );
+        // 模拟上也是无事发生：不 continue 的话下面的转移逻辑会把同容器的
+        // 内容先翻倍再清零，误报 flow.nothing_in_glass
+        touch(s.from);
+        continue;
+      }
     }
 
     switch (s.action) {
