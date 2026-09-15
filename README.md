@@ -10,7 +10,7 @@
 
 ## 当前状态
 
-**已完成：后端 v1 功能全集（含 e2e 验证）。** 前端未动工。
+**已完成：后端 v1 功能全集（含 e2e 验证）+ 前端 v1 全集（Nuxt 4 SPA）。** 前端观感待用户肉眼验收。
 
 | | 状态 |
 | --- | --- |
@@ -25,7 +25,8 @@
 | `apps/api`（Go） | ✅ v1 功能全集：认证/词表/配方/Feed/互动/用户/搜索/经典/酒单/通知/举报/媒体直传 |
 | 种子数据 | ✅ 169 原料 + 59 经典配方（IBA 分类对齐 2024 官方编码），启动幂等导入 |
 | e2e 验证 | ✅ 8 套 PowerShell 脚本（`scripts/e2e-*.ps1`），对运行中的 API 全绿 |
-| `apps/web`（Nuxt） | ⬜ 未开始 |
+| `apps/web`（Nuxt 4 SPA） | ✅ v1 功能全集（探索/配方页+播放器/百科/编辑器+发布/互动/搜索/用户/酒单/通知/经典），**待用户肉眼验收** |
+| `packages/api-client` | ✅ openapi-typescript 生成 + openapi-fetch 封装（401 单飞刷新轮转） |
 
 ---
 
@@ -61,7 +62,7 @@ pwsh -NoProfile -File scripts/e2e-media.ps1     # 媒体预签名直传（需 Mi
 cd apps/api && go run ./cmd/gen-openapi > ../../schema/openapi.yaml
 ```
 
-### 动画原型（唯一现在能看的前端）
+### 动画原型（验证装置）
 
 ```bash
 cd D:/DEV/apps/shaker
@@ -69,6 +70,14 @@ pnpm install
 pnpm --filter @shaker/prototype build
 node scripts/serve.mjs prototype
 # 浏览器打开 http://localhost:5173/
+```
+
+### 前端（Nuxt 4 SPA）
+
+```bash
+# 前置：docker compose up -d + apps/api 的 go run ./cmd/api（devProxy 假定 API 在 :8080）
+pnpm --filter @shaker/web dev
+# 浏览器打开 http://localhost:3000/
 ```
 
 原型不是产品代码，是**验证装置**，回答三个问题：
@@ -115,16 +124,15 @@ goose -dir apps/api/db/migrations postgres "$DSN" down   # Down 也要验，写�
 
 ```
 apps/
-  web/       Nuxt 4 + Vue 3 + Tailwind + shadcn-vue + Pinia     [待建]
+  web/       Nuxt 4 SPA + Tailwind v4 + shadcn-vue + Pinia + vue-query  [v1 功能全集]
   api/       Go + chi + huma + pgx + goose + MinIO 预签名        [v1 功能全集]
   mobile/    二期，消费优先，框架待原型实测定
 packages/
   recipe-ir/      ★ 配方 IR 唯一真相源：zod schema、校验、单位换算、混色、杯型物理
-  animator-core/  ★ IR → Timeline 编译器（纯 TS，零渲染依赖）
-  animator-web/     Canvas 2D 绘制后端
+  animator-core/  ★ IR → Timeline 编译器（纯 TS，零渲染依赖）；内置工作容器剖面
+  animator-web/     Canvas 2D 像素风绘制后端
   seed/             词表与经典配方种子数据（TS 源 → 种子 JSON）
-  api-client/       openapi-typescript 生成                     [待建]
-  ui/               设计 token                                  [待建]
+  api-client/       openapi-typescript 生成 + openapi-fetch 封装
 schema/
   recipe-ir.schema.json   由 zod 生成 → Go go:embed 校验
   openapi.yaml            由 Go huma 生成 → 前端 client          [已生成]
@@ -163,10 +171,8 @@ docs/             设计文档
 
 ## 下一步
 
-按不可逆性排序（ADR-018），最该优先的是前两项：
-
-1. **打开原型确认动画观感**，在手机 WebView 实测帧率 → 定移动端框架
-2. `apps/web` 骨架：Nuxt 4 + 配方页 + 结构化编辑器（消费 `schema/openapi.yaml` 生成 client）
+1. **打开 http://localhost:3000 肉眼验收前端**（视觉与动画观感由作者确认）；原型在手机 WebView 实测帧率 → 定移动端框架
+2. 补齐后端小缺口：`GET /ingredients/:id/recipes`（原料反查，前端暂用 `/search?type=recipe&ingredient=` 等价替代）
 3. 孤儿媒体清理任务（未 commit 的 asset + 对象，契约预留了 river 周期任务位）
 4. 三条架构纪律 + openapi 同步检查进 CI
 

@@ -32,8 +32,14 @@ const player = ref<{
 } | null>(null);
 
 const ir = computed(() => props.recipe.ir as RecipeIR);
+
+// viz 载荷优先（一次请求带全视觉数据）；没有时回退到全量词表
+//（/classics/:key 返回不带 viz，但引用的原料/杯型都在 /vocab 里）。
+const vocabStore = useVocabStore();
 const vocab = computed(() =>
-  vizToVocab(props.recipe.viz ?? { ingredients: {}, glassware: {} }),
+  props.recipe.viz
+    ? vizToVocab(props.recipe.viz)
+    : vocabStore.toVocabLookup(),
 );
 
 const unitPref = ref<"ml" | "oz">(
