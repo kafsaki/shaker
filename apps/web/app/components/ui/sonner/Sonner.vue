@@ -2,6 +2,9 @@
 import type { ToasterProps } from "vue-sonner"
 import { CircleCheckIcon, InfoIcon, Loader2Icon, OctagonXIcon, TriangleAlertIcon, XIcon } from "@lucide/vue"
 import { Toaster as Sonner } from "vue-sonner"
+// vue-sonner 2.x 的样式不在 js 里（入口 exports 只指向 js），必须显式引入，
+// 否则 toast 无定位且 opacity:0，视觉上「弹不出来」
+import "vue-sonner/style.css"
 import { cn } from '~/lib/utils'
 
 const props = defineProps<ToasterProps>()

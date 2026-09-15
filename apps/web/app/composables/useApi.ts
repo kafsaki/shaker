@@ -8,15 +8,28 @@ export function useApi(): ShakerClient {
 
 /** 从 api-client 的 error 对象（ApiError 结构）里取用户可读信息。 */
 export function apiErrorMessage(err: unknown): string {
-  if (
-    typeof err === "object" &&
-    err !== null &&
-    "error" in err &&
-    typeof (err as { error?: unknown }).error === "object" &&
-    (err as { error?: unknown }).error !== null
-  ) {
-    const inner = (err as { error: { message?: unknown } }).error;
-    if (typeof inner.message === "string" && inner.message) return inner.message;
+  if (typeof err === "object" && err !== null && "error" in err) {
+    const inner = (err as { error?: unknown }).error;
+    if (typeof inner === "object" && inner !== null) {
+      // 后端错误信封（API 定义 §1.4）：{ code, message, details: [{code, message, path}] }
+      // 校验失败的具体原因在 details 里，逐条拼上
+      const e = inner as { message?: unknown; details?: unknown };
+      const lines: string[] = [];
+      if (typeof e.message === "string" && e.message) lines.push(e.message);
+      if (Array.isArray(e.details)) {
+        for (const d of e.details) {
+          if (typeof d !== "object" || d === null) continue;
+          const det = d as { message?: unknown; path?: unknown };
+          if (typeof det.message !== "string" || !det.message) continue;
+          lines.push(
+            typeof det.path === "string" && det.path
+              ? `${det.path}: ${det.message}`
+              : det.message,
+          );
+        }
+      }
+      if (lines.length) return lines.join("；");
+    }
   }
   if (err instanceof Error && err.message) return err.message;
   return "请求失败，请稍后重试";
