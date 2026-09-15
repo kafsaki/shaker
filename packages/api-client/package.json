@@ -1,0 +1,21 @@
+{
+  "name": "@shaker/api-client",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "openapi-typescript 从 schema/openapi.yaml 生成的类型 + openapi-fetch 封装（ADR-017：Go → TS 单向流向）。",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "generate": "openapi-typescript ../../schema/openapi.yaml -o src/schema.d.ts",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "openapi-fetch": "^0.14.0"
+  },
+  "devDependencies": {
+    "openapi-typescript": "^7.5.0",
+    "typescript": "^5.7.2"
+  }
+}
