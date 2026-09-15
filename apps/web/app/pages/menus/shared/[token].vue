@@ -69,7 +69,7 @@ useHead(() => ({ title: `${menu.value?.title ?? "分享的酒单"} · Shaker` })
             </template>
             <NuxtLink
               v-else
-              :to="`/r/${it.recipe.slug}`"
+              :to="`/r/${it.recipe.code}`"
               class="truncate font-medium underline-offset-4 hover:underline"
             >
               {{ it.recipe.title }}

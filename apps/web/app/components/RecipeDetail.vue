@@ -1,6 +1,6 @@
 <script setup lang="ts">
 /**
- * 配方详情主体（/r/[slug] 与 /recipes/[id] 共用）。
+ * 配方详情主体（/r/[code] 与 /recipes/[id] 共用）。
  * 左：动画播放器（sticky）；右：原料卡 + 文字步骤（点击单步回看）+ 元信息。
  */
 import type { components } from "@shaker/api-client";
@@ -252,7 +252,7 @@ const deleteMutation = useMutation({
         <span v-if="derivedLink" class="text-sm text-muted-foreground">
           改编自
           <NuxtLink
-            :to="`/r/${derivedLink.slug}`"
+            :to="`/r/${derivedLink.code}`"
             class="text-primary underline-offset-4 hover:underline"
           >
             {{ derivedLink.title }}

@@ -235,7 +235,7 @@ const VIS_ZH: Record<string, string> = {
             </template>
             <NuxtLink
               v-else
-              :to="`/r/${it.recipe.slug}`"
+              :to="`/r/${it.recipe.code}`"
               class="truncate font-medium underline-offset-4 hover:underline"
             >
               {{ it.recipe.title }}

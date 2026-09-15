@@ -5,15 +5,15 @@ import { Skeleton } from "@/components/ui/skeleton";
 import RecipeDetail from "@/components/RecipeDetail.vue";
 
 const route = useRoute();
-const slug = computed(() => String(route.params.slug ?? ""));
-useHead(() => ({ title: `${slug.value} · Shaker` }));
+const code = computed(() => String(route.params.code ?? ""));
+useHead(() => ({ title: `${code.value} · Shaker` }));
 
 const api = useApi();
 const { data, error, isLoading } = useQuery({
-  queryKey: computed(() => ["recipe", "slug", slug.value] as const),
+  queryKey: computed(() => ["recipe", "code", code.value] as const),
   queryFn: async () => {
-    const { data, error } = await api.GET("/api/v1/r/{slug}", {
-      params: { path: { slug: slug.value }, query: { expand: "viz" } },
+    const { data, error } = await api.GET("/api/v1/r/{code}", {
+      params: { path: { code: code.value }, query: { expand: "viz" } },
     });
     if (error) throw error;
     return data;

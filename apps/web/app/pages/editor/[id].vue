@@ -395,7 +395,7 @@ async function onPublish(): Promise<void> {
       return;
     }
     toast.success("已发布！");
-    await router.replace(`/r/${pub.data.slug}`);
+    await router.replace(`/r/${pub.data.code}`);
   } catch (err) {
     toast.error(apiErrorMessage(err));
   } finally {
