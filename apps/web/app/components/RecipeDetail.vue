@@ -104,7 +104,13 @@ const published = computed(() => {
 <template>
   <div class="grid items-start gap-8 lg:grid-cols-[400px_minmax(0,1fr)]">
     <div class="lg:sticky lg:top-20">
-      <VizPlayer ref="player" :ir="ir" :vocab="vocab" @progress="onProgress" />
+      <div
+        v-if="!recipe.viz && !vocabStore.loaded"
+        class="flex aspect-[400/520] items-center justify-center rounded-xl border border-dashed border-border text-sm text-muted-foreground"
+      >
+        词表加载中…
+      </div>
+      <VizPlayer v-else ref="player" :ir="ir" :vocab="vocab" @progress="onProgress" />
     </div>
 
     <div class="flex min-w-0 flex-col gap-6">

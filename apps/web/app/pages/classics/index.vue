@@ -19,8 +19,9 @@ type Page = components["schemas"]["RecipeListOutputBody"];
 useHead({ title: "经典 · Shaker" });
 
 const api = useApi();
-const iba = ref("");
-const family = ref("");
+// reka-ui 禁止 SelectItem 用空字符串 value（空串是"清除选择"的保留值），用 all 哨兵
+const iba = ref("all");
+const family = ref("all");
 
 const { data, isLoading, fetchNextPage, hasNextPage, isFetchingNextPage } =
   useInfiniteQuery({
@@ -30,8 +31,10 @@ const { data, isLoading, fetchNextPage, hasNextPage, isFetchingNextPage } =
         params: {
           query: {
             ibaCategory:
-              (iba.value || undefined) as "unforgettable" | undefined,
-            family: family.value || undefined,
+              iba.value !== "all"
+                ? (iba.value as "unforgettable")
+                : undefined,
+            family: family.value !== "all" ? family.value : undefined,
             cursor: pageParam || undefined,
           },
         },
@@ -53,14 +56,14 @@ const items = computed(() => data.value?.pages.flatMap((p) => p.items ?? []) ?? 
       <Select v-model="iba">
         <SelectTrigger class="h-9 w-40"><SelectValue placeholder="IBA 分档" /></SelectTrigger>
         <SelectContent>
-          <SelectItem value="">全部 IBA 分档</SelectItem>
+          <SelectItem value="all">全部 IBA 分档</SelectItem>
           <SelectItem v-for="(zh, c) in IBA_ZH" :key="c" :value="c">{{ zh }}</SelectItem>
         </SelectContent>
       </Select>
       <Select v-model="family">
         <SelectTrigger class="h-9 w-36"><SelectValue placeholder="家族" /></SelectTrigger>
         <SelectContent>
-          <SelectItem value="">全部家族</SelectItem>
+          <SelectItem value="all">全部家族</SelectItem>
           <SelectItem v-for="(zh, f) in FAMILY_ZH" :key="f" :value="f">{{ zh }}</SelectItem>
         </SelectContent>
       </Select>

@@ -204,16 +204,30 @@ const diagnosis = computed(() => {
 
 /* ── 实时预览（debounce 后快照，改引用触发重编译） ── */
 const previewIr = ref<RecipeIR>(ir.value);
+
+function snapshotPreview(): void {
+  previewIr.value = JSON.parse(JSON.stringify(ir.value)) as RecipeIR;
+}
+
 let previewTimer: ReturnType<typeof setTimeout> | undefined;
 watch(
   ir,
   () => {
     clearTimeout(previewTimer);
     previewTimer = setTimeout(() => {
-      previewIr.value = JSON.parse(JSON.stringify(ir.value)) as RecipeIR;
+      if (vocab.loaded) snapshotPreview();
     }, 250);
   },
   { deep: true },
+);
+
+// 词表就绪前编译必然失败（杯型剖面查不到），等 loaded 再出第一帧
+watch(
+  () => vocab.loaded,
+  (l) => {
+    if (l) snapshotPreview();
+  },
+  { immediate: true },
 );
 
 /* ── 保存 / 发布 ── */
@@ -510,7 +524,13 @@ const tasteKeys: Array<{ key: keyof typeof taste.value; label: string }> = [
             {{ diagnosis.ok ? "结构合法" : `${diagnosis.errors.length} 个错误` }}
           </Badge>
         </div>
-        <VizPlayer ref="player" :ir="previewIr" :vocab="vocabLookup" />
+        <div
+          v-if="!vocab.loaded"
+          class="flex aspect-[400/520] items-center justify-center rounded-xl border border-dashed border-border text-sm text-muted-foreground"
+        >
+          词表加载中…
+        </div>
+        <VizPlayer v-else ref="player" :ir="previewIr" :vocab="vocabLookup" />
       </div>
 
       <Card v-if="diagnosis.errors.length || diagnosis.warnings.length">

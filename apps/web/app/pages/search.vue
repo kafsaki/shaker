@@ -28,9 +28,10 @@ const vocab = useVocabStore();
 useHead({ title: "搜索 · Shaker" });
 
 const q = ref((route.query.q as string) || "");
-const family = ref((route.query.family as string) || "");
-const method = ref((route.query.method as string) || "");
-const glass = ref((route.query.glass as string) || "");
+// reka-ui 禁止 SelectItem 用空字符串 value（空串是"清除选择"的保留值），用 all 哨兵
+const family = ref((route.query.family as string) || "all");
+const method = ref((route.query.method as string) || "all");
+const glass = ref((route.query.glass as string) || "all");
 const submitted = ref((route.query.q as string) || "");
 const searched = ref(Boolean(submitted.value));
 
@@ -40,9 +41,9 @@ function submit(): void {
   router.replace({
     query: {
       ...(submitted.value ? { q: submitted.value } : {}),
-      ...(family.value ? { family: family.value } : {}),
-      ...(method.value ? { method: method.value } : {}),
-      ...(glass.value ? { glass: glass.value } : {}),
+      ...(family.value !== "all" ? { family: family.value } : {}),
+      ...(method.value !== "all" ? { method: method.value } : {}),
+      ...(glass.value !== "all" ? { glass: glass.value } : {}),
     },
   });
 }
@@ -60,9 +61,9 @@ const { data, isLoading, isFetching } = useQuery({
         query: {
           q: submitted.value || undefined,
           type: "all",
-          family: family.value || undefined,
-          method: method.value || undefined,
-          glass: glass.value || undefined,
+          family: family.value !== "all" ? family.value : undefined,
+          method: method.value !== "all" ? method.value : undefined,
+          glass: glass.value !== "all" ? glass.value : undefined,
         },
       },
     });
@@ -95,21 +96,21 @@ const ingredients = computed(() => data.value?.ingredients?.items ?? []);
       <Select v-model="family">
         <SelectTrigger class="h-8 w-32 text-xs"><SelectValue placeholder="家族" /></SelectTrigger>
         <SelectContent>
-          <SelectItem value="">全部家族</SelectItem>
+          <SelectItem value="all">全部家族</SelectItem>
           <SelectItem v-for="(zh, f) in FAMILY_ZH" :key="f" :value="f">{{ zh }}</SelectItem>
         </SelectContent>
       </Select>
       <Select v-model="method">
         <SelectTrigger class="h-8 w-32 text-xs"><SelectValue placeholder="手法" /></SelectTrigger>
         <SelectContent>
-          <SelectItem value="">全部手法</SelectItem>
+          <SelectItem value="all">全部手法</SelectItem>
           <SelectItem v-for="(zh, m) in METHOD_ZH" :key="m" :value="m">{{ zh }}</SelectItem>
         </SelectContent>
       </Select>
       <Select v-model="glass">
         <SelectTrigger class="h-8 w-32 text-xs"><SelectValue placeholder="杯型" /></SelectTrigger>
         <SelectContent>
-          <SelectItem value="">全部杯型</SelectItem>
+          <SelectItem value="all">全部杯型</SelectItem>
           <SelectItem v-for="g in vocab.glassware" :key="g.id" :value="g.id">
             {{ g.nameZh }}
           </SelectItem>
