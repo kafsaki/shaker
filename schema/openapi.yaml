@@ -2349,6 +2349,7 @@ paths:
               - unforgettable
               - contemporary
               - new_era
+              - none
             type: string
         - explode: false
           in: query

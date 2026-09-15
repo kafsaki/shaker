@@ -58,7 +58,8 @@ func (a *API) registerClassics(api huma.API) {
 /* ────────────────────────── handler ────────────────────────── */
 
 type classicsListInput struct {
-	IbaCategory string `query:"ibaCategory" enum:"unforgettable,contemporary,new_era"`
+	// none = 筛「非 IBA 经典」（iba_category IS NULL）
+	IbaCategory string `query:"ibaCategory" enum:"unforgettable,contemporary,new_era,none"`
 	Family      string `query:"family" maxLength:"64"`
 	Cursor      string `query:"cursor"`
 	Limit       int    `query:"limit" minimum:"1" maximum:"50"`

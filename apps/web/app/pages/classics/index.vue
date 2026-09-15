@@ -20,7 +20,8 @@ useHead({ title: "经典 · Shaker" });
 
 const api = useApi();
 // reka-ui 禁止 SelectItem 用空字符串 value（空串是"清除选择"的保留值），用 all 哨兵
-const iba = ref("all");
+type IbaFilter = "all" | "none" | "unforgettable" | "contemporary" | "new_era";
+const iba = ref<IbaFilter>("all");
 const family = ref("all");
 
 const { data, isLoading, fetchNextPage, hasNextPage, isFetchingNextPage } =
@@ -30,10 +31,7 @@ const { data, isLoading, fetchNextPage, hasNextPage, isFetchingNextPage } =
       const { data, error } = await api.GET("/api/v1/classics", {
         params: {
           query: {
-            ibaCategory:
-              iba.value !== "all"
-                ? (iba.value as "unforgettable")
-                : undefined,
+            ibaCategory: iba.value !== "all" ? iba.value : undefined,
             family: family.value !== "all" ? family.value : undefined,
             cursor: pageParam || undefined,
           },
@@ -56,8 +54,9 @@ const items = computed(() => data.value?.pages.flatMap((p) => p.items ?? []) ?? 
       <Select v-model="iba">
         <SelectTrigger class="h-9 w-40"><SelectValue placeholder="IBA 分档" /></SelectTrigger>
         <SelectContent>
-          <SelectItem value="all">全部 IBA 分档</SelectItem>
+          <SelectItem value="all">全部分档</SelectItem>
           <SelectItem v-for="(zh, c) in IBA_ZH" :key="c" :value="c">{{ zh }}</SelectItem>
+          <SelectItem value="none">非 IBA 经典</SelectItem>
         </SelectContent>
       </Select>
       <Select v-model="family">

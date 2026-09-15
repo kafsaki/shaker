@@ -14,10 +14,13 @@ import (
 /* ────────────────────────── 列表 / 权威条目 / 变体 ────────────────────────── */
 
 // Classics 经典列表（权威条目），按发布时间倒序。
+// ibaCategory 为 "none" 时筛「非 IBA 经典」（iba_category IS NULL）。
 func (s *Store) Classics(ctx context.Context, ibaCategory, family, cur string, limit int) (*ListResult, error) {
 	where := []string{"r.is_canonical", "r.status = 'published'", "r.deleted_at IS NULL"}
 	var args []any
-	if ibaCategory != "" {
+	if ibaCategory == "none" {
+		where = append(where, "r.iba_category IS NULL")
+	} else if ibaCategory != "" {
 		args = append(args, ibaCategory)
 		where = append(where, fmt.Sprintf("r.iba_category = $%d", len(args)))
 	}

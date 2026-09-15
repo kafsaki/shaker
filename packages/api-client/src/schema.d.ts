@@ -2166,7 +2166,7 @@ export interface operations {
     "classics-list": {
         parameters: {
             query?: {
-                ibaCategory?: "unforgettable" | "contemporary" | "new_era";
+                ibaCategory?: "unforgettable" | "contemporary" | "new_era" | "none";
                 family?: string;
                 cursor?: string;
                 limit?: number;
