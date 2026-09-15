@@ -247,6 +247,12 @@ const published = computed(() => {
           <p class="mt-3 text-xs text-muted-foreground">点击任一步骤可回看该步动画。</p>
         </CardContent>
       </Card>
+
+      <!-- 互动条 -->
+      <RecipeActions :recipe="recipe" />
+
+      <!-- 评论 -->
+      <CommentsSection :recipe-id="recipe.id" />
     </div>
   </div>
 </template>
