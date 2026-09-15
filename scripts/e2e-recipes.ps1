@@ -1,4 +1,4 @@
-# 配方核心端到端验证（对运行中的本地 API）：CRUD + 发布事务 + 投影 + slug + revisions + expand=viz。
+# 配方核心端到端验证（对运行中的本地 API）：CRUD + 发布事务 + 投影 + 短号 + revisions + expand=viz。
 # 每次运行注册随机新用户，可反复执行。
 $ErrorActionPreference = 'Stop'
 Add-Type -AssemblyName System.Net.Http
@@ -79,8 +79,14 @@ $me = Call GET '/me' $null $tok
 Check '初始 recipeCount=0' ($me.json.recipeCount -eq 0)
 
 $ginBefore = (Call GET '/ingredients/gin-london-dry').json.recipeCount
-$daiq = Call GET '/r/daiquiri'
-Check '种子配方可按 slug 取' ($daiq.status -eq 200 -and $daiq.json.isCanonical -and $daiq.json.classicKey -eq 'daiquiri')
+$daiq = Call GET '/classics/daiquiri'
+Check '种子经典直达权威条目' ($daiq.status -eq 200 -and $daiq.json.isCanonical -and $daiq.json.classicKey -eq 'daiquiri')
+Check '短号恒 6 位 base58' ($daiq.json.code -match '^[1-9A-HJ-NP-Za-km-z]{6}$') "code=$($daiq.json.code)"
+$daiqCode = $daiq.json.code
+$byCode = Call GET "/r/$daiqCode"
+Check '按短号取已发布配方' ($byCode.status -eq 200 -and $byCode.json.id -eq $daiq.json.id)
+$r = Call GET '/r/daiquiri'
+Check '旧 slug 路由已废 → 404' ($r.status -eq 404)
 $daiqDerivedBefore = $daiq.json.derivedCount
 
 # ── 1. 创建校验（结构/引用）──
@@ -108,11 +114,12 @@ $draftBody = @{
 $r = Call POST '/recipes' $draftBody $tok
 Check '草稿创建 → 201' ($r.status -eq 201)
 Check '草稿状态' ($r.json.recipe.status -eq 'draft')
-Check '草稿占位 slug' ($r.json.recipe.slug -like 'draft-*')
+Check '草稿即占号（6 位 base58）' ($r.json.recipe.code -match '^[1-9A-HJ-NP-Za-km-z]{6}$') "code=$($r.json.recipe.code)"
 Check '业务错误降级为 warnings' (@($r.json.warnings | Where-Object { $_.code -eq 'flow.nothing_in_glass' }).Count -eq 1)
 Check 'irVersion=1' ($r.json.recipe.irVersion -eq 1)
 Check '口味档案落库' ($r.json.recipe.tasteProfile.sour -eq 3)
 $id = $r.json.recipe.id
+$draftCode = $r.json.recipe.code
 
 # ── 3. 可见性：草稿仅作者 ──
 $r = Call GET "/recipes/$id"
@@ -157,7 +164,7 @@ Check '失败详情定位到规则' (@($r.json.error.details | Where-Object { $_
 Call PATCH "/recipes/$id" $fixBody $tok @{ 'If-Match' = '"3"' } | Out-Null
 $r = Call POST "/recipes/$id/publish" $null $tok
 Check '发布成功' ($r.status -eq 200 -and $r.json.status -eq 'published')
-Check 'slug 由标题生成' ($r.json.slug -match '^e2e-gin-sour(-\d+)?$')
+Check '发布后短号不变' ($r.json.code -match '^[1-9A-HJ-NP-Za-km-z]{6}$' -and $r.json.code -eq $draftCode)
 Check 'publishedAt 已设置' ($null -ne $r.json.publishedAt)
 Check 'ABV 服务端计算' ($r.json.abvEst -gt 15 -and $r.json.abvEst -lt 22) "abvEst=$($r.json.abvEst)"
 Check '总量含稀释' ($r.json.totalVolumeMl -eq 108) "totalVolumeMl=$($r.json.totalVolumeMl)"
@@ -165,20 +172,20 @@ Check 'irVersion 保持 4' ($r.json.irVersion -eq 4)
 
 # 幂等
 $r2 = Call POST "/recipes/$id/publish" $null $tok
-Check '重复发布幂等' ($r2.status -eq 200 -and $r2.json.slug -eq $r.json.slug)
+Check '重复发布幂等' ($r2.status -eq 200 -and $r2.json.code -eq $r.json.code)
 
 # ── 8. 投影与计数 ──
 $me = Call GET '/me' $null $tok
 Check '作者 recipeCount=1' ($me.json.recipeCount -eq 1)
 $ginAfter = (Call GET '/ingredients/gin-london-dry').json.recipeCount
 Check '原料 recipe_count +1' ($ginAfter -eq ($ginBefore + 1)) "before=$ginBefore after=$ginAfter"
-$daiqNow = Call GET '/r/daiquiri'
+$daiqNow = Call GET "/r/$daiqCode"
 Check '血缘 derivedCount +1' ($daiqNow.json.derivedCount -eq ($daiqDerivedBefore + 1))
 
 # ── 9. 公开读取 ──
-$slug = $r.json.slug
-$r = Call GET "/r/$slug"
-Check '按 slug 公开可读' ($r.status -eq 200 -and $r.json.id -eq $id)
+$code = $r.json.code
+$r = Call GET "/r/$code"
+Check '按 code 公开可读' ($r.status -eq 200 -and $r.json.id -eq $id)
 Check '匿名无 viewerState' ($null -eq $r.json.viewerState)
 Check '浏览计数' ($r.json.counts.view -ge 1)
 Check '作者信息齐全' ($r.json.author.handle -eq "e2e_r$suffix" -and $r.json.author.displayName)
@@ -196,20 +203,20 @@ $r = Call PATCH "/recipes/$id" (@{ title = 'E2E Gin Sour Deluxe' } | ConvertTo-J
 Check '元数据编辑成功' ($r.status -eq 200 -and $r.json.recipe.title -eq 'E2E Gin Sour Deluxe')
 Check '元数据编辑不递增版本' ($r.json.recipe.irVersion -eq 4)
 
-# ── 11. 撤回与重发布（slug 稳定）──
+# ── 11. 撤回与重发布（短号稳定）──
 $r = Call POST "/recipes/$id/unpublish" $null $tok
 Check '撤回为草稿' ($r.status -eq 200 -and $r.json.status -eq 'draft')
 Check '撤回后 publishedAt 清空' ($null -eq $r.json.publishedAt)
 $r = Call GET "/recipes/$id"
 Check '撤回后匿名 404' ($r.status -eq 404)
-$r = Call GET "/r/$slug"
-Check '撤回后 slug 页 404' ($r.status -eq 404)
+$r = Call GET "/r/$code"
+Check '撤回后 code 页 404' ($r.status -eq 404)
 $me = Call GET '/me' $null $tok
 Check '撤回回退 recipeCount' ($me.json.recipeCount -eq 0)
 
 $r = Call POST "/recipes/$id/publish" $null $tok
 Check '重新发布' ($r.status -eq 200 -and $r.json.status -eq 'published')
-Check 'slug 保持稳定' ($r.json.slug -eq $slug)
+Check '短号保持稳定' ($r.json.code -eq $code)
 
 # ── 12. 越权 ──
 $reg2 = Call POST '/auth/register' (@{
@@ -231,7 +238,7 @@ $me = Call GET '/me' $null $tok
 Check '删除回退 recipeCount' ($me.json.recipeCount -eq 0)
 $ginFinal = (Call GET '/ingredients/gin-london-dry').json.recipeCount
 Check '删除回退原料计数' ($ginFinal -eq $ginBefore)
-$daiqFinal = Call GET '/r/daiquiri'
+$daiqFinal = Call GET "/r/$daiqCode"
 Check '删除回退 derivedCount' ($daiqFinal.json.derivedCount -eq $daiqDerivedBefore)
 
 # ── 14. 404 信封 ──

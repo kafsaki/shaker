@@ -89,10 +89,10 @@ $r = Call GET "/menus/shared/aaaaaaaaaaaaaaaaaaaaaaaaaa"
 Check '瞎猜令牌 → 404' ($r.status -eq 404)
 
 # ── 4. 加配方（幂等）+ 重排 ──
-# 种子经典：daiquiri / negroni / mojito（slugged 权威条目）
+# 种子经典：daiquiri / negroni / mojito（经典锚点直达权威条目，拿短号再取）
 $rids = @()
-foreach ($slug in 'daiquiri', 'negroni', 'mojito') {
-    $d = Call GET "/r/$slug"
+foreach ($key in 'daiquiri', 'negroni', 'mojito') {
+    $d = Call GET "/classics/$key"
     $rids += $d.json.id
 }
 $note = @{ note = '夏天喝' } | ConvertTo-Json
@@ -107,7 +107,7 @@ Check '重复加入 → 幂等 204' ($r.status -eq 204)
 
 $r = Call GET "/menus/$menu1" $null $tok1
 Check 'itemCount = 3' ($r.json.menu.itemCount -eq 3)
-$titles = @($r.json.items | ForEach-Object { $_.recipe.slug })
+$titles = @($r.json.items | ForEach-Object { $_.recipe.classicKey })
 Check "初始顺序 daiquiri,negroni,mojito（实际 $($titles -join ',')）" ($titles -join ',' -eq 'daiquiri,negroni,mojito')
 Check 'note 已存' ($r.json.items[0].note -eq '夏天喝')
 Check '条目含配方卡片' ($r.json.items[0].recipe.isCanonical -eq $true)
@@ -119,7 +119,7 @@ Check '无锚点重排（移到最前）→ 204' ($r.status -eq 204)
 $r = Call POST "/menus/$menu1/items/reorder" (@{ recipeId = $rids[1]; afterRecipeId = $rids[2] } | ConvertTo-Json) $tok1
 Check '锚点重排 → 204' ($r.status -eq 204)
 $r = Call GET "/menus/$menu1" $null $tok1
-$titles = @($r.json.items | ForEach-Object { $_.recipe.slug })
+$titles = @($r.json.items | ForEach-Object { $_.recipe.classicKey })
 Check "重排后 mojito,negroni,daiquiri（实际 $($titles -join ',')）" ($titles -join ',' -eq 'mojito,negroni,daiquiri')
 
 # 坏锚点

@@ -646,7 +646,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/r/{slug}": {
+    "/api/v1/r/{code}": {
         parameters: {
             query?: never;
             header?: never;
@@ -654,10 +654,10 @@ export interface paths {
             cookie?: never;
         };
         /**
-         * 按 slug 取已发布配方
-         * @description 公开页面用（SEO 友好）；只返回已发布配方。
+         * 按短号取已发布配方
+         * @description 公开页面 /r/{code} 用；只返回已发布配方。code 为 6 位 base58 短号。
          */
-        get: operations["recipes-get-by-slug"];
+        get: operations["recipes-get-by-code"];
         put?: never;
         post?: never;
         delete?: never;
@@ -801,7 +801,7 @@ export interface paths {
         put?: never;
         /**
          * 发布配方
-         * @description 跑完整校验（结构 + 业务规则），算派生值、投影原料、分配 slug。限每用户 10 次/小时。
+         * @description 跑完整校验（结构 + 业务规则），算派生值、投影原料。限每用户 10 次/小时。
          */
         post: operations["recipes-publish"];
         delete?: never;
@@ -1229,6 +1229,7 @@ export interface components {
             abvEst: number | null;
             author: components["schemas"]["RecipeAuthorBody"];
             classicKey: string | null;
+            code: string;
             collapsedVariants?: components["schemas"]["CollapsedVariantsBody"];
             counts: components["schemas"]["RecipeCountsBody"];
             coverUrl: string | null;
@@ -1250,7 +1251,6 @@ export interface components {
             publishedAt: string | null;
             /** Format: int64 */
             servings: number;
-            slug: string;
             source: string;
             status: string;
             subtitle: string | null;
@@ -1461,6 +1461,7 @@ export interface components {
         };
         MenuRecipeCardBody: {
             classicKey: string | null;
+            code: string;
             /** Format: int64 */
             commentCount: number;
             coverUrl: string | null;
@@ -1469,7 +1470,6 @@ export interface components {
             isCanonical: boolean;
             /** Format: int64 */
             likeCount: number;
-            slug: string;
             title: string;
         };
         MenuReorderInputBody: {
@@ -1631,6 +1631,7 @@ export interface components {
             abvEst: number | null;
             author: components["schemas"]["RecipeAuthorBody"];
             classicKey: string | null;
+            code: string;
             counts: components["schemas"]["RecipeCountsBody"];
             coverUrl: string | null;
             createdAt: string;
@@ -1651,7 +1652,6 @@ export interface components {
             publishedAt: string | null;
             /** Format: int64 */
             servings: number;
-            slug: string;
             source: string;
             status: string;
             subtitle: string | null;
@@ -3251,14 +3251,14 @@ export interface operations {
             };
         };
     };
-    "recipes-get-by-slug": {
+    "recipes-get-by-code": {
         parameters: {
             query?: {
                 expand?: "viz";
             };
             header?: never;
             path: {
-                slug: string;
+                code: string;
             };
             cookie?: never;
         };
