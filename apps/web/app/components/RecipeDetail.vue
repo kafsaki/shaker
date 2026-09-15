@@ -1,7 +1,8 @@
 <script setup lang="ts">
 /**
- * 配方详情主体（/r/[code] 与 /recipes/[id] 共用）。
+ * 配方详情主体（/r/[code] 与经典页共用）。
  * 左：动画播放器（sticky）；右：原料卡 + 文字步骤（点击单步回看）+ 元信息。
+ * hideHeader：经典页 hero 已承载标题/徽章，传 true 隐藏本组件的标题与徽章行。
  */
 import type { components } from "@shaker/api-client";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/vue-query";
@@ -34,7 +35,10 @@ import { Skeleton } from "@/components/ui/skeleton";
 type Recipe = components["schemas"]["RecipeBody"];
 type VizIngredient = NonNullable<Recipe["viz"]>["ingredients"][string];
 
-const props = defineProps<{ recipe: Recipe }>();
+const props = withDefaults(
+  defineProps<{ recipe: Recipe; hideHeader?: boolean }>(),
+  { hideHeader: false },
+);
 
 const auth = useAuthStore();
 const api = useApi();
@@ -190,8 +194,8 @@ const deleteMutation = useMutation({
     </div>
 
     <div class="flex min-w-0 flex-col gap-6">
-      <!-- 标题与作者 -->
-      <div class="flex items-start justify-between gap-4">
+      <!-- 标题与作者（经典页 hero 承载，hideHeader 时隐藏） -->
+      <div v-if="!hideHeader" class="flex items-start justify-between gap-4">
         <div class="flex flex-col gap-2">
           <h1 class="text-2xl font-bold">{{ recipe.title }}</h1>
           <p v-if="recipe.subtitle" class="text-sm text-muted-foreground">
@@ -220,8 +224,8 @@ const deleteMutation = useMutation({
         </Button>
       </div>
 
-      <!-- 徽章行 -->
-      <div class="flex flex-wrap items-center gap-1.5">
+      <!-- 徽章行（hideHeader 时由经典页 hero 徽章替代） -->
+      <div v-if="!hideHeader" class="flex flex-wrap items-center gap-1.5">
         <Badge v-if="recipe.family && FAMILY_ZH[recipe.family]" variant="secondary">
           {{ FAMILY_ZH[recipe.family] }}
         </Badge>

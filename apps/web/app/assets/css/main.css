@@ -72,6 +72,9 @@
   --radius-md: calc(var(--radius) - 2px);
   --radius-lg: var(--radius);
   --radius-xl: calc(var(--radius) + 4px);
+  /* 经典档案页专用衬线栈（font-classic），区别于 UGC 页的无衬线 */
+  --font-classic: "Noto Serif SC", "Source Han Serif SC", "Songti SC", STSong,
+    SimSun, ui-serif, Georgia, serif;
 }
 
 @layer base {
