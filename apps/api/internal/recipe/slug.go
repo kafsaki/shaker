@@ -8,6 +8,8 @@ import (
 
 	"github.com/google/uuid"
 	"golang.org/x/text/unicode/norm"
+
+	"github.com/kafsaki/shaker/apps/api/internal/seed"
 )
 
 // slugify 标题 → URL 变体：小写、拉丁重音归一化、字母数字之外全部变连字符。
@@ -42,6 +44,8 @@ func draftSlug(id string) string { return "draft-" + id }
 
 // allocateSlug 发布时生成去重 slug：冲突加 -2/-3… 后缀。
 // 自身行排除在外（改名重发不会和自己撞）。
+// 经典名预留：裸经典 slug 永远留给（含未来 seed 导入的）权威条目，
+// 否则用户先发布的同名配方会被 seed 的 ON CONFLICT DO UPDATE 静默覆盖。
 func allocateSlug(ctx context.Context, q querier, title string, id uuid.UUID) (string, error) {
 	base := slugify(title)
 	if base == "" {
@@ -49,6 +53,9 @@ func allocateSlug(ctx context.Context, q querier, title string, id uuid.UUID) (s
 		base = "r-" + strings.ReplaceAll(id.String(), "-", "")[:12]
 	}
 	slug := base
+	if seed.SlugReservedByClassic(base) {
+		slug = fmt.Sprintf("%s-%s", base, strings.ReplaceAll(id.String(), "-", "")[:12])
+	}
 	for n := 2; n < 200; n++ {
 		var exists bool
 		if err := q.QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM recipes WHERE slug = $1 AND id <> $2)`,

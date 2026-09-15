@@ -11,6 +11,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"math"
+	"sync"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
@@ -112,6 +113,28 @@ func Load() (*Data, error) {
 		return nil, fmt.Errorf("解析 seed.json: %w", err)
 	}
 	return &d, nil
+}
+
+// classicSlugs 内嵌经典条目的 slug 集合，懒解析一次。
+// 权威条目可能晚于用户配方入库（seed 更新后重部署），DB 里查不到未来的经典，
+// 所以以内嵌清单为准做发布预留，防止 seed 的 ON CONFLICT DO UPDATE
+// 把用户先发布的同名配方静默覆盖。
+var classicSlugs = sync.OnceValue(func() map[string]struct{} {
+	d, err := Load()
+	if err != nil {
+		return nil // 启动 seed 导入会另行 fail-loud，这里按无预留降级
+	}
+	set := make(map[string]struct{}, len(d.ClassicRecipes))
+	for _, c := range d.ClassicRecipes {
+		set[c.Slug] = struct{}{}
+	}
+	return set
+})
+
+// SlugReservedByClassic slug 是否为内嵌经典预留名（用户发布不得占用裸经典名）。
+func SlugReservedByClassic(slug string) bool {
+	_, ok := classicSlugs()[slug]
+	return ok
 }
 
 // Vocab 从种子数据构建词表视图，供经典配方的校验与派生计算。
