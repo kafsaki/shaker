@@ -358,6 +358,8 @@ components:
           type:
             - string
             - "null"
+        code:
+          type: string
         collapsedVariants:
           $ref: "#/components/schemas/CollapsedVariantsBody"
         counts:
@@ -409,8 +411,6 @@ components:
         servings:
           format: int64
           type: integer
-        slug:
-          type: string
         source:
           type: string
         status:
@@ -442,7 +442,7 @@ components:
           $ref: "#/components/schemas/RecipeVizBody"
       required:
         - id
-        - slug
+        - code
         - title
         - subtitle
         - descriptionMd
@@ -916,6 +916,8 @@ components:
           type:
             - string
             - "null"
+        code:
+          type: string
         commentCount:
           format: int64
           type: integer
@@ -932,13 +934,11 @@ components:
         likeCount:
           format: int64
           type: integer
-        slug:
-          type: string
         title:
           type: string
       required:
         - id
-        - slug
+        - code
         - title
         - classicKey
         - isCanonical
@@ -1310,6 +1310,8 @@ components:
           type:
             - string
             - "null"
+        code:
+          type: string
         counts:
           $ref: "#/components/schemas/RecipeCountsBody"
         coverUrl:
@@ -1359,8 +1361,6 @@ components:
         servings:
           format: int64
           type: integer
-        slug:
-          type: string
         source:
           type: string
         status:
@@ -1392,7 +1392,7 @@ components:
           $ref: "#/components/schemas/RecipeVizBody"
       required:
         - id
-        - slug
+        - code
         - title
         - subtitle
         - descriptionMd
@@ -3360,17 +3360,18 @@ paths:
       security:
         - bearerAuth: []
       summary: 未读数（小红点）
-  /api/v1/r/{slug}:
+  /api/v1/r/{code}:
     get:
-      description: 公开页面用（SEO 友好）；只返回已发布配方。
-      operationId: recipes-get-by-slug
+      description: 公开页面 /r/{code} 用；只返回已发布配方。code 为 6 位 base58 短号。
+      operationId: recipes-get-by-code
       parameters:
         - in: path
-          name: slug
+          name: code
           required: true
           schema:
-            maxLength: 80
-            minLength: 1
+            maxLength: 11
+            minLength: 6
+            pattern: ^[1-9A-HJ-NP-Za-km-z]+$
             type: string
         - explode: false
           in: query
@@ -3392,7 +3393,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/ApiError"
           description: Error
-      summary: 按 slug 取已发布配方
+      summary: 按短号取已发布配方
   /api/v1/recipes:
     post:
       description: 只校验 IR 结构（JSON Schema）；业务规则的 error 降级为 warnings 返回，发布时才强制（API 定义 §3）。
@@ -3694,7 +3695,7 @@ paths:
       summary: 点赞用户列表
   /api/v1/recipes/{id}/publish:
     post:
-      description: 跑完整校验（结构 + 业务规则），算派生值、投影原料、分配 slug。限每用户 10 次/小时。
+      description: 跑完整校验（结构 + 业务规则），算派生值、投影原料。限每用户 10 次/小时。
       operationId: recipes-publish
       parameters:
         - in: path

@@ -17,6 +17,7 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 
+	"github.com/kafsaki/shaker/apps/api/internal/base58"
 	"github.com/kafsaki/shaker/apps/api/internal/cursor"
 )
 
@@ -47,7 +48,7 @@ type Menu struct {
 // Deleted：配方已被作者软删——条目保留（历史/笔记），前端置灰不可点。
 type RecipeCard struct {
 	ID          uuid.UUID
-	Slug        string
+	ShortNo     int64 // 对外短号（base58 编码后即 /r/{code}）
 	Title       string
 	ClassicKey  *string
 	IsCanonical bool
@@ -56,6 +57,9 @@ type RecipeCard struct {
 	CommentCount int
 	Deleted     bool
 }
+
+// Code 对外短号。
+func (c RecipeCard) Code() string { return base58.Encode(c.ShortNo) }
 
 // Item 酒单条目。
 type Item struct {
@@ -316,7 +320,7 @@ func (s *Store) ReorderItem(ctx context.Context, menuID, ownerID, recipeID uuid.
 func (s *Store) Items(ctx context.Context, menuID uuid.UUID) ([]Item, error) {
 	rows, err := s.pool.Query(ctx, `
 		SELECT mi.recipe_id, mi.note, mi.added_at,
-			r.slug, r.title, r.classic_key, r.is_canonical, r.cover_url, r.like_count, r.comment_count,
+			r.short_no, r.title, r.classic_key, r.is_canonical, r.cover_url, r.like_count, r.comment_count,
 			r.deleted_at IS NOT NULL
 		FROM menu_items mi JOIN recipes r ON r.id = mi.recipe_id
 		WHERE mi.menu_id = $1
@@ -328,7 +332,7 @@ func (s *Store) Items(ctx context.Context, menuID uuid.UUID) ([]Item, error) {
 	out := []Item{}
 	for rows.Next() {
 		var it Item
-		if err := rows.Scan(&it.Recipe.ID, &it.Note, &it.AddedAt, &it.Recipe.Slug, &it.Recipe.Title,
+		if err := rows.Scan(&it.Recipe.ID, &it.Note, &it.AddedAt, &it.Recipe.ShortNo, &it.Recipe.Title,
 			&it.Recipe.ClassicKey, &it.Recipe.IsCanonical, &it.Recipe.CoverURL,
 			&it.Recipe.LikeCount, &it.Recipe.CommentCount, &it.Recipe.Deleted); err != nil {
 			return nil, fmt.Errorf("扫描条目: %w", err)

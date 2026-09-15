@@ -100,7 +100,6 @@ const tags = [
 
 /* ── 经典配方：fixture 里那 5 款按 canonical 条目挂进官方账号 ── */
 const CLASSIC_META: Record<string, {
-  slug: string;
   classicKey: string;
   ibaCategory: string | null;
   description: string;
@@ -109,7 +108,6 @@ const CLASSIC_META: Record<string, {
   tags: string[];
 }> = {
   Daiquiri: {
-    slug: "daiquiri",
     classicKey: "daiquiri",
     ibaCategory: "unforgettable",
     description: "白朗姆、青柠与糖的三元平衡——酸酒家族的教科书。",
@@ -118,7 +116,6 @@ const CLASSIC_META: Record<string, {
     tags: ["refreshing", "sour", "summer"],
   },
   Negroni: {
-    slug: "negroni",
     classicKey: "negroni",
     ibaCategory: "unforgettable",
     description: "等份金酒、金巴利与红味美思，先苦后甘的餐前经典。",
@@ -127,7 +124,6 @@ const CLASSIC_META: Record<string, {
     tags: ["bitter", "after-dinner"],
   },
   "Tequila Sunrise": {
-    slug: "tequila-sunrise",
     classicKey: "tequila-sunrise",
     ibaCategory: "contemporary",
     description: "橙汁与石榴糖浆的密度分层，日出般的渐变。",
@@ -136,7 +132,6 @@ const CLASSIC_META: Record<string, {
     tags: ["sweet", "summer"],
   },
   Mojito: {
-    slug: "mojito",
     classicKey: "mojito",
     ibaCategory: "contemporary",
     description: "捣压薄荷、青柠与白朗姆，苏打水补满的清凉古巴经典。",
@@ -145,7 +140,6 @@ const CLASSIC_META: Record<string, {
     tags: ["refreshing", "summer"],
   },
   "Whiskey Sour": {
-    slug: "whiskey-sour",
     classicKey: "whiskey-sour",
     ibaCategory: "unforgettable",
     description: "波本、柠檬与蛋清干摇出的绵密泡沫冠。",
@@ -160,7 +154,6 @@ const classicRecipes = FIXTURES.map((f) => {
   return {
     title: f.title,
     subtitle: f.subtitle,
-    slug: meta.slug,
     classicKey: meta.classicKey,
     ibaCategory: meta.ibaCategory,
     family: f.family,

@@ -1,6 +1,6 @@
 // Package recipe 配方核心（API 定义 §2.3/§3）。
 //
-// 发布事务是这个包的心脏：完整校验 → 派生值 → 原料投影 → slug → 状态，
+// 发布事务是这个包的心脏：完整校验 → 派生值 → 原料投影 → 状态，
 // 全部在单个事务里，行级锁（FOR UPDATE）保证与 PATCH/DELETE 的并发安全。
 // 草稿宽松（schema 过即可，业务 error 降级为 warn 由 handler 处理）；
 // 已发布配方的 PATCH 与发布一样跑完整校验 —— 已发布语料是搜索与聚合的地基，不能带病进库。
@@ -21,6 +21,7 @@ import (
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
 
+	"github.com/kafsaki/shaker/apps/api/internal/base58"
 	"github.com/kafsaki/shaker/apps/api/internal/irv"
 	"github.com/kafsaki/shaker/apps/api/internal/notify"
 )
@@ -66,7 +67,7 @@ type Recipe struct {
 	ID            uuid.UUID
 	AuthorID      *uuid.UUID
 	Author        *AuthorBrief // 作者删号后为 nil
-	Slug          string
+	ShortNo       int64        // 对外短号（base58 编码后即 URL 里的 /r/{code}）
 	Title         string
 	Subtitle      *string
 	DescriptionMd *string
@@ -100,6 +101,9 @@ type Recipe struct {
 	Tags          []string
 	Sim           float32 // 搜索相关度（similarity）；仅搜索查询填充，其余为 0
 }
+
+// Code 对外短号：/r/{code} 的访问标识（创建即分配，永不复用）。
+func (r *Recipe) Code() string { return base58.Encode(r.ShortNo) }
 
 // CreateInput POST /recipes 的落库载荷。ir 已通过 schema 校验。
 type CreateInput struct {
@@ -147,7 +151,7 @@ type Revision struct {
 }
 
 // recipeCols 详情/锁行共用的列。author 由调用方决定是否 join。
-const recipeCols = `r.id, r.author_id, r.slug, r.title, r.subtitle, r.description_md, r.lang,
+const recipeCols = `r.id, r.author_id, r.short_no, r.title, r.subtitle, r.description_md, r.lang,
 	r.ir, r.ir_version, r.glass_id, r.method, r.family, r.source, r.is_canonical, r.classic_key,
 	r.derived_from, r.derived_count, r.iba_category, r.cover_url, r.status,
 	r.abv_est, r.total_volume_ml, r.taste_profile, r.difficulty,
@@ -159,7 +163,7 @@ const authorCols = `, u.id, u.handle, u.display_name, u.avatar_url, u.is_officia
 func scanRecipe(row pgx.Row) (*Recipe, error) {
 	r := &Recipe{}
 	var taste []byte
-	err := row.Scan(&r.ID, &r.AuthorID, &r.Slug, &r.Title, &r.Subtitle, &r.DescriptionMd, &r.Lang,
+	err := row.Scan(&r.ID, &r.AuthorID, &r.ShortNo, &r.Title, &r.Subtitle, &r.DescriptionMd, &r.Lang,
 		&r.IR, &r.IRVersion, &r.GlassID, &r.Method, &r.Family, &r.Source, &r.IsCanonical, &r.ClassicKey,
 		&r.DerivedFrom, &r.DerivedCount, &r.IbaCategory, &r.CoverURL, &r.Status,
 		&r.AbvEst, &r.TotalVolumeMl, &taste, &r.Difficulty,
@@ -173,7 +177,7 @@ func scanRecipeWithAuthor(row pgx.Row) (*Recipe, error) {
 	var authorID, authorHandle, authorName, authorAvatar *string
 	var authorOfficial *bool
 	var taste []byte
-	err := row.Scan(&r.ID, &r.AuthorID, &r.Slug, &r.Title, &r.Subtitle, &r.DescriptionMd, &r.Lang,
+	err := row.Scan(&r.ID, &r.AuthorID, &r.ShortNo, &r.Title, &r.Subtitle, &r.DescriptionMd, &r.Lang,
 		&r.IR, &r.IRVersion, &r.GlassID, &r.Method, &r.Family, &r.Source, &r.IsCanonical, &r.ClassicKey,
 		&r.DerivedFrom, &r.DerivedCount, &r.IbaCategory, &r.CoverURL, &r.Status,
 		&r.AbvEst, &r.TotalVolumeMl, &taste, &r.Difficulty,
@@ -241,17 +245,21 @@ func (s *Store) Get(ctx context.Context, id uuid.UUID) (*Recipe, error) {
 	return r, nil
 }
 
-// GetBySlug 按 slug 取已发布配方（公开页面，SEO 用）。
-func (s *Store) GetBySlug(ctx context.Context, slug string) (*Recipe, error) {
+// GetByCode 按对外短号取已发布配方（公开页面 /r/{code}）。
+func (s *Store) GetByCode(ctx context.Context, code string) (*Recipe, error) {
+	shortNo, err := base58.Decode(code)
+	if err != nil {
+		return nil, ErrNotFound // 非法码（长度/字符集不符）与不存在同待遇，不暴露细节
+	}
 	r, err := scanRecipeWithAuthor(s.pool.QueryRow(ctx, `
 		SELECT `+recipeCols+authorCols+`
 		FROM recipes r LEFT JOIN users u ON u.id = r.author_id
-		WHERE r.slug = $1 AND r.status = 'published' AND r.deleted_at IS NULL`, slug))
+		WHERE r.short_no = $1 AND r.status = 'published' AND r.deleted_at IS NULL`, shortNo))
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return nil, ErrNotFound
 		}
-		return nil, fmt.Errorf("查询配方 slug=%s: %w", slug, err)
+		return nil, fmt.Errorf("查询配方 code=%s: %w", code, err)
 	}
 	if err := s.loadTags(ctx, r); err != nil {
 		return nil, err
@@ -286,13 +294,13 @@ func (s *Store) Create(ctx context.Context, authorID uuid.UUID, in CreateInput) 
 	}
 
 	if _, err := tx.Exec(ctx, `
-		INSERT INTO recipes (id, author_id, slug, title, subtitle, description_md, lang,
+		INSERT INTO recipes (id, author_id, title, subtitle, description_md, lang,
 			ir, ir_version, glass_id, method, family, classic_key, derived_from,
 			taste_profile, difficulty, abv_est, total_volume_ml, status)
-		VALUES ($1, $2, $3, $4, $5, $6, $7,
-			$8, 1, $9, $10, $11, $12, $13,
-			$14, $15, $16, $17, 'draft')`,
-		id, authorID, draftSlug(id.String()), in.Title, in.Subtitle, in.DescriptionMd, in.Lang,
+		VALUES ($1, $2, $3, $4, $5, $6,
+			$7, 1, $8, $9, $10, $11, $12,
+			$13, $14, $15, $16, 'draft')`,
+		id, authorID, in.Title, in.Subtitle, in.DescriptionMd, in.Lang,
 		in.IRRaw, in.IR.Glass, in.IR.Method, in.Family, in.ClassicKey, in.DerivedFrom,
 		taste, in.Difficulty, abv, total); err != nil {
 		return nil, fmt.Errorf("创建草稿: %w", err)
@@ -509,20 +517,12 @@ func (s *Store) Publish(ctx context.Context, id, authorID uuid.UUID, vocab *irv.
 		return nil, err
 	}
 
-	// 5. slug：占位值换成标题派生的正式 slug（已分配过则保持，URL 稳定）
-	slug := r.Slug
-	if slug == draftSlug(r.ID.String()) {
-		if slug, err = allocateSlug(ctx, tx, r.Title, r.ID); err != nil {
-			return nil, err
-		}
-	}
-
-	// 6-7. 状态、发布时间与投影列
+	// 5-7. 状态、发布时间与投影列（短号创建时已分配，发布不改）
 	if _, err := tx.Exec(ctx, `
 		UPDATE recipes SET status = 'published', published_at = now(),
-			slug = $2, glass_id = $3, method = $4, abv_est = $5, total_volume_ml = $6
+			glass_id = $2, method = $3, abv_est = $4, total_volume_ml = $5
 		WHERE id = $1`,
-		id, slug, ir.Glass, ir.Method, abv, total); err != nil {
+		id, ir.Glass, ir.Method, abv, total); err != nil {
 		return nil, fmt.Errorf("发布配方: %w", err)
 	}
 

@@ -5424,7 +5424,6 @@
     {
       "title": "Daiquiri",
       "subtitle": "白朗姆 · 青柠 · 糖浆",
-      "slug": "daiquiri",
       "classicKey": "daiquiri",
       "ibaCategory": "unforgettable",
       "family": "sour",
@@ -5532,7 +5531,6 @@
     {
       "title": "Negroni",
       "subtitle": "金酒 · 金巴利 · 红味美思（1:1:1）",
-      "slug": "negroni",
       "classicKey": "negroni",
       "ibaCategory": "unforgettable",
       "family": "equal_parts",
@@ -5616,7 +5614,6 @@
     {
       "title": "Tequila Sunrise",
       "subtitle": "银龙舌兰 · 橙汁 · 石榴糖浆",
-      "slug": "tequila-sunrise",
       "classicKey": "tequila-sunrise",
       "ibaCategory": "contemporary",
       "family": "highball",
@@ -5713,7 +5710,6 @@
     {
       "title": "Mojito",
       "subtitle": "白朗姆 · 薄荷 · 青柠 · 苏打",
-      "slug": "mojito",
       "classicKey": "mojito",
       "ibaCategory": "contemporary",
       "family": "smash_julep",
@@ -5842,7 +5838,6 @@
     {
       "title": "Whiskey Sour",
       "subtitle": "波本 · 柠檬 · 糖浆 · 蛋清",
-      "slug": "whiskey-sour",
       "classicKey": "whiskey-sour",
       "ibaCategory": "unforgettable",
       "family": "sour",
@@ -5964,7 +5959,6 @@
     {
       "title": "Margarita",
       "subtitle": "银龙舌兰 · 橙皮利口酒 · 青柠",
-      "slug": "margarita",
       "classicKey": "margarita",
       "ibaCategory": "contemporary",
       "family": "sour",
@@ -6078,7 +6072,6 @@
     {
       "title": "Sidecar",
       "subtitle": "干邑 · 君度 · 柠檬",
-      "slug": "sidecar",
       "classicKey": "sidecar",
       "ibaCategory": "unforgettable",
       "family": "sour",
@@ -6191,7 +6184,6 @@
     {
       "title": "Cosmopolitan",
       "subtitle": "伏特加 · 橙皮利口酒 · 蔓越莓 · 青柠",
-      "slug": "cosmopolitan",
       "classicKey": "cosmopolitan",
       "ibaCategory": "contemporary",
       "family": "sour",
@@ -6298,7 +6290,6 @@
     {
       "title": "Lemon Drop",
       "subtitle": "伏特加 · 白橙皮利口酒 · 柠檬 · 糖浆",
-      "slug": "lemon-drop",
       "classicKey": "lemon-drop",
       "ibaCategory": "contemporary",
       "family": "sour",
@@ -6419,7 +6410,6 @@
     {
       "title": "Gimlet",
       "subtitle": "金酒 · 青柠 · 糖浆",
-      "slug": "gimlet",
       "classicKey": "gimlet",
       "ibaCategory": null,
       "family": "sour",
@@ -6519,7 +6509,6 @@
     {
       "title": "Aviation",
       "subtitle": "金酒 · 黑樱桃力娇 · 柠檬 · 紫罗兰",
-      "slug": "aviation",
       "classicKey": "aviation",
       "ibaCategory": "unforgettable",
       "family": "sour",
@@ -6626,7 +6615,6 @@
     {
       "title": "Clover Club",
       "subtitle": "金酒 · 柠檬 · 覆盆子糖浆 · 蛋清",
-      "slug": "clover-club",
       "classicKey": "clover-club",
       "ibaCategory": "unforgettable",
       "family": "sour",
@@ -6742,7 +6730,6 @@
     {
       "title": "Pisco Sour",
       "subtitle": "皮斯科 · 青柠 · 糖浆 · 蛋清",
-      "slug": "pisco-sour",
       "classicKey": "pisco-sour",
       "ibaCategory": "contemporary",
       "family": "sour",
@@ -6871,7 +6858,6 @@
     {
       "title": "Amaretto Sour",
       "subtitle": "杏仁利口酒 · 柠檬 · 蛋清",
-      "slug": "amaretto-sour",
       "classicKey": "amaretto-sour",
       "ibaCategory": null,
       "family": "sour",
@@ -6986,7 +6972,6 @@
     {
       "title": "New York Sour",
       "subtitle": "波本 · 柠檬 · 糖浆 · 红酒漂浮",
-      "slug": "new-york-sour",
       "classicKey": "new-york-sour",
       "ibaCategory": "new_era",
       "family": "sour",
@@ -7101,7 +7086,6 @@
     {
       "title": "Jack Rose",
       "subtitle": "苹果白兰地 · 石榴糖浆 · 青柠",
-      "slug": "jack-rose",
       "classicKey": "jack-rose",
       "ibaCategory": null,
       "family": "sour",
@@ -7201,7 +7185,6 @@
     {
       "title": "Hemingway Daiquiri",
       "subtitle": "白朗姆 · 西柚汁 · 青柠 · 黑樱桃力娇",
-      "slug": "hemingway-daiquiri",
       "classicKey": "hemingway-daiquiri",
       "ibaCategory": "contemporary",
       "family": "sour",
@@ -7309,7 +7292,6 @@
     {
       "title": "Last Word",
       "subtitle": "金酒 · 查特绿 · 黑樱桃力娇 · 青柠（1:1:1:1）",
-      "slug": "last-word",
       "classicKey": "last-word",
       "ibaCategory": "unforgettable",
       "family": "equal_parts",
@@ -7416,7 +7398,6 @@
     {
       "title": "Paper Plane",
       "subtitle": "波本 · 阿佩罗 · 阿玛罗 · 柠檬（等份）",
-      "slug": "paper-plane",
       "classicKey": "paper-plane",
       "ibaCategory": "new_era",
       "family": "equal_parts",
@@ -7524,7 +7505,6 @@
     {
       "title": "Boulevardier",
       "subtitle": "波本 · 金巴利 · 红味美思（1:1:1）",
-      "slug": "boulevardier",
       "classicKey": "boulevardier",
       "ibaCategory": "unforgettable",
       "family": "equal_parts",
@@ -7609,7 +7589,6 @@
     {
       "title": "Vesper",
       "subtitle": "金酒 · 伏特加 · 白利莱",
-      "slug": "vesper",
       "classicKey": "vesper",
       "ibaCategory": "contemporary",
       "family": "martini_duo",
@@ -7707,7 +7686,6 @@
     {
       "title": "Dry Martini",
       "subtitle": "金酒 · 干味美思（Martini）",
-      "slug": "dry-martini",
       "classicKey": "dry-martini",
       "ibaCategory": "unforgettable",
       "family": "martini_duo",
@@ -7796,7 +7774,6 @@
     {
       "title": "Manhattan",
       "subtitle": "黑麦威士忌 · 红味美思 · 苦精",
-      "slug": "manhattan",
       "classicKey": "manhattan",
       "ibaCategory": "unforgettable",
       "family": "martini_duo",
@@ -7893,7 +7870,6 @@
     {
       "title": "Rob Roy",
       "subtitle": "苏格兰威士忌 · 红味美思 · 苦精",
-      "slug": "rob-roy",
       "classicKey": "rob-roy",
       "ibaCategory": null,
       "family": "martini_duo",
@@ -7990,7 +7966,6 @@
     {
       "title": "Old Pal",
       "subtitle": "黑麦威士忌 · 干味美思 · 金巴利",
-      "slug": "old-pal",
       "classicKey": "old-pal",
       "ibaCategory": null,
       "family": "equal_parts",
@@ -8075,7 +8050,6 @@
     {
       "title": "Bijou",
       "subtitle": "金酒 · 查特绿 · 红味美思 · 橙苦精",
-      "slug": "bijou",
       "classicKey": "bijou",
       "ibaCategory": null,
       "family": "equal_parts",
@@ -8180,7 +8154,6 @@
     {
       "title": "Americano",
       "subtitle": "金巴利 · 红味美思 · 苏打水",
-      "slug": "americano",
       "classicKey": "americano",
       "ibaCategory": "unforgettable",
       "family": "spritz_wine",
@@ -8271,7 +8244,6 @@
     {
       "title": "Aperol Spritz",
       "subtitle": "阿佩罗 · 普罗赛柯 · 苏打水",
-      "slug": "aperol-spritz",
       "classicKey": "aperol-spritz",
       "ibaCategory": "new_era",
       "family": "spritz_wine",
@@ -8357,7 +8329,6 @@
     {
       "title": "Kir Royale",
       "subtitle": "黑加仑利口酒 · 香槟",
-      "slug": "kir-royale",
       "classicKey": "kir-royale",
       "ibaCategory": null,
       "family": "spritz_wine",
@@ -8426,7 +8397,6 @@
     {
       "title": "Mimosa",
       "subtitle": "香槟 · 橙汁",
-      "slug": "mimosa",
       "classicKey": "mimosa",
       "ibaCategory": "contemporary",
       "family": "spritz_wine",
@@ -8496,7 +8466,6 @@
     {
       "title": "Gin Fizz",
       "subtitle": "金酒 · 柠檬 · 糖浆 · 苏打水",
-      "slug": "gin-fizz",
       "classicKey": "gin-fizz",
       "ibaCategory": "unforgettable",
       "family": "fizz_collins",
@@ -8604,7 +8573,6 @@
     {
       "title": "Tom Collins",
       "subtitle": "金酒 · 柠檬 · 糖浆 · 苏打水",
-      "slug": "tom-collins",
       "classicKey": "tom-collins",
       "ibaCategory": null,
       "family": "fizz_collins",
@@ -8711,7 +8679,6 @@
     {
       "title": "Sloe Gin Fizz",
       "subtitle": "黑刺李金酒 · 柠檬 · 糖浆 · 苏打水",
-      "slug": "sloe-gin-fizz",
       "classicKey": "sloe-gin-fizz",
       "ibaCategory": null,
       "family": "fizz_collins",
@@ -8818,7 +8785,6 @@
     {
       "title": "Ramos Gin Fizz",
       "subtitle": "金酒 · 柠檬 · 青柠 · 奶油 · 蛋清 · 橙花水 · 苏打水",
-      "slug": "ramos-gin-fizz",
       "classicKey": "ramos-gin-fizz",
       "ibaCategory": "unforgettable",
       "family": "fizz_collins",
@@ -8965,7 +8931,6 @@
     {
       "title": "French 75",
       "subtitle": "金酒 · 柠檬 · 糖浆 · 香槟",
-      "slug": "french-75",
       "classicKey": "french-75",
       "ibaCategory": "contemporary",
       "family": "fizz_collins",
@@ -9079,7 +9044,6 @@
     {
       "title": "Moscow Mule",
       "subtitle": "伏特加 · 青柠 · 姜汁啤酒",
-      "slug": "moscow-mule",
       "classicKey": "moscow-mule",
       "ibaCategory": "contemporary",
       "family": "highball",
@@ -9165,7 +9129,6 @@
     {
       "title": "Dark 'n' Stormy",
       "subtitle": "黑朗姆 · 青柠 · 姜汁啤酒",
-      "slug": "dark-n-stormy",
       "classicKey": "dark-n-stormy",
       "ibaCategory": "new_era",
       "family": "highball",
@@ -9251,7 +9214,6 @@
     {
       "title": "Paloma",
       "subtitle": "银龙舌兰 · 西柚汁 · 青柠 · 苏打水",
-      "slug": "paloma",
       "classicKey": "paloma",
       "ibaCategory": "new_era",
       "family": "highball",
@@ -9366,7 +9328,6 @@
     {
       "title": "Cuba Libre",
       "subtitle": "白朗姆 · 青柠 · 可乐",
-      "slug": "cuba-libre",
       "classicKey": "cuba-libre",
       "ibaCategory": "contemporary",
       "family": "highball",
@@ -9451,7 +9412,6 @@
     {
       "title": "Sex on the Beach",
       "subtitle": "伏特加 · 桃味利口酒 · 蔓越莓 · 橙汁",
-      "slug": "sex-on-the-beach",
       "classicKey": "sex-on-the-beach",
       "ibaCategory": "contemporary",
       "family": "highball",
@@ -9545,7 +9505,6 @@
     {
       "title": "Bay Breeze",
       "subtitle": "伏特加 · 蔓越莓 · 菠萝汁",
-      "slug": "bay-breeze",
       "classicKey": "bay-breeze",
       "ibaCategory": null,
       "family": "highball",
@@ -9631,7 +9590,6 @@
     {
       "title": "Screwdriver",
       "subtitle": "伏特加 · 橙汁",
-      "slug": "screwdriver",
       "classicKey": "screwdriver",
       "ibaCategory": null,
       "family": "highball",
@@ -9708,7 +9666,6 @@
     {
       "title": "Old Fashioned",
       "subtitle": "波本 · 糖浆 · 苦精",
-      "slug": "old-fashioned",
       "classicKey": "old-fashioned",
       "ibaCategory": "unforgettable",
       "family": "old_fashioned",
@@ -9794,7 +9751,6 @@
     {
       "title": "Sazerac",
       "subtitle": "黑麦威士忌 · 苦艾涮杯 · 糖浆 · 佩肖苦精",
-      "slug": "sazerac",
       "classicKey": "sazerac",
       "ibaCategory": "unforgettable",
       "family": "old_fashioned",
@@ -9909,7 +9865,6 @@
     {
       "title": "Mint Julep",
       "subtitle": "波本 · 薄荷 · 糖浆 · 碎冰",
-      "slug": "mint-julep",
       "classicKey": "mint-julep",
       "ibaCategory": "contemporary",
       "family": "smash_julep",
@@ -10010,7 +9965,6 @@
     {
       "title": "Caipirinha",
       "subtitle": "卡莎萨 · 青柠 · 糖",
-      "slug": "caipirinha",
       "classicKey": "caipirinha",
       "ibaCategory": "contemporary",
       "family": "smash_julep",
@@ -10103,7 +10057,6 @@
     {
       "title": "Pina Colada",
       "subtitle": "白朗姆 · 菠萝汁 · 椰奶油",
-      "slug": "pina-colada",
       "classicKey": "pina-colada",
       "ibaCategory": "contemporary",
       "family": "punch_tiki",
@@ -10196,7 +10149,6 @@
     {
       "title": "Mai Tai",
       "subtitle": "金朗姆 · 干橙库拉索 · 青柠 · 杏仁糖浆 · 黑朗姆漂",
-      "slug": "mai-tai",
       "classicKey": "mai-tai",
       "ibaCategory": "contemporary",
       "family": "punch_tiki",
@@ -10319,7 +10271,6 @@
     {
       "title": "Hurricane",
       "subtitle": "白朗姆 · 黑朗姆 · 百香果糖浆 · 橙汁 · 青柠",
-      "slug": "hurricane",
       "classicKey": "hurricane",
       "ibaCategory": null,
       "family": "punch_tiki",
@@ -10436,7 +10387,6 @@
     {
       "title": "Painkiller",
       "subtitle": "金朗姆 · 菠萝汁 · 橙汁 · 椰奶油 · 肉豆蔻",
-      "slug": "painkiller",
       "classicKey": "painkiller",
       "ibaCategory": null,
       "family": "punch_tiki",
@@ -10544,7 +10494,6 @@
     {
       "title": "Jungle Bird",
       "subtitle": "黑朗姆 · 金巴利 · 菠萝汁 · 青柠 · 糖浆",
-      "slug": "jungle-bird",
       "classicKey": "jungle-bird",
       "ibaCategory": "new_era",
       "family": "punch_tiki",
@@ -10661,7 +10610,6 @@
     {
       "title": "Planter's Punch",
       "subtitle": "朗姆 · 石榴糖浆 · 青柠 · 橙汁 · 菠萝汁 · 苏打水",
-      "slug": "planters-punch",
       "classicKey": "planters-punch",
       "ibaCategory": "unforgettable",
       "family": "punch_tiki",
@@ -10784,7 +10732,6 @@
     {
       "title": "Singapore Sling",
       "subtitle": "金酒 · 樱桃白兰地 · 修士利口酒 · 石榴糖浆 · 果汁 · 苏打水",
-      "slug": "singapore-sling",
       "classicKey": "singapore-sling",
       "ibaCategory": "contemporary",
       "family": "punch_tiki",
@@ -10931,7 +10878,6 @@
     {
       "title": "Bloody Mary",
       "subtitle": "伏特加 · 番茄汁 · 柠檬 · 橄榄盐水 · 西芹盐",
-      "slug": "bloody-mary",
       "classicKey": "bloody-mary",
       "ibaCategory": "contemporary",
       "family": "highball",
@@ -11044,7 +10990,6 @@
     {
       "title": "Espresso Martini",
       "subtitle": "伏特加 · 咖啡利口酒 · 浓缩咖啡 · 糖浆",
-      "slug": "espresso-martini",
       "classicKey": "espresso-martini",
       "ibaCategory": "new_era",
       "family": "equal_parts",
@@ -11149,7 +11094,6 @@
     {
       "title": "White Russian",
       "subtitle": "伏特加 · 咖啡利口酒 · 全脂牛奶",
-      "slug": "white-russian",
       "classicKey": "white-russian",
       "ibaCategory": null,
       "family": "flip_creamy",
@@ -11246,7 +11190,6 @@
     {
       "title": "Grasshopper",
       "subtitle": "白可可利口酒 · 绿薄荷利口酒 · 重奶油",
-      "slug": "grasshopper",
       "classicKey": "grasshopper",
       "ibaCategory": "contemporary",
       "family": "flip_creamy",
@@ -11345,7 +11288,6 @@
     {
       "title": "B-52",
       "subtitle": "咖啡利口酒 · 百利甜 · 柑曼怡（三层）",
-      "slug": "b-52",
       "classicKey": "b-52",
       "ibaCategory": null,
       "family": "layered_shot",
@@ -11425,7 +11367,6 @@
     {
       "title": "Irish Coffee",
       "subtitle": "爱尔兰威士忌 · 咖啡 · 糖浆 · 奶油漂浮",
-      "slug": "irish-coffee",
       "classicKey": "irish-coffee",
       "ibaCategory": "contemporary",
       "family": "hot",

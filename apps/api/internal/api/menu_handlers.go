@@ -123,7 +123,7 @@ type menuBody struct {
 
 type menuRecipeCardBody struct {
 	ID           uuid.UUID `json:"id"`
-	Slug         string    `json:"slug"`
+	Code         string    `json:"code"`
 	Title        string    `json:"title"`
 	ClassicKey   *string   `json:"classicKey"`
 	IsCanonical  bool      `json:"isCanonical"`
@@ -187,7 +187,7 @@ func menuItemsOut(items []menu.Item) []menuItemBody {
 	for _, it := range items {
 		out = append(out, menuItemBody{
 			Recipe: menuRecipeCardBody{
-				ID: it.Recipe.ID, Slug: it.Recipe.Slug, Title: it.Recipe.Title,
+				ID: it.Recipe.ID, Code: it.Recipe.Code(), Title: it.Recipe.Title,
 				ClassicKey: it.Recipe.ClassicKey, IsCanonical: it.Recipe.IsCanonical,
 				CoverURL: it.Recipe.CoverURL, LikeCount: it.Recipe.LikeCount, CommentCount: it.Recipe.CommentCount,
 				Deleted: it.Recipe.Deleted,

@@ -36,12 +36,12 @@ func (a *API) registerRecipes(api huma.API) {
 	}, a.getRecipeHandler)
 
 	huma.Register(api, huma.Operation{
-		OperationID: "recipes-get-by-slug",
+		OperationID: "recipes-get-by-code",
 		Method:      http.MethodGet,
-		Path:        "/api/v1/r/{slug}",
-		Summary:     "按 slug 取已发布配方",
-		Description: "公开页面用（SEO 友好）；只返回已发布配方。",
-	}, a.getRecipeBySlugHandler)
+		Path:        "/api/v1/r/{code}",
+		Summary:     "按短号取已发布配方",
+		Description: "公开页面 /r/{code} 用；只返回已发布配方。code 为 6 位 base58 短号。",
+	}, a.getRecipeByCodeHandler)
 
 	huma.Register(api, huma.Operation{
 		OperationID: "recipes-update",
@@ -57,7 +57,7 @@ func (a *API) registerRecipes(api huma.API) {
 		Method:      http.MethodPost,
 		Path:        "/api/v1/recipes/{id}/publish",
 		Summary:     "发布配方",
-		Description: "跑完整校验（结构 + 业务规则），算派生值、投影原料、分配 slug。限每用户 10 次/小时。",
+		Description: "跑完整校验（结构 + 业务规则），算派生值、投影原料。限每用户 10 次/小时。",
 		Security:    bearerSecurity,
 	}, a.publishRecipeHandler)
 
@@ -143,7 +143,7 @@ type recipeVizBody struct {
 
 type recipeBody struct {
 	ID            string              `json:"id"`
-	Slug          string              `json:"slug"`
+	Code          string              `json:"code"`
 	Title         string              `json:"title"`
 	Subtitle      *string             `json:"subtitle"`
 	DescriptionMd *string             `json:"descriptionMd"`
@@ -189,7 +189,7 @@ type recipeSaveOutput struct {
 
 func recipeToBody(r *recipe.Recipe) recipeBody {
 	b := recipeBody{
-		ID: r.ID.String(), Slug: r.Slug, Title: r.Title,
+		ID: r.ID.String(), Code: r.Code(), Title: r.Title,
 		Subtitle: r.Subtitle, DescriptionMd: r.DescriptionMd, Lang: r.Lang,
 		IR: json.RawMessage(r.IR), IRVersion: r.IRVersion,
 		Family: r.Family, Source: r.Source,
@@ -399,14 +399,14 @@ func (a *API) getRecipeHandler(ctx context.Context, in *recipeGetInput) (*recipe
 	return a.recipeDetail(ctx, r, claims, in.Expand == "viz")
 }
 
-type recipeSlugGetInput struct {
-	Slug   string `path:"slug" minLength:"1" maxLength:"80"`
+type recipeCodeGetInput struct {
+	Code   string `path:"code" minLength:"6" maxLength:"11" pattern:"^[1-9A-HJ-NP-Za-km-z]+$"`
 	Expand string `query:"expand" enum:"viz"`
 }
 
-func (a *API) getRecipeBySlugHandler(ctx context.Context, in *recipeSlugGetInput) (*recipeOutput, error) {
+func (a *API) getRecipeByCodeHandler(ctx context.Context, in *recipeCodeGetInput) (*recipeOutput, error) {
 	claims, _ := ctx.Value(ctxClaims).(*auth.Claims)
-	r, err := a.recipes.GetBySlug(ctx, in.Slug)
+	r, err := a.recipes.GetByCode(ctx, in.Code)
 	if err != nil {
 		return nil, recipeErr(err)
 	}

@@ -90,7 +90,6 @@ type TasteProfile struct {
 type ClassicRecipe struct {
 	Title         string          `json:"title"`
 	Subtitle      string          `json:"subtitle"`
-	Slug          string          `json:"slug"`
 	ClassicKey    string          `json:"classicKey"`
 	IBACategory   *string         `json:"ibaCategory"` // 指针：非 IBA 经典为 null（DB 允许 NULL，空串会被 CHECK 拒绝）
 	Family        string          `json:"family"`
@@ -323,13 +322,13 @@ func importClassic(ctx context.Context, tx pgx.Tx, officialID uuid.UUID, vocab *
 		return fmt.Errorf("生成 UUIDv7: %w", err)
 	}
 	err = tx.QueryRow(ctx, `
-		INSERT INTO recipes (id, author_id, slug, title, subtitle, description_md, lang,
+		INSERT INTO recipes (id, author_id, title, subtitle, description_md, lang,
 			ir, ir_version, glass_id, method, family, source, is_canonical, classic_key,
 			iba_category, status, abv_est, total_volume_ml, taste_profile, difficulty, published_at)
-		VALUES ($1, $2, $3, $4, $5, $6, $7,
-			$8, 1, $9, $10, $11, 'classic', true, $12,
-			$13, 'published', $14, $15, $16, $17, now())
-		ON CONFLICT (slug) DO UPDATE SET
+		VALUES ($1, $2, $3, $4, $5, $6,
+			$7, 1, $8, $9, $10, 'classic', true, $11,
+			$12, 'published', $13, $14, $15, $16, now())
+		ON CONFLICT (classic_key) WHERE is_canonical DO UPDATE SET
 			title = EXCLUDED.title, subtitle = EXCLUDED.subtitle, description_md = EXCLUDED.description_md,
 			lang = EXCLUDED.lang, ir = EXCLUDED.ir, glass_id = EXCLUDED.glass_id, method = EXCLUDED.method,
 			family = EXCLUDED.family, is_canonical = true, classic_key = EXCLUDED.classic_key,
@@ -337,7 +336,7 @@ func importClassic(ctx context.Context, tx pgx.Tx, officialID uuid.UUID, vocab *
 			total_volume_ml = EXCLUDED.total_volume_ml, taste_profile = EXCLUDED.taste_profile,
 			difficulty = EXCLUDED.difficulty, updated_at = now()
 		RETURNING id, (xmax = 0)`,
-		newID, officialID, c.Slug, c.Title, c.Subtitle, c.DescriptionMd, c.Lang,
+		newID, officialID, c.Title, c.Subtitle, c.DescriptionMd, c.Lang,
 		c.IR, ir.Glass, ir.Method, c.Family, c.ClassicKey,
 		c.IBACategory, abvEst, totalMl, taste, c.Difficulty).Scan(&id, &inserted)
 	if err != nil {

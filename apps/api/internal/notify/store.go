@@ -32,6 +32,7 @@ const (
 
 // Q 写侧查询接口：pgxpool.Pool 与 pgx.Tx 都满足，事务内写入保证原子。
 type Q interface {
+	Query(ctx context.Context, sql string, args ...any) (pgx.Rows, error)
 	QueryRow(ctx context.Context, sql string, args ...any) pgx.Row
 	Exec(ctx context.Context, sql string, args ...any) (pgconn.CommandTag, error)
 }
@@ -55,17 +56,32 @@ func Insert(ctx context.Context, q Q, userID uuid.UUID, typ string,
 
 // FanoutToFollowers 给 author 的全部粉丝发通知（发布动态用）。
 // 不通知作者自己；粉丝数大时这里会慢——v1 可接受，见包注释。
+// id 由 Go 侧生成 v7（时间有序，避免 SQL 里 gen_random_uuid() 的 v4 索引随机写）。
 func FanoutToFollowers(ctx context.Context, q Q, authorID uuid.UUID,
 	entityType string, entityID uuid.UUID, payload map[string]any) error {
-	tag, err := q.Exec(ctx, `
-		INSERT INTO notifications (id, user_id, type, actor_id, entity_type, entity_id, payload)
-		SELECT gen_random_uuid(), f.follower_id, 'system', $1, $2, $3, $4
-		FROM follows f WHERE f.followee_id = $1 AND f.follower_id <> $1`,
-		authorID, entityType, entityID, payload)
+	rows, err := q.Query(ctx, `
+		SELECT f.follower_id FROM follows f
+		WHERE f.followee_id = $1 AND f.follower_id <> $1`, authorID)
 	if err != nil {
-		return fmt.Errorf("扇出通知: %w", err)
+		return fmt.Errorf("查询粉丝: %w", err)
 	}
-	_ = tag
+	defer rows.Close()
+	var followers []uuid.UUID
+	for rows.Next() {
+		var id uuid.UUID
+		if err := rows.Scan(&id); err != nil {
+			return fmt.Errorf("扫描粉丝: %w", err)
+		}
+		followers = append(followers, id)
+	}
+	if err := rows.Err(); err != nil {
+		return fmt.Errorf("遍历粉丝: %w", err)
+	}
+	for _, uid := range followers {
+		if err := Insert(ctx, q, uid, "system", &authorID, entityType, &entityID, payload); err != nil {
+			return err
+		}
+	}
 	return nil
 }
 
