@@ -1464,6 +1464,7 @@ export interface components {
             /** Format: int64 */
             commentCount: number;
             coverUrl: string | null;
+            deleted: boolean;
             id: string;
             isCanonical: boolean;
             /** Format: int64 */

@@ -130,6 +130,7 @@ type menuRecipeCardBody struct {
 	CoverURL     *string   `json:"coverUrl"`
 	LikeCount    int       `json:"likeCount"`
 	CommentCount int       `json:"commentCount"`
+	Deleted      bool      `json:"deleted"`
 }
 
 type menuItemBody struct {
@@ -189,6 +190,7 @@ func menuItemsOut(items []menu.Item) []menuItemBody {
 				ID: it.Recipe.ID, Slug: it.Recipe.Slug, Title: it.Recipe.Title,
 				ClassicKey: it.Recipe.ClassicKey, IsCanonical: it.Recipe.IsCanonical,
 				CoverURL: it.Recipe.CoverURL, LikeCount: it.Recipe.LikeCount, CommentCount: it.Recipe.CommentCount,
+				Deleted: it.Recipe.Deleted,
 			},
 			Note:    it.Note,
 			AddedAt: it.AddedAt.UTC().Format(time.RFC3339Nano),
