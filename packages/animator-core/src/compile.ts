@@ -5,12 +5,14 @@
  * 同一份输入在浏览器、Node、WebView 里必须产出逐字节相同的 Timeline。
  */
 import {
+  compileVessel,
   heightForVolume,
   physics,
   type ContainerId,
   type IngredientRef,
   type RecipeIR,
   type Step,
+  type VesselDef,
   type VesselSpec,
 } from "@shaker/recipe-ir/core";
 import { stepLabel } from "./labels.ts";
@@ -81,6 +83,78 @@ export const WORK_VESSEL_IDS: Record<Exclude<ContainerId, "glass">, string> = {
   secondary: "__secondary",
 };
 
+/**
+ * 工作容器与量酒器的内置剖面 —— 它们是动画器的固有道具，不属于受控词表，
+ * 所以 API 的 viz 载荷不会带它们。词表命中优先（原型/seed 注册了同参数副本），
+ * 未命中时用这里的内置值，产品前端无需再自带这份数据。
+ */
+const WORK_VESSEL_DEFS: VesselDef[] = [
+  {
+    id: "__shaker",
+    nameZh: "摇酒壶",
+    nameEn: "Shaker",
+    capacityMl: 530,
+    shape: {
+      profile: [
+        { y: 0, r: 0.3 },
+        { y: 0.62, r: 0.36 },
+        { y: 1, r: 0.31 },
+      ],
+    },
+  },
+  {
+    id: "__mixing_glass",
+    nameZh: "搅拌杯",
+    nameEn: "Mixing Glass",
+    capacityMl: 600,
+    shape: { profile: tumblerProfile(0.42) },
+  },
+  {
+    id: "__blender",
+    nameZh: "搅拌机",
+    nameEn: "Blender",
+    capacityMl: 1200,
+    shape: { profile: tumblerProfile(0.36) },
+  },
+  {
+    id: "__secondary",
+    nameZh: "第二容器",
+    nameEn: "Second Vessel",
+    capacityMl: 400,
+    shape: { profile: tumblerProfile(0.34) },
+  },
+  {
+    id: "__jigger",
+    nameZh: "量酒器",
+    nameEn: "Jigger",
+    capacityMl: 60,
+    shape: {
+      profile: [
+        { y: 0, r: 0.18 },
+        { y: 0.45, r: 0.09 },
+        { y: 1, r: 0.26 },
+      ],
+    },
+  },
+];
+
+/** 直筒/微锥剖面（与 seed 的 tumbler 同参数，r 相对高度归一化）。 */
+function tumblerProfile(
+  rTop: number,
+  rBottom = rTop * 0.94,
+): VesselDef["shape"]["profile"] {
+  return [
+    { y: 0, r: rBottom },
+    { y: 0.06, r: rTop * 0.98 },
+    { y: 1, r: rTop },
+  ];
+}
+
+/** 内置工作容器（含 __jigger）。渲染后端的 vessel 回调未命中时可回退到这里。 */
+export const WORK_VESSELS: ReadonlyMap<string, VesselSpec> = new Map(
+  WORK_VESSEL_DEFS.map((d) => [d.id, compileVessel(d)]),
+);
+
 /* ────────────────────────── 主入口 ────────────────────────── */
 
 export function compile(ir: RecipeIR, vocab: ResolvedVocab, opts: CompileOptions = {}): Timeline {
@@ -94,7 +168,7 @@ export function compile(ir: RecipeIR, vocab: ResolvedVocab, opts: CompileOptions
     let c = containers.get(id);
     if (c) return c;
     const vesselId = id === "glass" ? ir.glass : WORK_VESSEL_IDS[id];
-    const vessel = vocab.vessel(vesselId);
+    const vessel = vocab.vessel(vesselId) ?? WORK_VESSELS.get(vesselId);
     if (!vessel) throw new Error(`容器 ${id} 的杯型 "${vesselId}" 不在词表中`);
     c = newContainer(id, vessel);
     containers.set(id, c);
@@ -1006,8 +1080,8 @@ function pourProp(
   const color = meta?.viz.color ?? "#d8d2c4";
   const visc = meta?.viz.viscosity ?? "low";
   const width = { low: 2.6, medium: 3.4, high: 4.6 }[visc];
-  // 量酒器杯型（词表注册的 __jigger）
-  const jigger = vocab.vessel("__jigger");
+  // 量酒器杯型（词表注册的 __jigger；产品前端未注册时用内置副本）
+  const jigger = vocab.vessel("__jigger") ?? WORK_VESSELS.get("__jigger");
   const h = jigger ? jigger.scale * UNITS_PER_CM : 60;
   const rimR = jigger
     ? jigger.def.shape.profile[jigger.def.shape.profile.length - 1]!.r * h
