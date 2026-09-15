@@ -922,8 +922,41 @@ components:
       properties:
         containsRecipe:
           type: boolean
+        coverUrl:
+          type:
+            - string
+            - "null"
+        createdAt:
+          format: date-time
+          type: string
+        description:
+          type:
+            - string
+            - "null"
+        id:
+          type: string
+        itemCount:
+          format: int64
+          type: integer
+        shareToken:
+          type: string
+        title:
+          type: string
+        updatedAt:
+          format: date-time
+          type: string
+        visibility:
+          type: string
       required:
         - containsRecipe
+        - id
+        - title
+        - description
+        - coverUrl
+        - visibility
+        - itemCount
+        - createdAt
+        - updatedAt
       type: object
     MyMenusOutputBody:
       additionalProperties: false

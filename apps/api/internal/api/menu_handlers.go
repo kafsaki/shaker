@@ -152,8 +152,13 @@ type menuListOutput struct {
 	}
 }
 
+// MenuBody 是 menuBody 的导出别名：huma 只合并「已导出」的匿名嵌入字段，
+// 小写类型名会被当作未导出字段跳过，导致 OpenAPI 里 MyMenuBody 丢了全部菜单字段
+//（encoding/json 不区分大小写，运行时响应一直是完整的）。
+type MenuBody = menuBody
+
 type myMenuBody struct {
-	menuBody
+	MenuBody
 	ContainsRecipe bool `json:"containsRecipe"` // 仅带 containsRecipe 查询时有意义
 }
 
@@ -406,7 +411,7 @@ func (a *API) myMenusHandler(ctx context.Context, in *struct {
 	out := &myMenusOutput{}
 	out.Body.Items = make([]myMenuBody, 0, len(menus))
 	for _, m := range menus {
-		out.Body.Items = append(out.Body.Items, myMenuBody{menuBody: menuToBody(&m.Menu, true), ContainsRecipe: m.ContainsRecipe})
+		out.Body.Items = append(out.Body.Items, myMenuBody{MenuBody: menuToBody(&m.Menu, true), ContainsRecipe: m.ContainsRecipe})
 	}
 	return out, nil
 }

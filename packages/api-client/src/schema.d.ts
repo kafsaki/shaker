@@ -1485,6 +1485,18 @@ export interface components {
         };
         MyMenuBody: {
             containsRecipe: boolean;
+            coverUrl: string | null;
+            /** Format: date-time */
+            createdAt: string;
+            description: string | null;
+            id: string;
+            /** Format: int64 */
+            itemCount: number;
+            shareToken?: string;
+            title: string;
+            /** Format: date-time */
+            updatedAt: string;
+            visibility: string;
         };
         MyMenusOutputBody: {
             /**
