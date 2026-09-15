@@ -6,12 +6,15 @@ import { Badge } from "@/components/ui/badge";
 
 type Recipe = components["schemas"]["FeedCard"];
 
-defineProps<{ recipe: Recipe }>();
+// to：覆盖默认的 /r/:slug 跳转（经典列表要进 /classics/:key，
+// 而不是再嵌一层 <a> —— 嵌套链接内层优先生效，外层会被吃掉）
+const props = defineProps<{ recipe: Recipe; to?: string }>();
+const target = computed(() => props.to ?? `/r/${props.recipe.slug}`);
 </script>
 
 <template>
   <NuxtLink
-    :to="`/r/${recipe.slug}`"
+    :to="target"
     class="group flex flex-col overflow-hidden rounded-xl border border-border bg-card transition-colors hover:border-primary/40"
   >
     <div

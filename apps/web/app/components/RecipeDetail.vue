@@ -4,6 +4,7 @@
  * 左：动画播放器（sticky）；右：原料卡 + 文字步骤（点击单步回看）+ 元信息。
  */
 import type { components } from "@shaker/api-client";
+import { useQuery } from "@tanstack/vue-query";
 import type { RecipeIR } from "@shaker/recipe-ir/core";
 import { displayAmount } from "@shaker/recipe-ir/core";
 import type { Timeline } from "@shaker/animator-core";
@@ -26,12 +27,58 @@ type VizIngredient = NonNullable<Recipe["viz"]>["ingredients"][string];
 const props = defineProps<{ recipe: Recipe }>();
 
 const auth = useAuthStore();
+const api = useApi();
 const player = ref<{
   seekToStep: (i: number) => void;
   timeline: Timeline | null;
 } | null>(null);
 
 const ir = computed(() => props.recipe.ir as RecipeIR);
+
+/* ── 经典关联（classicKey → 经典名，classics 第一页 50 条覆盖 v1 全量）── */
+const { data: classics } = useQuery({
+  queryKey: ["classics-options"] as const, // 与编辑器共享缓存
+  queryFn: async () => {
+    const { data, error } = await api.GET("/api/v1/classics", {
+      params: { query: { limit: 50 } },
+    });
+    if (error) throw error;
+    return data;
+  },
+  enabled: computed(() => props.recipe.classicKey != null),
+  staleTime: 5 * 60_000,
+});
+
+const classicTitle = computed(() => {
+  const k = props.recipe.classicKey;
+  if (!k) return "";
+  return classics.value?.items?.find((c) => c.classicKey === k)?.title ?? k;
+});
+
+/* ── derivedFrom：改编自哪杯（目标可能已删/未发布，失败则静默）── */
+const { data: derivedRecipe } = useQuery({
+  queryKey: computed(() => ["recipe", "brief", props.recipe.derivedFrom] as const),
+  queryFn: async () => {
+    const { data, error } = await api.GET("/api/v1/recipes/{id}", {
+      params: { path: { id: props.recipe.derivedFrom! } },
+    });
+    if (error) throw error;
+    return data;
+  },
+  enabled: computed(() => props.recipe.derivedFrom != null && !props.recipe.isCanonical),
+  retry: false,
+});
+
+// 从经典页「创作我的版本」进来时 derivedFrom 指向同一经典的权威条目，
+// 变体徽章已表达这层关系，改编行不重复展示
+const derivedLink = computed(() => {
+  const d = derivedRecipe.value;
+  if (!d) return null;
+  if (props.recipe.classicKey && d.isCanonical && d.classicKey === props.recipe.classicKey) {
+    return null;
+  }
+  return d;
+});
 
 // viz 载荷优先（一次请求带全视觉数据）；没有时回退到全量词表
 //（/classics/:key 返回不带 viz，但引用的原料/杯型都在 /vocab 里）。
@@ -146,11 +193,33 @@ const published = computed(() => {
         >
           {{ IBA_ZH[recipe.ibaCategory] }}
         </Badge>
-        <Badge v-if="recipe.isCanonical" variant="outline">权威条目</Badge>
+        <NuxtLink
+          v-if="recipe.classicKey"
+          :to="`/classics/${recipe.classicKey}`"
+          class="rounded focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+        >
+          <Badge v-if="recipe.isCanonical" variant="outline">权威条目 · 查看经典</Badge>
+          <Badge v-else class="border-primary/40 bg-primary/10 text-primary">
+            {{ classicTitle }}的变体 · 查看经典
+          </Badge>
+        </NuxtLink>
+        <Badge v-else-if="recipe.isCanonical" variant="outline">权威条目</Badge>
         <Badge v-else-if="recipe.source && SOURCE_ZH[recipe.source]" variant="outline">
           {{ SOURCE_ZH[recipe.source] }}
         </Badge>
         <Separator orientation="vertical" class="!h-4" />
+        <span v-if="derivedLink" class="text-sm text-muted-foreground">
+          改编自
+          <NuxtLink
+            :to="`/r/${derivedLink.slug}`"
+            class="text-primary underline-offset-4 hover:underline"
+          >
+            {{ derivedLink.title }}
+          </NuxtLink>
+        </span>
+        <span v-if="recipe.derivedCount > 0" class="text-sm text-muted-foreground">
+          {{ recipe.derivedCount }} 个改编
+        </span>
         <span v-if="recipe.abvEst !== null" class="text-sm text-muted-foreground">
           {{ recipe.abvEst.toFixed(1) }}% ABV
         </span>

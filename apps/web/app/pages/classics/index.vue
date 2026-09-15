@@ -74,14 +74,12 @@ const items = computed(() => data.value?.pages.flatMap((p) => p.items ?? []) ?? 
 
     <template v-else>
       <div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-        <NuxtLink
+        <RecipeCard
           v-for="r in items"
           :key="r.id"
+          :recipe="r"
           :to="`/classics/${r.classicKey}`"
-          class="contents"
-        >
-          <RecipeCard :recipe="r" />
-        </NuxtLink>
+        />
       </div>
       <p v-if="items.length === 0" class="py-12 text-center text-sm text-muted-foreground">
         没有匹配的经典

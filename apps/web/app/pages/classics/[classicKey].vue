@@ -1,11 +1,13 @@
 <script setup lang="ts">
 /** 经典条目：权威配方 + 社区变体 + 规格分布图（IR 白拿的产品亮点，ADR-013）。 */
 import { useQuery } from "@tanstack/vue-query";
+import { Plus } from "lucide-vue-next";
 import type { components } from "@shaker/api-client";
 import RecipeCard from "@/components/RecipeCard.vue";
 import RecipeDetail from "@/components/RecipeDetail.vue";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import {
   Card,
   CardContent,
@@ -112,6 +114,13 @@ const distRows = computed(() => {
         经典：{{ canonical.title }}
         <Badge class="border-primary/40 bg-primary/10 text-primary">权威条目</Badge>
       </h1>
+      <!-- 从经典进入创作：编辑器据此自动关联 classicKey + derivedFrom，
+           发布后就会出现在下面的「社区变体」里 -->
+      <Button as-child variant="outline" size="sm">
+        <NuxtLink :to="`/editor/new?classicKey=${key}&derivedFrom=${canonical.id}`">
+          <Plus class="size-4" /> 创作我的版本
+        </NuxtLink>
+      </Button>
     </div>
 
     <!-- 权威配方本体（动画 + 原料 + 步骤） -->
@@ -129,9 +138,9 @@ const distRows = computed(() => {
           <RecipeCard v-for="r in variants?.items ?? []" :key="r.id" :recipe="r" />
         </div>
         <p v-else class="py-10 text-center text-sm text-muted-foreground">
-          还没有社区变体 —— 去
-          <NuxtLink to="/editor/new" class="text-primary underline-offset-4 hover:underline">创作</NuxtLink>
-          你的版本。
+          还没有社区变体 —— 点上面的
+          <span class="text-foreground">「创作我的版本」</span>
+          写下第一个。
         </p>
       </TabsContent>
 

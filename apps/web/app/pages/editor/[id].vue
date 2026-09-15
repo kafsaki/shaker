@@ -74,6 +74,45 @@ const taste = ref({ sweet: 2, sour: 2, bitter: 0, strength: 3 });
 const glass = ref("coupe");
 const servings = ref(1);
 
+// 经典关联（社区变体归组依据，API 定义 §2.6）。从经典页「创作我的版本」
+// 进入时由 query 自动带上：?classicKey=margarita&derivedFrom=<canonical uuid>
+const classicKey = ref("");
+const derivedFrom = ref("");
+if (isNew.value) {
+  const q = route.query;
+  if (typeof q.classicKey === "string" && q.classicKey) classicKey.value = q.classicKey;
+  if (typeof q.derivedFrom === "string" && q.derivedFrom) derivedFrom.value = q.derivedFrom;
+}
+
+// 关联经典下拉选项（第一页 50 条足够 v1 全量经典）
+const { data: classicOptions } = useQuery({
+  queryKey: ["classics-options"] as const,
+  queryFn: async () => {
+    const { data, error } = await api.GET("/api/v1/classics", {
+      params: { query: { limit: 50 } },
+    });
+    if (error) throw error;
+    return data;
+  },
+  staleTime: 5 * 60_000,
+});
+
+// 下拉数据收敛成非空 { key, title }（classics 列表条目理论上必有 classicKey）
+const classicChoices = computed(() =>
+  (classicOptions.value?.items ?? [])
+    .filter((c) => c.classicKey)
+    .map((c) => ({ key: c.classicKey as string, title: c.title })),
+);
+
+// reka 禁空串 value（「清除选择」保留值），用 none 哨兵表达「不关联」。
+// 后端 PATCH 的 classicKey 为 nil 即「不更新」，所以已关联的配方不提供取消项
+const classicSel = computed({
+  get: () => classicKey.value || "none",
+  set: (v: string) => {
+    classicKey.value = v === "none" ? "" : v;
+  },
+});
+
 const ir = ref<RecipeIR>({
   schemaVersion: 1,
   glass: "coupe",
@@ -100,6 +139,8 @@ watch(
     const loaded = r.ir as RecipeIR;
     glass.value = loaded.glass ?? "coupe";
     servings.value = loaded.servings ?? 1;
+    classicKey.value = r.classicKey ?? "";
+    derivedFrom.value = r.derivedFrom ?? "";
     ir.value = JSON.parse(JSON.stringify(loaded)) as RecipeIR;
   },
   { immediate: true },
@@ -252,6 +293,8 @@ function metaBody() {
     lang: "zh" as const,
     difficulty: difficulty.value,
     tasteProfile: { ...taste.value },
+    classicKey: classicKey.value || undefined,
+    derivedFrom: derivedFrom.value || undefined,
   };
 }
 
@@ -442,6 +485,25 @@ const tasteKeys: Array<{ key: keyof typeof taste.value; label: string }> = [
           <div class="flex flex-col gap-1.5">
             <Label for="servings">份</Label>
             <Input id="servings" v-model.number="servings" type="number" min="1" max="50" class="tabular-nums" />
+          </div>
+          <div class="flex flex-col gap-1.5 sm:col-span-2">
+            <Label>关联经典</Label>
+            <Select v-model="classicSel">
+              <SelectTrigger><SelectValue placeholder="不关联" /></SelectTrigger>
+              <SelectContent>
+                <SelectItem v-if="!classicKey" value="none">不关联</SelectItem>
+                <SelectItem
+                  v-for="c in classicChoices"
+                  :key="c.key"
+                  :value="c.key"
+                >
+                  {{ c.title }}
+                </SelectItem>
+              </SelectContent>
+            </Select>
+            <p class="text-xs text-muted-foreground">
+              关联后这杯酒会出现在该经典的「社区变体」列表；从经典页「创作我的版本」进入时自动关联。
+            </p>
           </div>
           <div class="flex flex-col gap-1.5 sm:col-span-2">
             <Label>难度（{{ difficulty }}/3）与口味</Label>
