@@ -56,16 +56,26 @@ useHead(() => ({ title: `${menu.value?.title ?? "分享的酒单"} · Shaker` })
 
     <Card v-if="items.length">
       <CardContent class="flex flex-col divide-y divide-border">
-        <div v-for="it in items" :key="it.recipe.id" class="flex items-center gap-3 py-3">
+        <div
+          v-for="it in items"
+          :key="it.recipe.id"
+          class="flex items-center gap-3 py-3"
+          :class="it.recipe.deleted && 'opacity-50'"
+        >
           <div class="min-w-0 flex-1">
+            <template v-if="it.recipe.deleted">
+              <span class="truncate font-medium line-through">{{ it.recipe.title }}</span>
+              <Badge variant="outline" class="ml-2 align-middle text-[11px]">配方已删除</Badge>
+            </template>
             <NuxtLink
+              v-else
               :to="`/r/${it.recipe.slug}`"
               class="truncate font-medium underline-offset-4 hover:underline"
             >
               {{ it.recipe.title }}
             </NuxtLink>
             <p v-if="it.note" class="truncate text-xs text-muted-foreground">{{ it.note }}</p>
-            <p class="text-xs text-muted-foreground">
+            <p v-if="!it.recipe.deleted" class="text-xs text-muted-foreground">
               {{ it.recipe.likeCount }} 赞 · {{ it.recipe.commentCount }} 评论
             </p>
           </div>
