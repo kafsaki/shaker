@@ -4,7 +4,9 @@
  * 左：动画播放器（sticky）；右：原料卡 + 文字步骤（点击单步回看）+ 元信息。
  */
 import type { components } from "@shaker/api-client";
-import { useQuery } from "@tanstack/vue-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/vue-query";
+import { toast } from "vue-sonner";
+import { Trash2 } from "lucide-vue-next";
 import type { RecipeIR } from "@shaker/recipe-ir/core";
 import { displayAmount } from "@shaker/recipe-ir/core";
 import type { Timeline } from "@shaker/animator-core";
@@ -18,6 +20,14 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { Separator } from "@/components/ui/separator";
 import { Skeleton } from "@/components/ui/skeleton";
 
@@ -146,6 +156,25 @@ const published = computed(() => {
   const d = props.recipe.publishedAt;
   return d ? new Date(d).toLocaleDateString("zh-CN") : null;
 });
+
+/* ── 删除（仅作者本人，软删）── */
+const isAuthor = computed(() => auth.user?.id === props.recipe.author.id);
+const qc = useQueryClient();
+const deleteOpen = ref(false);
+const deleteMutation = useMutation({
+  mutationFn: async () => {
+    const { error } = await api.DELETE("/api/v1/recipes/{id}", {
+      params: { path: { id: props.recipe.id } },
+    });
+    if (error) throw error;
+  },
+  onSuccess: () => {
+    toast.success("配方已删除");
+    qc.invalidateQueries();
+    navigateTo("/");
+  },
+  onError: (err) => toast.error(apiErrorMessage(err)),
+});
 </script>
 
 <template>
@@ -162,21 +191,33 @@ const published = computed(() => {
 
     <div class="flex min-w-0 flex-col gap-6">
       <!-- 标题与作者 -->
-      <div class="flex flex-col gap-2">
-        <h1 class="text-2xl font-bold">{{ recipe.title }}</h1>
-        <p v-if="recipe.subtitle" class="text-sm text-muted-foreground">
-          {{ recipe.subtitle }}
-        </p>
-        <div class="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-muted-foreground">
-          <NuxtLink
-            :to="`/u/${recipe.author.handle}`"
-            class="font-medium text-foreground underline-offset-4 hover:underline"
-          >
-            {{ recipe.author.displayName }}
-          </NuxtLink>
-          <span v-if="recipe.author.isOfficial" class="text-primary">官方</span>
-          <span v-if="published">· {{ published }}</span>
+      <div class="flex items-start justify-between gap-4">
+        <div class="flex flex-col gap-2">
+          <h1 class="text-2xl font-bold">{{ recipe.title }}</h1>
+          <p v-if="recipe.subtitle" class="text-sm text-muted-foreground">
+            {{ recipe.subtitle }}
+          </p>
+          <div class="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-muted-foreground">
+            <NuxtLink
+              :to="`/u/${recipe.author.handle}`"
+              class="font-medium text-foreground underline-offset-4 hover:underline"
+            >
+              {{ recipe.author.displayName }}
+            </NuxtLink>
+            <span v-if="recipe.author.isOfficial" class="text-primary">官方</span>
+            <span v-if="published">· {{ published }}</span>
+          </div>
         </div>
+        <Button
+          v-if="isAuthor"
+          variant="ghost"
+          size="icon"
+          class="mt-1 shrink-0 text-muted-foreground hover:text-destructive"
+          title="删除配方"
+          @click="deleteOpen = true"
+        >
+          <Trash2 class="size-4" />
+        </Button>
       </div>
 
       <!-- 徽章行 -->
@@ -335,5 +376,29 @@ const published = computed(() => {
       <!-- 评论 -->
       <CommentsSection :recipe-id="recipe.id" />
     </div>
+
+    <!-- 删除确认 -->
+    <Dialog v-model:open="deleteOpen">
+      <DialogContent class="max-w-sm">
+        <DialogHeader>
+          <DialogTitle>删除「{{ recipe.title }}」？</DialogTitle>
+          <DialogDescription>
+            删除后链接将失效且不可恢复，酒单与点赞中的条目会标记为已删除。此操作无法撤销。
+          </DialogDescription>
+        </DialogHeader>
+        <DialogFooter>
+          <Button variant="outline" :disabled="deleteMutation.isPending.value" @click="deleteOpen = false">
+            取消
+          </Button>
+          <Button
+            variant="destructive"
+            :disabled="deleteMutation.isPending.value"
+            @click="deleteMutation.mutate()"
+          >
+            {{ deleteMutation.isPending.value ? "删除中…" : "确认删除" }}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   </div>
 </template>
