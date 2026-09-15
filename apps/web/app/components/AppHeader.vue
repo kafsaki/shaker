@@ -1,5 +1,6 @@
 <script setup lang="ts">
-import { Bell, BookOpen, LogOut, Martini, Moon, PencilLine, Settings, Sun, Trophy, User } from "lucide-vue-next";
+import { useQuery } from "@tanstack/vue-query";
+import { Bell, BookOpen, LogOut, Martini, Moon, PencilLine, Settings, Sun, User } from "lucide-vue-next";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import {
@@ -15,6 +16,19 @@ import { Separator } from "@/components/ui/separator";
 const auth = useAuthStore();
 const { theme, toggleTheme } = useTheme();
 const route = useRoute();
+
+// 未读红点：轻量轮询（登录后才有意义）
+const { data: unread } = useQuery({
+  queryKey: ["notifications-unread"],
+  queryFn: async () => {
+    const api = useAuthStore().client;
+    const { data, error } = await api.GET("/api/v1/notifications/unread-count");
+    if (error) throw error;
+    return data.count;
+  },
+  enabled: computed(() => auth.isAuthenticated),
+  refetchInterval: 60_000,
+});
 
 function activePrefix(prefix: string): boolean {
   if (prefix === "/") return route.path === "/";
@@ -77,9 +91,15 @@ async function onLogout(): Promise<void> {
         </Button>
 
         <template v-if="auth.isAuthenticated">
-          <Button variant="ghost" size="icon" title="通知" as-child>
+          <Button variant="ghost" size="icon" title="通知" as-child class="relative">
             <NuxtLink to="/notifications">
               <Bell class="size-4" />
+              <span
+                v-if="(unread ?? 0) > 0"
+                class="absolute right-1 top-1 grid size-4 place-items-center rounded-full bg-destructive text-[9px] font-bold text-destructive-foreground"
+              >
+                {{ (unread ?? 0) > 9 ? "9+" : unread }}
+              </span>
             </NuxtLink>
           </Button>
           <Separator orientation="vertical" class="mx-1 !h-5" />
