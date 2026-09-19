@@ -2,7 +2,7 @@
 /** 编辑器原料行：词表选择 + 角色 + 单位（discriminated union 约束）+ 用量。 */
 import { Trash2 } from "lucide-vue-next";
 import type { IngredientRef } from "@shaker/recipe-ir";
-import { UNIT_GROUPS, ROLE_OPTIONS } from "@/lib/editor-schema";
+import { UNIT_GROUPS, ROLE_OPTIONS } from "@shaker/recipe-ir";
 import IngredientPicker from "./IngredientPicker.vue";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";

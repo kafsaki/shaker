@@ -10,7 +10,7 @@ import { toast } from "vue-sonner";
 import type { components } from "@shaker/api-client";
 import { validateRecipeIR, type RecipeIR } from "@shaker/recipe-ir";
 import { FAMILY_ZH, METHOD_ZH } from "@/lib/labels";
-import { familySkeleton } from "@/lib/editor-schema";
+import { familySkeleton } from "@shaker/recipe-ir";
 import IngredientRow from "@/components/editor/IngredientRow.vue";
 import StepCard from "@/components/editor/StepCard.vue";
 import VizPlayer from "@/components/VizPlayer.vue";

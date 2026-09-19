@@ -1,8 +1,9 @@
 /**
  * 编辑器的字段描述表：21 个动作 → 通用表单字段的声明式定义。
- * StepCard 据此渲染，无需为每个动作写专用组件。
+ * web 编辑器（StepCard）与原型调试编辑器据此渲染，无需为每个动作写专用组件。
+ * 只进 barrel，不进 core（core 保持只读播放路径的最小体积）。
  */
-import type { Step } from "@shaker/recipe-ir";
+import type { Step } from "./ir.ts";
 
 export type FieldKind =
   | "container" // 单容器（target/from/to）

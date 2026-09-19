@@ -7,7 +7,7 @@ import {
   CONTAINER_OPTIONS,
   ICE_TYPE_OPTIONS,
   type FieldDef,
-} from "@/lib/editor-schema";
+} from "@shaker/recipe-ir";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";

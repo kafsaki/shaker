@@ -12,4 +12,5 @@ export * from "./units.ts";
 export * from "./color.ts";
 export * from "./glass.ts";
 export * from "./validate.ts";
+export * from "./editor-schema.ts";
 export * as physics from "./physics.ts";
