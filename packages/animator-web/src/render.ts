@@ -1188,28 +1188,38 @@ function line(b: PCtx, a: [number, number], c: [number, number], color: string):
 }
 
 /**
- * 长杆道具（吧勺/搅棒/捣棒）：杆身从杯口上方直插杯底（tipY），
- * 搅拌时杆身 + 头部画圆（正视投影 = 正弦横移，fxMs 确定性驱动，可 seek）。
+ * 长杆道具（吧勺/搅棒/捣棒）：杆身从杯口上方直插杯底（tipY）。
+ * 运动各自考证：吧勺画圆（正弦横移投影）、搅棒掌心对搓自旋（杆身不动、
+ * 螺旋 tick 加速 + 星形枝杈双帧轮换 + 小幅上下）、捣棒只上下。
+ * 全部由 fxMs 确定性驱动，可 seek。
  */
 function drawRodProp(b: PCtx, p: Prop, theme: RenderTheme, fxMs: number): void {
   const gx = Math.round(p.x / PS);
   const gy = Math.round(p.y / PS);
   const tip = p.tipY !== undefined ? Math.round(p.tipY / PS) : gy + 40;
-  const stirring = p.kind !== "muddler"; // 捣棒只上下捣压，不画圈
-  // 圆周投影：顶部摆幅大（柄尾画圈）、尖端贴底几乎不动
-  const amp = stirring ? 2 : 0;
+  // 三种杆的运动语义不同（考证：bois lélé 是掌心对搓自旋 + 轻微上下，
+  // 不是吧勺的画圈搅拌）：
+  //   barspoon —— 画圈：顶部摆幅大、尖端贴底几乎不动（圆周投影）
+  //   swizzle  —— 自旋：杆身几乎不横移，快速螺旋 tick + 小幅上下抽动
+  //   muddler  —— 捣压：只上下
+  const isSwizzle = p.kind === "swizzle";
+  const amp = p.kind === "barspoon" ? 2 : 0;
   const phase = fxMs * 0.02;
+  // swizzle 的上下抽动（掌心对搓时手会带着杆轻微上下）
+  const bob = isSwizzle ? Math.round(Math.sin(fxMs * 0.028) * 1.6) : 0;
   const swayAt = (yy: number): number => {
-    if (!stirring) return 0;
+    if (amp === 0) return 0;
     const k = (tip - yy) / Math.max(1, tip - gy); // 0 尖端 → 1 顶部
     return Math.round(Math.sin(phase + k * 0.6) * amp * k);
   };
 
   // 杆身：1px 竖线 + 沿杆滚动的螺旋 tick（像金属反光在转）
-  for (let yy = gy; yy <= tip; yy++) {
+  // swizzle 自旋远快于吧勺画圈，tick 滚动更密更快
+  const tickShift = Math.floor(fxMs / (isSwizzle ? 36 : 90));
+  for (let yy = gy + bob; yy <= tip + bob; yy++) {
     const dx = swayAt(yy);
     dot(b, gx + dx, yy, theme.metalHi);
-    if ((yy + Math.floor(fxMs / 90)) % 5 === 0) dot(b, gx + dx + 1, yy, theme.metalLo);
+    if ((yy + tickShift) % (isSwizzle ? 3 : 5) === 0) dot(b, gx + dx + 1, yy, theme.metalLo);
   }
 
   if (p.kind === "barspoon") {
@@ -1222,15 +1232,29 @@ function drawRodProp(b: PCtx, p: Prop, theme: RenderTheme, fxMs: number): void {
       }
     }
     dot(b, hx - 1, tip - 2, theme.metalHi);
-  } else if (p.kind === "swizzle") {
-    // 搅棒头：底端三根枝杈（真实 swizzle stick 的分叉在底端）
-    const hx = gx + swayAt(tip - 1);
-    dot(b, hx, tip, theme.metalLo);
-    dot(b, hx - 1, tip - 2, theme.metalLo);
-    dot(b, hx + 1, tip - 2, theme.metalLo);
-    dot(b, hx - 2, tip - 4, theme.metalHi);
-    dot(b, hx + 2, tip - 4, theme.metalHi);
-    dot(b, hx, tip - 5, theme.metalLo);
+  } else if (isSwizzle) {
+    // 搅棒头：底端星形分叉（真实 bois lélé 的放射状枝杈）。
+    // 自旋 = 两组交错朝向的枝杈随 fxMs 轮换，视觉上像螺旋桨在转。
+    const spin = Math.floor(fxMs / 80) % 2 === 0;
+    const ty = tip + bob;
+    const hx = gx;
+    if (spin) {
+      // 朝向 A：正交四叉
+      dot(b, hx, ty, theme.metalLo);
+      dot(b, hx - 1, ty - 2, theme.metalLo);
+      dot(b, hx + 1, ty - 2, theme.metalLo);
+      dot(b, hx - 2, ty - 4, theme.metalHi);
+      dot(b, hx + 2, ty - 4, theme.metalHi);
+      dot(b, hx, ty - 5, theme.metalLo);
+    } else {
+      // 朝向 B：斜交叉（旋转 45° 的投影）
+      dot(b, hx, ty - 1, theme.metalLo);
+      dot(b, hx - 1, ty - 3, theme.metalHi);
+      dot(b, hx + 1, ty - 3, theme.metalHi);
+      dot(b, hx - 2, ty - 2, theme.metalLo);
+      dot(b, hx + 2, ty - 2, theme.metalLo);
+      dot(b, hx, ty - 4, theme.metalLo);
+    }
   } else {
     // 捣棒头：宽扁捣头（3px 宽）
     vline(b, gx - 1, tip - 3, tip, theme.metalLo);
