@@ -86,6 +86,8 @@ onMounted(() => resizeCanvas());
 
 /* ── 绘制 ── */
 let lastEmitKey = "";
+/** 封面截帧中：renderScene 关掉闪烁类装饰（盐边闪光），让封面干净。 */
+let stillCapture = false;
 
 function draw(): void {
   const tl = timeline.value;
@@ -102,6 +104,7 @@ function draw(): void {
     vessel: props.vocab.vessel,
     stage: STAGE,
     serveProgress: step.stepId === "__final" ? stepProgress : undefined,
+    still: stillCapture || undefined,
   });
 
   // 步骤事件按量化节流：只在步骤切换或进度每 10% 时向父组件发一次
@@ -174,7 +177,12 @@ async function captureCover(): Promise<Blob | null> {
   playing.value = false;
   const restore = tMs.value;
   tMs.value = tl.finalSceneMs;
-  draw();
+  stillCapture = true; // 封面帧：关闭盐边闪光等闪烁装饰
+  try {
+    draw();
+  } finally {
+    stillCapture = false;
+  }
   const blob = await new Promise<Blob | null>((resolve) =>
     el.toBlob((b) => resolve(b), "image/png"),
   );

@@ -34,6 +34,17 @@ export const PROP_SPRITES: Record<string, readonly string[]> = {
     ".mmmm..",
   ],
   strainer: ["....hhhhh", "mmmmmmmm.", "sssssss..", "mmmmmmmm."],
-  spray: [".mm.", "mm..", "mmmm", "mmmm", "mmmm", ".mm."],
+  // 小喷雾瓶：左上喷口（h 亮面）+ 扳机 + 瓶颈 + 带标签的瓶身
+  spray: [
+    "hhh...",
+    "mmmm..",
+    "mm....",
+    ".mmm..",
+    ".mmmm.",
+    ".mllm.",
+    ".mllm.",
+    ".mmmm.",
+    ".mmmm.",
+  ],
   barspoon_head: ["..mm..", ".mmmm.", "..mm.."],
 };

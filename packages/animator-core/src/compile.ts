@@ -122,6 +122,9 @@ export function compile(ir: RecipeIR, vocab: ResolvedVocab, opts: CompileOptions
     // 扰动衰减：上一步动作留下的余波（波浪/冰块晃动）逐步平息
     for (const c of containers.values()) {
       if (c.active) c.agitation = Math.max(0, c.agitation * 0.3);
+      // 喷雾残留只属于产生它的那一步 —— 步骤边界清零（SPRITZ/GARNISH expressed 会重新赋值），
+      // 否则后续每一步的帧都会重新发射一团雾
+      c.aromaMist = 0;
     }
     const emit = new StepEmitter(step, containers, stage);
     applyStep(step, { containers, ensure, bySlot, vocab, emit });
@@ -148,8 +151,10 @@ export function compile(ir: RecipeIR, vocab: ResolvedVocab, opts: CompileOptions
     cursorMs += durationMs;
   }
 
-  // 成品定格：给一段静止时间，供截封面图（ADR-015）
+  // 成品定格：给一段静止时间，供截封面图（ADR-015）。
+  // 定格帧不出雾 —— 喷雾是上一步的事，封面要干净
   const holdMs = Math.round(900 / speed);
+  for (const c of containers.values()) c.aromaMist = 0;
   const finalScene = toScene(containers, "glass", [], collectEffects(containers, 0, holdMs, stage));
   steps.push({
     stepId: "__final",
@@ -465,7 +470,8 @@ function collectEffects(
         endMs: startMs + Math.min(endMs - startMs, 900),
         rate: 40 * c.aromaMist,
         region: { x: MAIN_POS.x - radius, y: restBowlY(c.vessel) - h * 1.25, w: radius * 2, h: h * 0.3 },
-        drift: { vx: 0, vy: 18 },
+        // 初始向下的喷出速度，重力加速在 sample 层叠加（雾滴沉降，不是匀速平移）
+        drift: { vx: 0, vy: 30 },
         size: { min: 0.6, max: 1.6 },
         color: "#fff6d8",
         opacity: 0.35 * c.aromaMist,
@@ -534,16 +540,23 @@ function applyStep(step: Step, ctx: Ctx): void {
       addToContainer(c, refs, vocab);
       emit.at(0.25, { focus: c.id });
       if (step.discard) {
-        // 倒掉多余：只留挂壁膜 + 杯底 2ml 小水洼
+        // 倾倒编排：涮杯（0→0.5）与倒掉（0.5→1）1:1。
+        // 关键帧加密（0.5→1 每 0.05~0.1 一帧）：tilt 是帧间线性插值的标量，
+        // 手感（缓入/保持/缓出）只能靠帧密度刻画。
+        emit.at(0.5, { focus: c.id });
+        emit.at(0.56, { focus: c.id });
+        emit.at(0.62, { focus: c.id });
+        // 倒掉多余：只留挂壁膜 + 杯底 2ml 小水洼。
+        // 状态变更落在倾倒段（0.62→0.95 插值缩水）—— 杯已倾斜、液面边倒边缩，
+        // 而不是在正立涮杯时凭空消失（之前的排法，视觉上很假）。
         const tint = c.layers[c.layers.length - 1];
         c.layers = tint ? [{ ...tint, volumeMl: 2, opacity: 0.35 }] : [];
         c.coat = tint
           ? { color: tint.color, strength: Math.min(0.85, tint.opacity + 0.25) }
           : null;
-        // 倾倒编排：涮杯（0→0.5）与倒掉（0.5→1）1:1。
-        // 液面缩水由关键帧插值在倾倒段完成（不画丢弃液流，量太少）。
-        emit.at(0.5, { focus: c.id });
-        emit.at(0.88, { focus: c.id });
+        emit.at(0.74, { focus: c.id });
+        emit.at(0.85, { focus: c.id });
+        emit.at(0.95, { focus: c.id });
         emit.at(1, { focus: c.id });
         // tilt 写进 0.5 之后的帧（编译后处理，与 markShake 同风格）
         markDiscardTilt(emit, c.id);
@@ -967,20 +980,28 @@ function markShake(emit: StepEmitter, id: ContainerId, intensity: string): void 
 }
 
 /**
- * RINSE discard 的倾倒姿态：0.5 前正立（涮杯），0.5→0.62 抬到 ~66°，
- * 0.62→0.85 保持倾倒，0.85→1 转回正立。tilt 期间液面按关键帧插值缩水，
- * 渲染端叠加从杯口流出的丢弃液流。
+ * RINSE discard 的倾倒姿态：0.5 前正立（涮杯），0.5→0.68 smoothstep 抬到 ~68°，
+ * 0.68→0.85 保持并略加深（把最后几滴倒净），0.85→1 smoothstep 放回。
+ * 倾倒期间整杯略向上抬（手腕提起来的动作）。液面缩水由 0.62→0.95 的关键帧插值交代。
  */
 function markDiscardTilt(emit: StepEmitter, id: ContainerId): void {
+  const smooth = (u: number): number => {
+    const k = Math.min(1, Math.max(0, u));
+    return k * k * (3 - 2 * k);
+  };
   const frames = emit.frames;
   for (const f of frames) {
     if (f.t <= 0.48) continue;
     const c = f.scene.containers.find((x) => x.id === id);
     if (!c) continue;
-    // 三段：抬起（easeIn 感）→ 保持倾倒 → 放回
-    const up = Math.min(1, Math.max(0, (f.t - 0.5) / 0.12));
-    const down = Math.min(1, Math.max(0, (f.t - 0.85) / 0.15));
-    c.tilt = 1.15 * up * (1 - down) * (up * (2 - up)); // 峰值 ~66°
+    const up = smooth((f.t - 0.5) / 0.18);
+    const down = smooth((f.t - 0.85) / 0.13);
+    // 保持段再压一点角度，像把最后几滴倒净
+    const deepen =
+      f.t > 0.68 && f.t <= 0.85 ? 1 + 0.06 * Math.sin(((f.t - 0.68) / 0.17) * Math.PI) : 1;
+    c.tilt = 1.18 * up * (1 - down) * deepen;
+    // 手腕抬起：倾倒中杯体整体上移（峰值 ~3px），放回时归零
+    c.y -= Math.round(12 * up * (1 - down));
   }
 }
 

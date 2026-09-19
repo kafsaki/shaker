@@ -372,15 +372,20 @@ export function particlesAt(e: Effect, tMs: number): Particle[] {
     const r3 = rand(e.seed, i * 3 + 2);
 
     const ageSec = age / 1000;
-    // 横向摆动让气泡/烟雾不呆板
-    const sway = Math.sin((r3 * 6.28) + ageSec * 3.4) * (e.kind === "smoke" ? 9 : 2.4);
+    // 横向摆动让气泡/烟雾不呆板；雾滴重，几乎不飘
+    const swayAmp = e.kind === "smoke" ? 9 : e.kind === "mist" ? 1.1 : 2.4;
+    const sway = Math.sin((r3 * 6.28) + ageSec * 3.4) * swayAmp;
+    // 雾滴沉降：初速向下 + 重力加速（0.5·g·t²），不是匀速平移
+    const fall = e.kind === "mist" ? 130 * ageSec * ageSec : 0;
 
     out.push({
       x: e.region.x + r1 * e.region.w + e.drift.vx * ageSec + sway,
-      y: e.region.y + r2 * e.region.h + e.drift.vy * ageSec,
+      y: e.region.y + r2 * e.region.h + e.drift.vy * ageSec + fall,
       size: e.size.min + r3 * (e.size.max - e.size.min) * (e.kind === "smoke" ? 1 + life : 1),
-      // 气泡越接近液面越淡；烟雾先浓后散
-      opacity: e.opacity * (e.kind === "smoke" ? Math.sin(life * Math.PI) : 1 - life * 0.7),
+      // 气泡越接近液面越淡；烟雾先浓后散；雾滴落到寿命尽头完全消散
+      opacity:
+        e.opacity *
+        (e.kind === "smoke" ? Math.sin(life * Math.PI) : e.kind === "mist" ? 1 - life : 1 - life * 0.7),
     });
   }
   return out;

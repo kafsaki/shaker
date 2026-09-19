@@ -111,6 +111,8 @@ export interface RenderOptions {
   stage: { width: number; height: number };
   /** 成品定格进度 0..1（__final 步骤内）—— 触发杯旁星星。 */
   serveProgress?: number;
+  /** 封面定格帧（ADR-015 截帧）—— 关闭闪烁类装饰（盐边闪光），让最后一帧干净。 */
+  still?: boolean;
   debug?: boolean;
 }
 
@@ -368,19 +370,6 @@ function drawBackdrop(b: PCtx, gw: number, gh: number, theme: RenderTheme): void
   }
   // 台面前缘受光线
   hline(b, 0, gw - 1, counterY, theme.counterEdge);
-  // 主位背光：像素化的放射光斑
-  const gx = Math.round(gw / 2);
-  const gy = counterY - 6;
-  for (let r = 10; r > 0; r -= 2) {
-    for (let y = gy - r; y <= gy + r; y++) {
-      for (let x = gx - r; x <= gx + r; x++) {
-        const d = Math.hypot(x - gx, (y - gy) * 2.2);
-        if (d < r && hash01(x * 7 + y * 13, 3) < 0.16 * (1 - r / 11)) {
-          dot(b, x, y, theme.glow);
-        }
-      }
-    }
-  }
 }
 
 /* ══════════════════════════ 容器 ══════════════════════════ */
@@ -634,11 +623,13 @@ function drawContainer(
       if (hash01(i, 21) < 0.7) dot(b, x, cy - gh - 1, hash01(i, 33) < 0.5 ? rr.base : rr.light);
       if (hash01(i, 41) < 0.25) dot(b, x, cy - gh - 2, rr.light);
     }
-    // 四角星闪光：三个固定相位轮流闪
-    for (let sIdx = 0; sIdx < 3; sIdx++) {
-      const ph = frac(fxMs / 1500 + sIdx * 0.37);
-      const sx = cx - hwT + Math.round(hash01(sIdx, 77) * hwT * 2);
-      sparkle(b, sx, cy - gh - 2, ph, theme.hi);
+    // 四角星闪光：三个固定相位轮流闪（封面定格帧关闭 —— 最后一帧要作封面图）
+    if (!opts.still) {
+      for (let sIdx = 0; sIdx < 3; sIdx++) {
+        const ph = frac(fxMs / 1500 + sIdx * 0.37);
+        const sx = cx - hwT + Math.round(hash01(sIdx, 77) * hwT * 2);
+        sparkle(b, sx, cy - gh - 2, ph, theme.hi);
+      }
     }
   }
 
@@ -1334,13 +1325,21 @@ function drawEffect(b: PCtx, e: Effect, fxMs: number, theme: RenderTheme): void 
     drawSplash(b, e, fxMs);
     return;
   }
+  if (e.kind === "flame") {
+    drawFlame(b, e, fxMs);
+  }
   const ps = particlesAt(e, fxMs);
   for (const p of ps) {
     const x = Math.round(p.x / PS);
     const y = Math.round(p.y / PS);
     if (e.kind === "bubbles") {
       dot(b, x, y, theme.frost);
-    } else if (e.kind === "flame" || e.kind === "sparks") {
+    } else if (e.kind === "flame") {
+      // 火星余烬：火舌上方零星上飘，颜色随寿命 白亮 → 橙 → 暗红
+      const life = Math.min(1, (1 - p.opacity / e.opacity) / 0.7);
+      if (p.opacity < 0.12) continue;
+      dot(b, x, y, life < 0.35 ? "#fff3c4" : life < 0.7 ? e.color : "#ff5a1e");
+    } else if (e.kind === "sparks") {
       dot(b, x, y, "#fff3c4");
       if (p.size > 2.4) {
         dot(b, x + 1, y, e.color);
@@ -1352,6 +1351,39 @@ function drawEffect(b: PCtx, e: Effect, fxMs: number, theme: RenderTheme): void 
         dot(b, x, y, e.color);
         if (p.size > 6) dot(b, x + 1, y, e.color);
       }
+    }
+  }
+}
+
+/**
+ * 火焰：region 底部中心升起的泪滴形火舌 —— 白亮内芯 → 橙黄 → 外缘/尖端橙红，
+ * 高度与顶端偏摆随 fxMs 双频呼吸（确定性，可 seek）。余烬由粒子系统叠加。
+ */
+function drawFlame(b: PCtx, e: Effect, fxMs: number): void {
+  const cx = Math.round((e.region.x + e.region.w * 0.5) / PS);
+  const baseY = Math.round((e.region.y + e.region.h) / PS);
+  const maxH = Math.max(4, Math.round((e.region.h * 2.4) / PS));
+  // 双频呼吸：高度抖动 + 顶端偏摆
+  const breathe = Math.sin(fxMs * 0.018) * 0.6 + Math.sin(fxMs * 0.033 + 1.7) * 0.4;
+  const hPx = Math.max(3, Math.round(maxH * (0.78 + 0.22 * breathe)));
+  const sway = Math.sin(fxMs * 0.011 + 0.6);
+  for (let i = 0; i < hPx; i++) {
+    const t = i / hPx; // 0 底 → 1 尖
+    const y = baseY - i;
+    // 泪滴截面：底部贴液面、约 1/3 处最宽、尖端收束
+    const w = Math.max(0, Math.round(2.6 * Math.sin(Math.min(1, t * 1.25) * Math.PI) * (1 - t * 0.25)));
+    const rowCx = cx + Math.round(sway * t * 2);
+    for (let dx = -w; dx <= w; dx++) {
+      const edge = Math.abs(dx) / Math.max(1, w);
+      const col =
+        edge < 0.4 && t < 0.55
+          ? "#fff6d8" // 内芯白亮
+          : edge < 0.75 && t < 0.8
+            ? "#ffc94d" // 中段橙黄
+            : t > 0.85
+              ? "#ff5a1e" // 尖端暗红
+              : e.color; // 外缘橙
+      dot(b, rowCx + dx, y, col);
     }
   }
 }
