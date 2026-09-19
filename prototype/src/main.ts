@@ -9,9 +9,10 @@
  * 所以帧率读数是一等公民，不是调试彩蛋。
  */
 import { compile, sample, type Timeline, type Scene } from "@shaker/animator-core";
-import { estimateAbv, totalLiquidMl, displayAmount, toParts, validateRecipeIR } from "@shaker/recipe-ir";
+import { estimateAbv, totalLiquidMl, displayAmount, toParts, validateRecipeIR, type RecipeIR } from "@shaker/recipe-ir";
 import { DARK_THEME, LIGHT_THEME, renderScene } from "@shaker/animator-web";
-import { FIXTURES, ASSET_TEST_FIXTURES, VOCAB, vesselLookup, type Fixture } from "@shaker/seed";
+import { FIXTURES, ASSET_TEST_FIXTURES, INGREDIENTS, VESSEL_LIST, VOCAB, vesselLookup, type Fixture } from "@shaker/seed";
+import { renderEditor } from "./editor.ts";
 
 /** 真实配方在前，资源覆盖测试夹具（asset_testN）排在最后。 */
 const ALL_FIXTURES: Fixture[] = [...FIXTURES, ...ASSET_TEST_FIXTURES];
@@ -53,10 +54,14 @@ const partsChk = $<HTMLInputElement>("parts");
 const rtEl = $<HTMLDivElement>("rtstate");
 const irBox = $<HTMLDivElement>("irbox");
 const irCopyBtn = $<HTMLButtonElement>("ircopy");
+const editorEl = $<HTMLDivElement>("editor");
+const edResetBtn = $<HTMLButtonElement>("edreset");
 
 /* ────────────────────────── 状态 ────────────────────────── */
 
 let fixture: Fixture = FIXTURES[0]!;
+/** 当前工作 IR —— 初始为选中配方的深拷贝，编辑器改动只写它，不动 fixture。 */
+let currentIr: RecipeIR = JSON.parse(JSON.stringify(fixture.ir)) as RecipeIR;
 let timeline: Timeline = compileFixture(fixture);
 let playing = true;
 let tMs = 0;
@@ -69,12 +74,20 @@ const STAGE = { width: 400, height: 520 };
 
 /* ────────────────────────── 编译 ────────────────────────── */
 
-function compileFixture(f: Fixture): Timeline {
+function compileCurrentIr(speedScale?: number): Timeline {
   const t0 = performance.now();
-  const tl = compile(f.ir, VOCAB, { stage: STAGE });
+  const tl = compile(currentIr, VOCAB, {
+    stage: STAGE,
+    ...(speedScale !== undefined ? { speedScale } : {}),
+  });
   const ms = performance.now() - t0;
   compileEl.textContent = `${ms.toFixed(2)} ms`;
   return tl;
+}
+
+function compileFixture(f: Fixture): Timeline {
+  currentIr = JSON.parse(JSON.stringify(f.ir)) as RecipeIR;
+  return compileCurrentIr();
 }
 
 /* ────────────────────────── 画布尺寸 ────────────────────────── */
@@ -177,8 +190,50 @@ function selectFixture(f: Fixture): void {
   buildIngredients();
   runDiagnostics();
   buildIrView();
+  paintEditor();
   testNote.textContent = f.tests;
 }
+
+/* ────────────────────────── 结构编辑器 ────────────────────────── */
+
+const EDITOR_VOCAB = {
+  ingredients: INGREDIENTS.map((i) => ({ id: i.id, nameZh: i.nameZh, category: i.category })),
+  glassware: VESSEL_LIST.filter((v) => !v.id.startsWith("__")).map((v) => ({
+    id: v.id,
+    nameZh: v.nameZh,
+    capacityMl: v.capacityMl,
+  })),
+};
+
+function paintEditor(): void {
+  renderEditor(editorEl, currentIr, EDITOR_VOCAB, { onChange: applyEditedIr });
+}
+
+/** 编辑器改动 → 重编译。IR 中间态可能编译失败：保留旧时间轴，把错误摆进诊断面板。 */
+function applyEditedIr(next: RecipeIR): void {
+  currentIr = next;
+  try {
+    timeline = compileCurrentIr(Number(speedSel.value));
+  } catch (e) {
+    diagEl.innerHTML = `<div class="diag error"><code>compile.failed</code> ${e instanceof Error ? e.message : String(e)}</div>`;
+    buildIrView();
+    return;
+  }
+  tMs = 0;
+  rtLastT = -1;
+  playing = true;
+  playBtn.textContent = "暂停";
+  buildSteps();
+  buildMeta();
+  buildIngredients();
+  runDiagnostics();
+  buildIrView();
+}
+
+edResetBtn.onclick = () => {
+  applyEditedIr(JSON.parse(JSON.stringify(fixture.ir)) as RecipeIR);
+  paintEditor();
+};
 
 /* ────────────────────────── IR 查看器 ────────────────────────── */
 
@@ -201,7 +256,7 @@ function highlightJson(json: string): string {
 }
 
 function buildIrView(): void {
-  const json = JSON.stringify(fixture.ir, null, 2);
+  const json = JSON.stringify(currentIr, null, 2);
   irBox.innerHTML = highlightJson(json);
   irCopyBtn.onclick = () => {
     navigator.clipboard.writeText(json).then(
@@ -342,14 +397,14 @@ function highlightStep(i: number): void {
 }
 
 function buildMeta(): void {
-  const abv = estimateAbv(fixture.ir, VOCAB);
-  const vol = totalLiquidMl(fixture.ir.ingredients);
+  const abv = estimateAbv(currentIr, VOCAB);
+  const vol = totalLiquidMl(currentIr.ingredients);
   const kf = timeline.steps.reduce((s, x) => s + x.keyframes.length, 0);
   metaEl.innerHTML = "";
   const rows: [string, string][] = [
     ["家族", fixture.family],
-    ["杯型", fixture.ir.glass],
-    ["手法", fixture.ir.method],
+    ["杯型", currentIr.glass],
+    ["手法", currentIr.method ?? "—"],
     ["酒精度", abv === null ? "—" : `约 ${abv.toFixed(1)}%`],
     ["液量", `${vol} ml（不含冰融水与补满）`],
     ["时长", `${(timeline.totalMs / 1000).toFixed(2)} s`],
@@ -364,13 +419,13 @@ function buildMeta(): void {
 
 function buildIngredients(): void {
   ingList.innerHTML = "";
-  const mls = fixture.ir.ingredients.map((r) => {
+  const mls = currentIr.ingredients.map((r) => {
     const d = displayAmount(r, unitPref);
     return { ref: r, disp: d };
   });
 
   // 按份显示（ADR-014）：只在比例足够干净时才有意义
-  const volumeMls = fixture.ir.ingredients.map((r) => {
+  const volumeMls = currentIr.ingredients.map((r) => {
     const k = r.unit;
     if (k !== "ml" && k !== "cl" && k !== "oz") return 0;
     return "amount" in r ? (k === "ml" ? r.amount : k === "cl" ? r.amount * 10 : r.amount * 29.5735) : 0;
@@ -426,7 +481,7 @@ const ROLE_ZH: Record<string, string> = {
 };
 
 function runDiagnostics(): void {
-  const r = validateRecipeIR(fixture.ir, VOCAB);
+  const r = validateRecipeIR(currentIr, VOCAB);
   diagEl.innerHTML = "";
   if (r.errors.length === 0 && r.warnings.length === 0) {
     diagEl.innerHTML = `<div class="diag ok">校验通过，无错误无警告</div>`;
@@ -458,7 +513,7 @@ scrub.oninput = () => {
 
 speedSel.onchange = () => {
   const ratio = tMs / timeline.totalMs;
-  timeline = compile(fixture.ir, VOCAB, { stage: STAGE, speedScale: Number(speedSel.value) });
+  timeline = compileCurrentIr(Number(speedSel.value));
   tMs = ratio * timeline.totalMs;
   buildSteps();
   buildMeta();

@@ -178,6 +178,30 @@
   body.dark #irbox .n { color: #b596f0; }
   #irbox .b { color: var(--warn); }
   #irbox .nul { color: var(--ink-dim); }
+
+  /* 结构编辑器（调试） */
+  #editor .ed-row { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; margin-bottom: 6px; }
+  #editor .ed-card { border: 1px solid var(--line); border-radius: 8px; padding: 8px; margin-bottom: 8px; }
+  #editor .ed-in { font-size: 12px; padding: 3px 6px; max-width: 100%; }
+  #editor .ed-num { width: 72px; }
+  #editor input[type=number] {
+    background: var(--panel); color: var(--ink);
+    border: 1px solid var(--line); border-radius: 6px; padding: 3px 6px; font-size: 12px;
+  }
+  #editor .ed-k { font-size: 11.5px; color: var(--ink-dim); }
+  #editor .ed-slot { font-size: 11px; background: rgba(127,127,127,.16); padding: 1px 6px; border-radius: 5px; }
+  #editor .ed-btn { font-size: 11.5px; padding: 2px 8px; }
+  #editor .ed-btn:disabled { opacity: .4; cursor: default; }
+  #editor .ed-danger:hover { color: var(--bad); border-color: var(--bad); }
+  #editor .ed-sec { display: flex; justify-content: space-between; align-items: center; margin: 12px 0 6px; }
+  #editor .ed-sec-t { font-size: 12px; font-weight: 600; color: var(--ink-dim); }
+  #editor .ed-fields { display: grid; grid-template-columns: 1fr 1fr; gap: 6px 10px; margin-top: 6px; }
+  #editor .ed-field { display: flex; flex-direction: column; gap: 2px; }
+  #editor .ed-field-wide { grid-column: 1 / -1; }
+  #editor .ed-chips { display: flex; flex-wrap: wrap; gap: 4px 10px; }
+  #editor .ed-chip, #editor .ed-chk { display: inline-flex; gap: 4px; align-items: center; font-size: 12px; cursor: pointer; }
+  #editor .ed-range { flex: 1; accent-color: var(--accent); }
+  #editor input[type=checkbox] { accent-color: var(--accent); }
 </style>
 </head>
 <body class="dark">
@@ -226,6 +250,12 @@
     <div class="panel" style="margin-top:12px">
       <h2>自动生成的步骤文案（规范 §8）</h2>
       <ol id="steps"></ol>
+    </div>
+    <div class="panel" style="margin-top:12px">
+      <h2>结构编辑（改动实时重编译）
+        <button id="edreset" style="float:right;padding:2px 9px;font-size:11.5px" title="恢复为当前配方的原始 IR">重置</button>
+      </h2>
+      <div id="editor"></div>
     </div>
   </section>
 
