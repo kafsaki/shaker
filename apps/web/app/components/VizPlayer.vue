@@ -42,6 +42,9 @@ const tMs = ref(0);
 const { theme } = useTheme();
 
 const timeline = shallowRef<Timeline | null>(null);
+// 注意：recompile() 经 watch immediate 在 setup 早期就会跑，这两个必须先声明（TDZ）
+let bannerTimer: ReturnType<typeof setTimeout> | undefined;
+let lastBannerStep = -1;
 
 function recompile(): void {
   try {
@@ -91,8 +94,6 @@ let lastEmitKey = "";
 /** 步骤横幅：切换步骤时在舞台顶部短暂弹出（移植自原型的像素风过场提示）。 */
 const bannerText = ref("");
 const bannerOn = ref(false);
-let bannerTimer: ReturnType<typeof setTimeout> | undefined;
-let lastBannerStep = -1;
 
 function draw(): void {
   const tl = timeline.value;
