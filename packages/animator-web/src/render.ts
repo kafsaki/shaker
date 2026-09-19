@@ -9,7 +9,7 @@
  *   - 分层过渡带用 4×4 Bayer 有序抖动（复古渐变，不是平滑渐变）
  *   - 液面 = 一行亮色 meniscus + 缓慢移动的高光点
  *   - 气泡 = 上升的单像素点，到液面破裂；泡沫 = 白噪点带
- *   - 盐边 = 杯沿颗粒（确定性 hash；不画闪光 —— 闪烁会污染用户截图与封面）
+ *   - 盐边 = 杯沿颗粒 + 四角星闪光（fxMs 纯函数）
  *   - 摇晃 = 杯体 ±1px 抖动 + 速度线 + 整屏 1px 震动
  *   - 倒入 = 像素液柱（滚动条纹表现流动）；小剂量（dash）= 逐滴下落的像素滴
  *
@@ -621,7 +621,12 @@ function drawContainer(
       if (hash01(i, 21) < 0.7) dot(b, x, cy - gh - 1, hash01(i, 33) < 0.5 ? rr.base : rr.light);
       if (hash01(i, 41) < 0.25) dot(b, x, cy - gh - 2, rr.light);
     }
-    // 不画四角星闪光：闪烁会污染用户截图与封面截帧，颗粒本身已足够表达盐/糖边
+    // 四角星闪光：三个固定相位轮流闪
+    for (let sIdx = 0; sIdx < 3; sIdx++) {
+      const ph = frac(fxMs / 1500 + sIdx * 0.37);
+      const sx = cx - hwT + Math.round(hash01(sIdx, 77) * hwT * 2);
+      sparkle(b, sx, cy - gh - 2, ph, theme.hi);
+    }
   }
 
   // ── 盖子 ──
@@ -1406,7 +1411,7 @@ function drawSplash(b: PCtx, e: Effect, fxMs: number): void {
   }
 }
 
-/** 成品定格：杯旁弹三颗像素星星（出现进度量化成阶梯，之后闪烁）。 */
+/** 成品定格：杯旁弹三颗像素星星（出现进度量化成阶梯，之后闪烁；收尾前熄灭）。 */
 function drawServeStars(
   b: PCtx,
   scene: Scene,
@@ -1420,6 +1425,8 @@ function drawServeStars(
   const cy = Math.round(focus.y / PS);
   const gh = Math.round(focus.height / PS);
   const prog = opts.serveProgress ?? 0;
+  // 最后一瞬间关闭：末帧要作用户截图/封面，星星只在登场段闪现，收尾前熄灭
+  if (prog >= 0.85) return;
   const spots = [
     { x: cx - Math.round(gh * 0.62), y: cy - gh - 4, delay: 0.05 },
     { x: cx + Math.round(gh * 0.6), y: cy - gh - 7, delay: 0.25 },
