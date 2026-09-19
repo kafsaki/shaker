@@ -238,6 +238,7 @@ const PROP_ZH: Record<string, string> = {
   jigger: "量酒器", bottle: "瓶子", lid: "盖", barspoon: "吧勺",
   strainer: "滤网", muddler: "捣棒", swizzle: "搅棒", spray: "喷雾",
   peel: "皮油", blender_lid: "搅拌机盖", pour_vessel: "倾倒容器",
+  float_spoon: "浮注吧勺",
 };
 
 /**

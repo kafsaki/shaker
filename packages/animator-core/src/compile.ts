@@ -889,10 +889,12 @@ function applyStep(step: Step, ctx: Ctx): void {
       const refs = refsOf(step.items, bySlot);
       c.active = true;
       c.agitation = 0.3; // 沿吧勺背面缓倒，扰动轻
-      emit.at(0, { focus: c.id, props: [barspoonProp(c, 0.6)] });
+      const meta = refs[0] ? vocab.ingredient(refs[0].ingredientId) : undefined;
+      const color = meta?.viz.color ?? "#d8d2c4";
+      emit.at(0, { focus: c.id, props: [floatSpoonProp(c, color)] });
       // forceNewLayer：作者的显式意图优先于物理（规范 §7.3）
       addToContainer(c, refs, vocab, true);
-      emit.at(0.9, { focus: c.id, props: [barspoonProp(c, 0.6)], ease: "easeOut" });
+      emit.at(0.9, { focus: c.id, props: [floatSpoonProp(c, color)], ease: "easeOut" });
       emit.at(1, { focus: c.id, props: [] });
       break;
     }
@@ -1251,6 +1253,30 @@ function muddlerProp(c: ContainerState, depth: number): Prop {
 
 function sprayProp(c: ContainerState): Prop {
   return { kind: "spray", x: MAIN_POS.x + 40, y: restBowlY(c.vessel) - 200, rot: -0.4, scale: 1, opacity: 1 };
+}
+
+/**
+ * 浮注姿态：吧勺横在杯口上方、勺背朝上，液体沿勺背滑到头端再落入液面。
+ * stream 用细流（width < 2.4，渲染端走逐滴下落）—— 表现"缓慢浮入"。
+ */
+function floatSpoonProp(c: ContainerState, color: string): Prop {
+  const rimY = rimYOf(c);
+  return {
+    kind: "float_spoon",
+    x: MAIN_POS.x, // 勺头在杯中心上方
+    y: rimY - 10, // 勺背高度（杯口上方）
+    rot: 0,
+    scale: 1,
+    opacity: 1,
+    stream: {
+      fromX: MAIN_POS.x,
+      fromY: rimY - 8, // 勺头下沿
+      toX: MAIN_POS.x,
+      toY: surfaceStreamY(c),
+      width: 1.6,
+      color,
+    },
+  };
 }
 
 /**

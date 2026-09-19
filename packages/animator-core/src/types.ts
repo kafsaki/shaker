@@ -159,7 +159,8 @@ export interface Prop {
     | "spray"
     | "peel"
     | "blender_lid"
-    | "pour_vessel";
+    | "pour_vessel"
+    | "float_spoon";
   x: number;
   y: number;
   rot: number;

@@ -946,6 +946,24 @@ function drawProp(b: PCtx, p: Prop, theme: RenderTheme, fxMs: number, opts: Rend
     return;
   }
 
+  // 浮注姿态：吧勺横在杯口上方，液体沿勺背滑到头端再落入液面
+  //（液流先画，勺压在流上；沿背滑行段由 drawFloatSpoon 自绘）
+  if (p.kind === "float_spoon") {
+    if (p.stream) {
+      drawStream(
+        b,
+        Math.round((p.stream.fromX ?? p.x) / PS),
+        Math.round((p.stream.fromY ?? p.y) / PS),
+        p.stream,
+        theme,
+        fxMs,
+        p.opacity,
+      );
+    }
+    drawFloatSpoon(b, p, theme, fxMs);
+    return;
+  }
+
   // 液流先画（道具压在上面）—— 起点用壶口坐标（缺省回退道具中心）
   if (p.stream) {
     drawStream(
@@ -1002,6 +1020,33 @@ function drawProp(b: PCtx, p: Prop, theme: RenderTheme, fxMs: number, opts: Rend
           dot(b, ox - Math.round((zoom - 1) * row.length / 2) + i * zoom + zx + rowShift, gy + r * zoom + zy, col);
         }
       }
+    }
+  }
+}
+
+/**
+ * 浮注姿态的横置吧勺：勺背朝上架在杯口上方，液体沿勺背滑到头端落入液面。
+ * 沿背滑行 = 背上一层薄液 + fxMs 驱动的滚动亮纹（确定性，可 seek）。
+ */
+function drawFloatSpoon(b: PCtx, p: Prop, theme: RenderTheme, fxMs: number): void {
+  const hx = Math.round(p.x / PS); // 勺头（杯中心上方）
+  const hy = Math.round(p.y / PS); // 勺背高度（杯口上方）
+  const tailX = hx - 9; // 杆尾伸出杯口左沿
+  // 杆身（横放）
+  hline(b, tailX, hx + 1, hy, theme.metalHi);
+  hline(b, tailX, hx + 1, hy + 1, theme.metalLo);
+  // 勺碗：头端小勺（背朝上）
+  rectPx(b, hx - 1, hy - 1, 4, 2, theme.metalLo);
+  dot(b, hx - 1, hy - 1, theme.metalHi);
+  dot(b, hx + 2, hy - 1, theme.metalHi);
+  // 勺背薄液 + 沿背滚动的流动亮纹（fxMs 纯函数）
+  const rp = p.stream ? rampOf(p.stream.color) : null;
+  if (rp) {
+    for (let x = tailX + 1; x <= hx - 2; x++) dot(b, x, hy - 1, rp.base);
+    const span = hx - 2 - (tailX + 1);
+    for (let i = 0; i < 2; i++) {
+      const ph = frac(fxMs / 900 + i * 0.5);
+      dot(b, tailX + 1 + Math.round(ph * span), hy - 2, rp.light);
     }
   }
 }
