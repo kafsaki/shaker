@@ -650,10 +650,14 @@ function drawContainer(
   }
 
   // ── 装饰（像素 sprite，加入后持久存在） ──
+  // 液面行：in_glass/float 装饰的停靠位置（浮起规则）；空杯回退到杯口
+  const topG = layers[layers.length - 1];
+  const garnishSurfRow = topG ? cy - Math.round(topG.toH * gh) : cy - gh;
   for (const g of c.garnishes) {
     if (g.opacity < 0.05) continue;
-    const anchor = garnishAnchor(g, cx, cy, gh, halfWAt(gh));
-    drawGarnishSprite(b, g.garnishId, g.prep, anchor.x, anchor.y, g.color, theme);
+    const rows = garnishSpriteRows(g);
+    const anchor = garnishAnchor(g, cx, cy, gh, halfWAt(gh), garnishSurfRow, rows.length);
+    drawGarnishSprite(b, rows, anchor.x, anchor.y, g.color, theme);
   }
 
   // ── 摇晃速度线（幅度足够大才画；涮杯级轻摇只有杯体微摆） ──
@@ -676,18 +680,34 @@ function drawContainer(
   }
 }
 
+/**
+ * 装饰锚点：落位动画偏移（dx/dy）叠加在位置语义上。
+ *   rim    —— 中点与杯口平行（挂在杯沿，不是顶点搭在杯口）
+ *   skewer —— 签横架杯口（sprite 首行即签），樱桃垂入杯内
+ *   in_glass / float —— 浮在液体表面（中点对齐液面；空杯回退到杯口）
+ */
 function garnishAnchor(
   g: RenderedContainer["garnishes"][number],
   cx: number,
   cy: number,
   gh: number,
   hwTop: number,
+  surfRow: number,
+  spriteH: number,
 ): { x: number; y: number } {
   let x = cx + Math.round(g.dx / PS);
   let y = cy - gh + Math.round(g.dy / PS);
-  if (g.position === "rim") x += Math.round(hwTop * 0.8);
-  if (g.position === "side") x += hwTop + 4;
-  if (g.position === "in_glass") y += Math.round(gh * 0.3);
+  if (g.position === "rim") {
+    x += Math.round(hwTop * 0.8);
+    y -= Math.round(spriteH / 2);
+  } else if (g.position === "side") {
+    x += hwTop + 4;
+  } else if (g.position === "skewer") {
+    // 签与杯口平行，sprite 首行即横签
+  } else {
+    // in_glass / float：中点对齐液面
+    y = surfRow - Math.round(spriteH / 2) + Math.round(g.dy / PS);
+  }
   return { x, y };
 }
 
@@ -822,26 +842,32 @@ const SPRITES: Record<string, string[]> = {
   wedge: ["...oo..", "..obbo.", ".obbbo.", "obdbbbo", "ooooooo"],
   twist: ["..oo.", ".obb.", ".bb..", "obbo.", "bb...", "obb..", "..bbo", "..oo."],
   cherry: ["....ss.", "...s...", ".oooo..", "owbbbo.", "obbbbdo", ".obddo.", "..ooo.."],
+  /** 签串樱桃：首行横签（架在杯口），樱桃垂挂签中点下方。 */
+  cherry_skewer: ["sssssss", "...s...", ".oooo..", "owbbbo.", "obbbbdo", ".obddo.", "..ooo.."],
   mint: [".l...l.", "ll.b.ll", ".llbl..", "..bb...", "...s...", "...s...", "..sss.."],
   flag: ["c.....w..", ".c...w.s.", "..c.w..s.", "...c...s.", ".......s."],
 };
 
+/** 装饰 sprite 选择：签串樱桃用横签变体，其余按原料/预处理匹配。 */
+function garnishSpriteRows(g: RenderedContainer["garnishes"][number]): string[] {
+  if (g.garnishId.includes("cherry")) {
+    return g.position === "skewer" ? SPRITES.cherry_skewer! : SPRITES.cherry!;
+  }
+  if (g.garnishId.includes("mint") || g.prep === "slapped") return SPRITES.mint!;
+  if (g.prep === "twist" || g.prep === "expressed") return SPRITES.twist!;
+  if (g.prep === "wedge") return SPRITES.wedge!;
+  if (g.prep === "flag") return SPRITES.flag!;
+  return SPRITES.wheel!;
+}
+
 function drawGarnishSprite(
   b: PCtx,
-  garnishId: string,
-  prep: string,
+  rows: string[],
   x: number,
   y: number,
   color: string,
   theme: RenderTheme,
 ): void {
-  let key = "wheel";
-  if (garnishId.includes("cherry")) key = "cherry";
-  else if (garnishId.includes("mint") || prep === "slapped") key = "mint";
-  else if (prep === "twist" || prep === "expressed") key = "twist";
-  else if (prep === "wedge") key = "wedge";
-  else if (prep === "flag") key = "flag";
-  const rows = SPRITES[key]!;
   const rp = rampOf(color);
   const pal = (ch: string): string | null => {
     switch (ch) {

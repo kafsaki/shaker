@@ -913,14 +913,15 @@ function applyStep(step: Step, ctx: Ctx): void {
         color,
       } as const;
       // 写进容器状态（持久），再让 attachGarnish 在本步骤的帧上做落位动画
-      c.garnishes = [
-        ...c.garnishes.filter((g) => !(g.garnishId === placed.garnishId && g.position === placed.position)),
-        placed,
-      ];
+      //（其余已落位装饰原样保留 —— 帧上的 garnishes 来自完整容器状态）
+      const prev = c.garnishes.filter(
+        (g) => !(g.garnishId === placed.garnishId && g.position === placed.position),
+      );
+      c.garnishes = [...prev, placed];
       emit.at(0, { focus: c.id });
       if (step.prep === "expressed") c.aromaMist = 0.8;
       emit.at(1, { focus: c.id });
-      attachGarnish(emit, c.id, placed);
+      attachGarnish(emit, c.id, placed, prev);
       break;
     }
 
@@ -1046,11 +1047,27 @@ function markDiscardTilt(emit: StepEmitter, id: ContainerId): void {
   }
 }
 
+/**
+ * 本步骤内的装饰落位动画：新装饰从上方落下；**其余已落位装饰原样保留**。
+ * （历史上这里把帧上的 garnishes 覆写成单个装饰，多个 GARNISH 步骤时
+ * 前面的装饰会在后续步骤的动画帧里凭空消失。）
+ */
 function attachGarnish(
   emit: StepEmitter,
   id: ContainerId,
-  g: { garnishId: string; position: string; prep: string; color: string },
+  placed: { garnishId: string; position: string; prep: string; color: string },
+  others: readonly { garnishId: string; position: string; prep: string; color: string }[],
 ): void {
+  const statics = others.map((g) => ({
+    garnishId: g.garnishId,
+    position: g.position as never,
+    prep: g.prep,
+    dx: 0,
+    dy: 0,
+    rot: 0,
+    opacity: 1,
+    color: g.color,
+  }));
   const frames = emit.frames;
   for (const f of frames) {
     const c = f.scene.containers.find((x) => x.id === id);
@@ -1058,15 +1075,16 @@ function attachGarnish(
     // 从上方落位
     const progress = Math.max(0, Math.min(1, (f.t - 0.1) / 0.7));
     c.garnishes = [
+      ...statics,
       {
-        garnishId: g.garnishId,
-        position: g.position as never,
-        prep: g.prep,
+        garnishId: placed.garnishId,
+        position: placed.position as never,
+        prep: placed.prep,
         dx: 0,
         dy: -(1 - progress) * 60,
         rot: (1 - progress) * 0.5,
         opacity: progress,
-        color: g.color,
+        color: placed.color,
       },
     ];
   }
