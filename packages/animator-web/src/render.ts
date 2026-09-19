@@ -621,11 +621,13 @@ function drawContainer(
       if (hash01(i, 21) < 0.7) dot(b, x, cy - gh - 1, hash01(i, 33) < 0.5 ? rr.base : rr.light);
       if (hash01(i, 41) < 0.25) dot(b, x, cy - gh - 2, rr.light);
     }
-    // 四角星闪光：三个固定相位轮流闪
-    for (let sIdx = 0; sIdx < 3; sIdx++) {
-      const ph = frac(fxMs / 1500 + sIdx * 0.37);
-      const sx = cx - hwT + Math.round(hash01(sIdx, 77) * hwT * 2);
-      sparkle(b, sx, cy - gh - 2, ph, theme.hi);
+    // 四角星闪光：三个固定相位轮流闪；收尾前与 serve 星星同步熄灭（末帧要作封面）
+    if ((opts.serveProgress ?? 0) < 0.85) {
+      for (let sIdx = 0; sIdx < 3; sIdx++) {
+        const ph = frac(fxMs / 1500 + sIdx * 0.37);
+        const sx = cx - hwT + Math.round(hash01(sIdx, 77) * hwT * 2);
+        sparkle(b, sx, cy - gh - 2, ph, theme.hi);
+      }
     }
   }
 
