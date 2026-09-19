@@ -28,6 +28,9 @@
       "@shaker/seed": [
         "../packages/seed/src/index.ts"
       ],
+      "@shaker/visual-assets": [
+        "../packages/visual-assets/src/index.ts"
+      ],
       "@shaker/recipe-ir/core": [
         "../packages/recipe-ir/src/core.ts"
       ]

@@ -90,6 +90,9 @@ importers:
       '@shaker/recipe-ir':
         specifier: workspace:*
         version: link:../recipe-ir
+      '@shaker/visual-assets':
+        specifier: workspace:*
+        version: link:../visual-assets
     devDependencies:
       '@shaker/seed':
         specifier: workspace:*
@@ -109,6 +112,9 @@ importers:
       '@shaker/recipe-ir':
         specifier: workspace:*
         version: link:../recipe-ir
+      '@shaker/visual-assets':
+        specifier: workspace:*
+        version: link:../visual-assets
     devDependencies:
       typescript:
         specifier: ^5.7.2
@@ -141,6 +147,19 @@ importers:
         version: 5.9.3
 
   packages/seed:
+    dependencies:
+      '@shaker/recipe-ir':
+        specifier: workspace:*
+        version: link:../recipe-ir
+      '@shaker/visual-assets':
+        specifier: workspace:*
+        version: link:../visual-assets
+    devDependencies:
+      typescript:
+        specifier: ^5.7.2
+        version: 5.9.3
+
+  packages/visual-assets:
     dependencies:
       '@shaker/recipe-ir':
         specifier: workspace:*

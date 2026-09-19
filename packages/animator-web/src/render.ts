@@ -28,6 +28,7 @@ import {
   type Scene,
 } from "@shaker/animator-core";
 import { hexToRgb, radiusAt, rgbToHex, type VesselSpec } from "@shaker/recipe-ir/core";
+import { garnishSpriteRows, PROP_SPRITES } from "@shaker/visual-assets";
 
 /* ══════════════════════════ 主题 ══════════════════════════ */
 
@@ -825,44 +826,12 @@ function drawIce(
 
 /* ══════════════════════════ 装饰 sprite ══════════════════════════ */
 
-/**
- * 像素装饰：字符串点阵，字符映射到色板。
- *  o=描边(深)  b=基色  l=亮色  d=暗色  w=白  s=柄/签（深色）
- */
-const SPRITES: Record<string, string[]> = {
-  wheel: [
-    "..ooo..",
-    ".obbbo.",
-    "oblbblo",
-    "oblllbo",
-    "oblbblo",
-    ".obbbo.",
-    "..ooo..",
-  ],
-  wedge: ["...oo..", "..obbo.", ".obbbo.", "obdbbbo", "ooooooo"],
-  twist: ["..oo.", ".obb.", ".bb..", "obbo.", "bb...", "obb..", "..bbo", "..oo."],
-  cherry: ["....ss.", "...s...", ".oooo..", "owbbbo.", "obbbbdo", ".obddo.", "..ooo.."],
-  /** 签串樱桃：首行横签（架在杯口），樱桃垂挂签中点下方。 */
-  cherry_skewer: ["sssssss", "...s...", ".oooo..", "owbbbo.", "obbbbdo", ".obddo.", "..ooo.."],
-  mint: [".l...l.", "ll.b.ll", ".llbl..", "..bb...", "...s...", "...s...", "..sss.."],
-  flag: ["c.....w..", ".c...w.s.", "..c.w..s.", "...c...s.", ".......s."],
-};
-
-/** 装饰 sprite 选择：签串樱桃用横签变体，其余按原料/预处理匹配。 */
-function garnishSpriteRows(g: RenderedContainer["garnishes"][number]): string[] {
-  if (g.garnishId.includes("cherry")) {
-    return g.position === "skewer" ? SPRITES.cherry_skewer! : SPRITES.cherry!;
-  }
-  if (g.garnishId.includes("mint") || g.prep === "slapped") return SPRITES.mint!;
-  if (g.prep === "twist" || g.prep === "expressed") return SPRITES.twist!;
-  if (g.prep === "wedge") return SPRITES.wedge!;
-  if (g.prep === "flag") return SPRITES.flag!;
-  return SPRITES.wheel!;
-}
-
+// sprite 字符画与选择规则在 @shaker/visual-assets（素材唯一来源）；
+// 这里只负责把字符映射到调色板并逐点画进 buffer。
+// 调色板：o=描边(深)  b=基色  l=亮色  d=暗色  w=白  s=柄/签（深色）  c=固定樱桃红
 function drawGarnishSprite(
   b: PCtx,
-  rows: string[],
+  rows: readonly string[],
   x: number,
   y: number,
   color: string,
@@ -901,50 +870,8 @@ function drawGarnishSprite(
 
 /* ══════════════════════════ 道具与液流 ══════════════════════════ */
 
-const PROP_SPRITES: Record<string, string[]> = {
-  jigger: [
-    "mmmmmmm",
-    "mhmmmm.",
-    ".mhmm..",
-    "..mm...",
-    "..mm...",
-    ".mhmm..",
-    "mhmmmm.",
-    "mmmmmmm",
-  ],
-  bottle: [
-    "..mm...",
-    "..mm...",
-    "..mm...",
-    ".mmmm..",
-    "mmmmmm.",
-    "mhmmmm.",
-    "mllllm.",
-    "mllllm.",
-    "mhmmmm.",
-    "mmmmmm.",
-    "mmmmmm.",
-    ".mmmm..",
-  ],
-  strainer: ["....hhhhh", "mmmmmmmm.", "sssssss..", "mmmmmmmm."],
-  muddler: [
-    ".mmm.",
-    "mmmmm",
-    ".mmm.",
-    "..m..",
-    "..m..",
-    "..m..",
-    "..m..",
-    "..m..",
-    "mmmmm",
-    "mmmmm",
-    "mmmmm",
-  ],
-  spray: [".mm.", "mm..", "mmmm", "mmmm", "mmmm", ".mm."],
-  swizzle: ["..m..", "..m..", "..m..", "..m..", "..m..", "m.m.m", ".mmm.", "..m.."],
-  barspoon_head: ["..mm..", ".mmmm.", "..mm.."],
-};
-
+// 静态道具 sprite 表在 @shaker/visual-assets；调色板：m=金属暗 h=金属亮 l=标签 s=弹簧圈。
+// 吧勺/搅棒/捣棒（drawRodProp）与 pour_vessel / float_spoon 是程序化画法，不属于素材表。
 function drawProp(b: PCtx, p: Prop, theme: RenderTheme, fxMs: number, opts: RenderOptions): void {
   const gx = Math.round(p.x / PS);
   const gy = Math.round(p.y / PS);

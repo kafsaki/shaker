@@ -12,7 +12,8 @@
     "test": "node --experimental-strip-types --test src/**/*.test.ts"
   },
   "dependencies": {
-    "@shaker/recipe-ir": "workspace:*"
+    "@shaker/recipe-ir": "workspace:*",
+    "@shaker/visual-assets": "workspace:*"
   },
   "devDependencies": {
     "typescript": "^5.7.2",

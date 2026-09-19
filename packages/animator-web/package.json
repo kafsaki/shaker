@@ -8,7 +8,8 @@
   "scripts": { "typecheck": "tsc --noEmit" },
   "dependencies": {
     "@shaker/recipe-ir": "workspace:*",
-    "@shaker/animator-core": "workspace:*"
+    "@shaker/animator-core": "workspace:*",
+    "@shaker/visual-assets": "workspace:*"
   },
   "devDependencies": { "typescript": "^5.7.2" }
 }

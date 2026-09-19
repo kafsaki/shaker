@@ -21,9 +21,6 @@
       ],
       "@shaker/recipe-ir/core": [
         "../recipe-ir/src/core.ts"
-      ],
-      "@shaker/visual-assets": [
-        "../visual-assets/src/index.ts"
       ]
     }
   },

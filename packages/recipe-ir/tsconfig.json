@@ -12,7 +12,12 @@
     "skipLibCheck": true,
     "allowImportingTsExtensions": true,
     "verbatimModuleSyntax": true,
-    "isolatedModules": true
+    "isolatedModules": true,
+    "paths": {
+      "@shaker/visual-assets": [
+        "../visual-assets/src/index.ts"
+      ]
+    }
   },
   "include": ["src/**/*.ts", "scripts/**/*.ts"]
 }

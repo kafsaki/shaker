@@ -13,15 +13,13 @@
  */
 import {
   compileVessel,
-  coneProfile,
-  coupeProfile,
   type IngredientMeta,
-  type ProfilePoint,
   type RecipeIR,
   type VesselDef,
   type VesselSpec,
 } from "@shaker/recipe-ir";
 import { RecipeIR as RecipeIRSchema } from "@shaker/recipe-ir";
+import { ALL_VESSEL_DEFS } from "@shaker/visual-assets";
 
 /* ══════════════════════════ 原料 ══════════════════════════ */
 
@@ -152,66 +150,9 @@ const ING_MAP = new Map(INGREDIENTS.map((i) => [i.id, i]));
 
 /* ══════════════════════════ 杯型 ══════════════════════════ */
 
-/** 直筒/微锥杯的剖面。r 相对**高度**归一化，所以 r 越小杯子越瘦长。 */
-function tumbler(rTop: number, rBottom = rTop * 0.94): ProfilePoint[] {
-  return [
-    { y: 0, r: rBottom },
-    { y: 0.06, r: rTop * 0.98 },
-    { y: 1, r: rTop },
-  ];
-}
-
-const VESSEL_DEFS: VesselDef[] = [
-  {
-    id: "coupe",
-    nameZh: "碟形杯",
-    nameEn: "Coupe",
-    capacityMl: 180,
-    shape: {
-      profile: coupeProfile(),
-      stem: { height: 0.62, width: 0.05 },
-      base: { radius: 0.32 },
-    },
-  },
-  {
-    id: "martini",
-    nameZh: "马天尼杯",
-    nameEn: "Martini",
-    capacityMl: 150,
-    shape: {
-      profile: coneProfile(0.52, 0.05),
-      stem: { height: 0.7, width: 0.05 },
-      base: { radius: 0.34 },
-    },
-  },
-  { id: "rocks", nameZh: "古典杯", nameEn: "Rocks", capacityMl: 240, shape: { profile: tumbler(0.52) } },
-  { id: "highball", nameZh: "高球杯", nameEn: "Highball", capacityMl: 300, shape: { profile: tumbler(0.23) } },
-  { id: "collins", nameZh: "柯林斯杯", nameEn: "Collins", capacityMl: 350, shape: { profile: tumbler(0.21) } },
-  {
-    id: "sour-glass",
-    nameZh: "酸酒杯",
-    nameEn: "Sour Glass",
-    capacityMl: 180,
-    shape: { profile: tumbler(0.3), stem: { height: 0.3, width: 0.05 }, base: { radius: 0.26 } },
-  },
-
-  // 工作容器 —— 不在 glassware 词表里，由 animator-core 的 WORK_VESSEL_IDS 引用
-  { id: "__shaker", nameZh: "摇酒壶", nameEn: "Shaker", capacityMl: 530, shape: { profile: [
-    { y: 0, r: 0.3 },
-    { y: 0.62, r: 0.36 },
-    { y: 1, r: 0.31 },
-  ] } },
-  { id: "__mixing_glass", nameZh: "搅拌杯", nameEn: "Mixing Glass", capacityMl: 600, shape: { profile: tumbler(0.42) } },
-  { id: "__blender", nameZh: "搅拌机", nameEn: "Blender", capacityMl: 1200, shape: { profile: tumbler(0.36) } },
-  { id: "__secondary", nameZh: "第二容器", nameEn: "Second Vessel", capacityMl: 400, shape: { profile: tumbler(0.34) } },
-  // 量酒器 —— 双头量杯：两个锥体底对底（沙漏剖面），上杯大下杯小，
-  // 用 pour_vessel 绘制（贴杯口倾斜倒出）
-  { id: "__jigger", nameZh: "量酒器", nameEn: "Jigger", capacityMl: 60, shape: { profile: [
-    { y: 0, r: 0.18 },
-    { y: 0.45, r: 0.09 },
-    { y: 1, r: 0.26 },
-  ] } },
-];
+// 剖面数据的唯一来源是 @shaker/visual-assets（glassware 内容 + 工作器具道具），
+// 这里只编译成 VesselSpec 供词表查询。
+const VESSEL_DEFS: readonly VesselDef[] = ALL_VESSEL_DEFS;
 
 const VESSEL_MAP = new Map<string, VesselSpec>(
   VESSEL_DEFS.map((d) => [d.id, compileVessel(d)]),
