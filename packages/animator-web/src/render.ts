@@ -9,7 +9,7 @@
  *   - 分层过渡带用 4×4 Bayer 有序抖动（复古渐变，不是平滑渐变）
  *   - 液面 = 一行亮色 meniscus + 缓慢移动的高光点
  *   - 气泡 = 上升的单像素点，到液面破裂；泡沫 = 白噪点带
- *   - 盐边 = 杯沿颗粒 + 四角星闪光（fxMs 纯函数）
+ *   - 盐边 = 杯沿颗粒（确定性 hash；不画闪光 —— 闪烁会污染用户截图与封面）
  *   - 摇晃 = 杯体 ±1px 抖动 + 速度线 + 整屏 1px 震动
  *   - 倒入 = 像素液柱（滚动条纹表现流动）；小剂量（dash）= 逐滴下落的像素滴
  *
@@ -111,8 +111,6 @@ export interface RenderOptions {
   stage: { width: number; height: number };
   /** 成品定格进度 0..1（__final 步骤内）—— 触发杯旁星星。 */
   serveProgress?: number;
-  /** 封面定格帧（ADR-015 截帧）—— 关闭闪烁类装饰（盐边闪光），让最后一帧干净。 */
-  still?: boolean;
   debug?: boolean;
 }
 
@@ -623,14 +621,7 @@ function drawContainer(
       if (hash01(i, 21) < 0.7) dot(b, x, cy - gh - 1, hash01(i, 33) < 0.5 ? rr.base : rr.light);
       if (hash01(i, 41) < 0.25) dot(b, x, cy - gh - 2, rr.light);
     }
-    // 四角星闪光：三个固定相位轮流闪（封面定格帧关闭 —— 最后一帧要作封面图）
-    if (!opts.still) {
-      for (let sIdx = 0; sIdx < 3; sIdx++) {
-        const ph = frac(fxMs / 1500 + sIdx * 0.37);
-        const sx = cx - hwT + Math.round(hash01(sIdx, 77) * hwT * 2);
-        sparkle(b, sx, cy - gh - 2, ph, theme.hi);
-      }
-    }
+    // 不画四角星闪光：闪烁会污染用户截图与封面截帧，颗粒本身已足够表达盐/糖边
   }
 
   // ── 盖子 ──

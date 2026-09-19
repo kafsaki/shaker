@@ -48,6 +48,8 @@ function recompile(): void {
     timeline.value = compile(props.ir, props.vocab, { stage: STAGE });
     tMs.value = 0;
     playing.value = true;
+    lastBannerStep = -1; // 让 STEP 1 横幅重新弹出
+    clearTimeout(bannerTimer);
   } catch (err) {
     console.error("动画编译失败", err);
     timeline.value = null;
@@ -86,8 +88,11 @@ onMounted(() => resizeCanvas());
 
 /* ── 绘制 ── */
 let lastEmitKey = "";
-/** 封面截帧中：renderScene 关掉闪烁类装饰（盐边闪光），让封面干净。 */
-let stillCapture = false;
+/** 步骤横幅：切换步骤时在舞台顶部短暂弹出（移植自原型的像素风过场提示）。 */
+const bannerText = ref("");
+const bannerOn = ref(false);
+let bannerTimer: ReturnType<typeof setTimeout> | undefined;
+let lastBannerStep = -1;
 
 function draw(): void {
   const tl = timeline.value;
@@ -104,11 +109,24 @@ function draw(): void {
     vessel: props.vocab.vessel,
     stage: STAGE,
     serveProgress: step.stepId === "__final" ? stepProgress : undefined,
-    still: stillCapture || undefined,
   });
 
   // 步骤事件按量化节流：只在步骤切换或进度每 10% 时向父组件发一次
   const idx = tl.steps.findIndex((s) => s.stepId === step.stepId);
+  // 步骤切换 → 顶部横幅过场（定格段展示 SERVE!）
+  if (idx !== lastBannerStep) {
+    lastBannerStep = idx;
+    const s = tl.steps[idx];
+    if (s) {
+      const isFinal = s.stepId === "__final";
+      bannerText.value = isFinal ? "★ SERVE! ★" : `STEP ${idx + 1} · ${s.label.zh}`;
+      bannerOn.value = true;
+      clearTimeout(bannerTimer);
+      bannerTimer = setTimeout(() => {
+        bannerOn.value = false;
+      }, isFinal ? 1800 : 1100);
+    }
+  }
   const key = `${idx}:${Math.floor(stepProgress * 10)}`;
   if (key !== lastEmitKey) {
     lastEmitKey = key;
@@ -177,12 +195,7 @@ async function captureCover(): Promise<Blob | null> {
   playing.value = false;
   const restore = tMs.value;
   tMs.value = tl.finalSceneMs;
-  stillCapture = true; // 封面帧：关闭盐边闪光等闪烁装饰
-  try {
-    draw();
-  } finally {
-    stillCapture = false;
-  }
+  draw();
   const blob = await new Promise<Blob | null>((resolve) =>
     el.toBlob((b) => resolve(b), "image/png"),
   );
@@ -235,6 +248,9 @@ const speedProxy = computed({
   <div v-if="timeline" class="flex flex-col gap-3">
     <div class="relative overflow-hidden rounded-xl border border-border bg-card">
       <canvas ref="canvasEl" class="block w-full" />
+      <div class="step-banner" :class="{ show: bannerOn, dark: theme === 'dark' }">
+        {{ bannerText }}
+      </div>
     </div>
 
     <div class="flex flex-wrap items-center gap-2">
@@ -288,3 +304,37 @@ const speedProxy = computed({
     动画不可用（配方数据不完整）
   </div>
 </template>
+
+<style scoped>
+/* 像素风步骤横幅（游戏过场），与原型 #banner 对齐；亮/暗两套 */
+.step-banner {
+  position: absolute;
+  top: 16px;
+  left: 50%;
+  transform: translateX(-50%);
+  font-family: "Courier New", ui-monospace, monospace;
+  font-weight: 700;
+  font-size: 15px;
+  line-height: 1;
+  letter-spacing: 0.16em;
+  color: #7a4a20;
+  background: rgba(250, 246, 236, 0.95);
+  padding: 9px 18px;
+  border: 3px solid #7a4a20;
+  box-shadow: 0 0 0 3px #e0d4bc;
+  opacity: 0;
+  transition: opacity 0.12s steps(2);
+  pointer-events: none;
+  white-space: nowrap;
+  z-index: 2;
+}
+.step-banner.show {
+  opacity: 1;
+}
+.step-banner.dark {
+  color: #ffd9a0;
+  background: rgba(20, 14, 26, 0.92);
+  border-color: #ffd9a0;
+  box-shadow: 0 0 0 3px #2c1a24, 0 0 18px rgba(255, 217, 160, 0.35);
+}
+</style>
