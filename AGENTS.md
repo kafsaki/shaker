@@ -8,7 +8,11 @@
 
 - 完成一个可独立验证的单元就提交一次（不要攒一大堆）
 - 提交前跑通类型检查与测试，别提交红的状态
-- 提交信息用中文，正文说明**为什么**，不只是改了什么
+- 提交信息遵循 **Angular commit 规范**：`type(scope): subject`（2026-09-19 起生效）
+  - type：`feat` / `fix` / `refactor` / `docs` / `test` / `chore` / `build` 等
+  - scope 可选（如 `api` / `web` / `ir` / `seed`）；subject 用祈使语气、一句话说清
+  - 正文用中文，说明**为什么**，不只是改了什么
+  - 例：`feat(web): add amber archive hero to classic recipe pages`
 - 分支 `main`，远端 `git@github.com:kafsaki/shaker.git`
 - 身份已配：`kafsaki` / `kafsaki.moe@outlook.com`
 
