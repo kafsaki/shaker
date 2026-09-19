@@ -44,8 +44,44 @@ const auth = useAuthStore();
 const api = useApi();
 const player = ref<{
   seekToStep: (i: number) => void;
+  captureCover: () => Promise<Blob | null>;
   timeline: Timeline | null;
 } | null>(null);
+
+// 封面截帧钩子：?__cover=1 时暴露给 Playwright 脚本（scripts/classic-covers），
+// 与编辑器发布走同一条 captureCover 路径（ADR-015 同源逻辑）。正常访问零影响。
+if (useRoute().query.__cover === "1") {
+  onMounted(() => {
+    (window as unknown as {
+      __shakerCover?: () => Promise<
+        { dataUrl: string; width: number; height: number } | null
+      >;
+    }).__shakerCover = async () => {
+      const deadline = Date.now() + 15_000;
+      while (Date.now() < deadline) {
+        const p = player.value;
+        if (p?.timeline) {
+          const blob = await p.captureCover();
+          if (blob) {
+            const canvas = document.querySelector("canvas");
+            const dataUrl = await new Promise<string>((resolve) => {
+              const r = new FileReader();
+              r.onload = () => resolve(String(r.result));
+              r.readAsDataURL(blob);
+            });
+            return {
+              dataUrl,
+              width: canvas?.width ?? 0,
+              height: canvas?.height ?? 0,
+            };
+          }
+        }
+        await new Promise((r) => setTimeout(r, 100));
+      }
+      return null;
+    };
+  });
+}
 
 const ir = computed(() => props.recipe.ir as RecipeIR);
 
