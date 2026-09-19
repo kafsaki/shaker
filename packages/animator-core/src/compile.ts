@@ -595,7 +595,7 @@ function applyStep(step: Step, ctx: Ctx): void {
       const refs = refsOf(step.items, bySlot);
       emit.at(0, { focus: c.id });
       addToContainer(c, refs, vocab);
-      emit.at(0.25, { focus: c.id, props: [swirlProp(c)] });
+      emit.at(0.25, { focus: c.id });
       if (step.discard) {
         // 倒掉多余：只留挂壁膜 + 杯底 2ml 小水洼
         const tint = c.layers[c.layers.length - 1];
@@ -613,6 +613,8 @@ function applyStep(step: Step, ctx: Ctx): void {
       } else {
         emit.at(1, { focus: c.id });
       }
+      // 涮杯 = 轻微摇动杯子本身，不是拿杆子在杯里搅
+      markSwirl(emit, c.id);
       break;
     }
 
@@ -1251,6 +1253,15 @@ function sprayProp(c: ContainerState): Prop {
   return { kind: "spray", x: MAIN_POS.x + 40, y: restBowlY(c.vessel) - 200, rot: -0.4, scale: 1, opacity: 1 };
 }
 
-function swirlProp(c: ContainerState): Prop {
-  return { kind: "barspoon", x: MAIN_POS.x, y: restBowlY(c.vessel) - 140, rot: 0.6, scale: 1, opacity: 0.7 };
+/**
+ * RINSE 的涮杯姿态：杯子本身轻微摇动（幅度小、频率低）—— 区别于摇酒，
+ * 渲染端按幅度阈值不画速度线/不震屏。t≥0.5 后停止（discard 分支进入倾倒段）。
+ */
+function markSwirl(emit: StepEmitter, id: ContainerId): void {
+  for (const f of emit.frames) {
+    if (f.t <= 0.02 || f.t >= 0.48) continue;
+    const c = f.scene.containers.find((x) => x.id === id);
+    if (!c) continue;
+    c.shake = { ampX: 2.5, ampY: 1.5, rot: 0.02, freqHz: 2.2, phase: f.t * Math.PI * 2 };
+  }
 }

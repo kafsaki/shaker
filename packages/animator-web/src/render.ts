@@ -311,10 +311,10 @@ export function renderScene(
     return hex;
   };
 
-  // ── 整屏 1px 震动（有容器在摇时） ──
+  // ── 整屏 1px 震动（剧烈摇晃时；涮杯级轻摇不震屏） ──
   let shakeX = 0;
   let shakeY = 0;
-  const shaking = scene.containers.some((c) => c.shake !== null);
+  const shaking = scene.containers.some((c) => c.shake !== null && c.shake.ampX >= 6);
   if (shaking) {
     shakeX = Math.round(Math.sin(opts.timeMs * 0.055));
     shakeY = Math.round(Math.cos(opts.timeMs * 0.041));
@@ -656,8 +656,8 @@ function drawContainer(
     drawGarnishSprite(b, g.garnishId, g.prep, anchor.x, anchor.y, g.color, theme);
   }
 
-  // ── 摇晃速度线 ──
-  if (c.shake) {
+  // ── 摇晃速度线（幅度足够大才画；涮杯级轻摇只有杯体微摆） ──
+  if (c.shake && c.shake.ampX >= 4) {
     const side = Math.sin((opts.timeMs / 1000) * c.shake.freqHz * Math.PI * 2 + c.shake.phase) > 0 ? -1 : 1;
     const lx = cx + side * (halfWAt(Math.round(gh * 0.6)) + 3);
     for (let i = 0; i < 3; i++) {
