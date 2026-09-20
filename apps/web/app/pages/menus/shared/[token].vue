@@ -4,6 +4,7 @@ import { useQuery } from "@tanstack/vue-query";
 import type { components } from "@shaker/api-client";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
+import MenuCoverStack from "@/components/MenuCoverStack.vue";
 import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 
@@ -43,6 +44,8 @@ useHead(() => ({ title: `${menu.value?.title ?? "分享的酒单"} · Shaker` })
   </Alert>
 
   <div v-else-if="menu" class="flex flex-col gap-5">
+    <MenuCoverStack :covers="menu.coverUrls" class="w-28 sm:w-40" />
+
     <div>
       <h1 class="flex flex-wrap items-center gap-2 text-xl font-bold">
         {{ menu.title }}

@@ -4,6 +4,7 @@ import { useQuery } from "@tanstack/vue-query";
 import { toast } from "vue-sonner";
 import type { components } from "@shaker/api-client";
 import RecipeCard from "@/components/RecipeCard.vue";
+import MenuCoverStack from "@/components/MenuCoverStack.vue";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
@@ -186,17 +187,20 @@ const menuVis: Record<string, string> = {
       </TabsContent>
 
       <TabsContent value="menus" class="mt-4">
-        <div v-if="(menus?.items ?? []).length" class="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+        <div v-if="(menus?.items ?? []).length" class="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           <NuxtLink
             v-for="m in menus?.items ?? []"
             :key="m.id"
             :to="m.visibility === 'unlisted' && m.shareToken ? `/menus/shared/${m.shareToken}` : `/menus/${m.id}`"
-            class="flex flex-col gap-1 rounded-xl border border-border bg-card p-4 transition-colors hover:border-primary/40"
+            class="flex items-center gap-4 rounded-xl border border-border bg-card p-4 transition-colors hover:border-primary/40"
           >
-            <span class="font-medium">{{ m.title }}</span>
-            <span class="text-xs text-muted-foreground">
-              {{ m.itemCount }} 杯 · {{ menuVis[m.visibility] ?? m.visibility }}
-            </span>
+            <MenuCoverStack :covers="m.coverUrls" class="w-20 shrink-0" />
+            <div class="flex min-w-0 flex-1 flex-col gap-1">
+              <span class="truncate font-medium">{{ m.title }}</span>
+              <span class="text-xs text-muted-foreground">
+                {{ m.itemCount }} 杯 · {{ menuVis[m.visibility] ?? m.visibility }}
+              </span>
+            </div>
           </NuxtLink>
         </div>
         <p v-else class="py-10 text-center text-sm text-muted-foreground">

@@ -52,7 +52,8 @@ const { data: detail, isLoading, error } = useQuery({
 
 const menu = computed(() => detail.value?.menu);
 const items = computed(() => detail.value?.items ?? []);
-const isOwner = computed(() => menu.value?.shareToken !== undefined);
+// shareToken 带 omitempty（未分享过时主人也拿不到），属主判定必须用显式的 viewerIsOwner
+const isOwner = computed(() => menu.value?.viewerIsOwner ?? false);
 
 /* ── 编辑基本信息 ── */
 const editOpen = ref(false);
@@ -228,6 +229,16 @@ const VIS_ZH: Record<string, string> = {
           class="flex items-center gap-3 py-3"
           :class="it.recipe.deleted && 'opacity-50'"
         >
+          <img
+            v-if="it.recipe.coverUrl && !it.recipe.deleted"
+            :src="it.recipe.coverUrl"
+            alt=""
+            loading="lazy"
+            class="size-14 shrink-0 rounded-lg border border-border object-cover"
+          >
+          <div v-else class="flex size-14 shrink-0 items-center justify-center rounded-lg border border-dashed border-border bg-muted/50 text-xs text-muted-foreground">
+            {{ it.recipe.deleted ? "已删" : "无封面" }}
+          </div>
           <div class="min-w-0 flex-1">
             <template v-if="it.recipe.deleted">
               <span class="truncate font-medium line-through">{{ it.recipe.title }}</span>
