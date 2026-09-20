@@ -1006,7 +1006,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** 某人的公开酒单 */
+        /**
+         * 某人的酒单
+         * @description 本人（携带 Bearer）可见全部含私密；他人仅公开。unlisted 的分享链接走 /menus/shared/{shareToken}。
+         */
         get: operations["users-menus"];
         put?: never;
         post?: never;
@@ -1421,6 +1424,7 @@ export interface components {
              */
             readonly $schema?: string;
             coverUrl: string | null;
+            coverUrls: string[] | null;
             /** Format: date-time */
             createdAt: string;
             description: string | null;
@@ -1523,6 +1527,7 @@ export interface components {
         MyMenuBody: {
             containsRecipe: boolean;
             coverUrl: string | null;
+            coverUrls: string[] | null;
             /** Format: date-time */
             createdAt: string;
             description: string | null;

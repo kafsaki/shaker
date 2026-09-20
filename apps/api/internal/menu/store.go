@@ -393,6 +393,40 @@ func (s *Store) ListMine(ctx context.Context, ownerID uuid.UUID, containsRecipe 
 	return out, rows.Err()
 }
 
+// Covers 批量取酒单封面投影：每个酒单按 position 取前 3 个条目
+// （跳过已删/无封面的配方，不足 3 张有几张给几张）。
+// 封面不是存储的资产而是条目的展示投影（用户决策 2026-09-20）；
+// 详情页直接从 Items() 计算，这里只服务列表页的批量场景。
+func (s *Store) Covers(ctx context.Context, menuIDs []uuid.UUID) (map[uuid.UUID][]string, error) {
+	out := make(map[uuid.UUID][]string, len(menuIDs))
+	if len(menuIDs) == 0 {
+		return out, nil
+	}
+	// 行按 (menu_id, position) 排序：每个酒单的行连续且 position 有序，追加到 3 即止。
+	rows, err := s.pool.Query(ctx, `
+		SELECT mi.menu_id, r.cover_url
+		FROM menu_items mi
+		JOIN recipes r ON r.id = mi.recipe_id
+		WHERE mi.menu_id = ANY($1)
+			AND r.deleted_at IS NULL AND r.cover_url IS NOT NULL
+		ORDER BY mi.menu_id, mi.position`, menuIDs)
+	if err != nil {
+		return nil, fmt.Errorf("查询酒单封面: %w", err)
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var id uuid.UUID
+		var cover string
+		if err := rows.Scan(&id, &cover); err != nil {
+			return nil, fmt.Errorf("扫描酒单封面: %w", err)
+		}
+		if len(out[id]) < 3 {
+			out[id] = append(out[id], cover)
+		}
+	}
+	return out, rows.Err()
+}
+
 // ListResult 公开酒单分页页。
 type ListResult struct {
 	Items      []Menu

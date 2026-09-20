@@ -815,6 +815,12 @@ components:
           type:
             - string
             - "null"
+        coverUrls:
+          items:
+            type: string
+          type:
+            - array
+            - "null"
         createdAt:
           format: date-time
           type: string
@@ -843,6 +849,7 @@ components:
         - coverUrl
         - visibility
         - itemCount
+        - coverUrls
         - createdAt
         - updatedAt
       type: object
@@ -1049,6 +1056,12 @@ components:
           type:
             - string
             - "null"
+        coverUrls:
+          items:
+            type: string
+          type:
+            - array
+            - "null"
         createdAt:
           format: date-time
           type: string
@@ -1078,6 +1091,7 @@ components:
         - coverUrl
         - visibility
         - itemCount
+        - coverUrls
         - createdAt
         - updatedAt
       type: object
@@ -4150,6 +4164,7 @@ paths:
       summary: 某人点赞过的配方
   /api/v1/users/{handle}/menus:
     get:
+      description: 本人（携带 Bearer）可见全部含私密；他人仅公开。unlisted 的分享链接走 /menus/shared/{shareToken}。
       operationId: users-menus
       parameters:
         - in: path
@@ -4184,7 +4199,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/ApiError"
           description: Error
-      summary: 某人的公开酒单
+      summary: 某人的酒单
   /api/v1/users/{handle}/recipes:
     get:
       operationId: users-recipes

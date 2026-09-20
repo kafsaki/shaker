@@ -89,11 +89,14 @@ $r = Call GET "/menus/shared/aaaaaaaaaaaaaaaaaaaaaaaaaa"
 Check '瞎猜令牌 → 404' ($r.status -eq 404)
 
 # ── 4. 加配方（幂等）+ 重排 ──
-# 种子经典：daiquiri / negroni / mojito（经典锚点直达权威条目，拿短号再取）
+# 种子经典：daiquiri / negroni / mojito / margarita（经典锚点直达权威条目，拿短号再取）
+# coverUrl 依赖可选的截帧导入脚本——新鲜库可能全空，断言按「投影一致」写以兼容两种状态。
 $rids = @()
-foreach ($key in 'daiquiri', 'negroni', 'mojito') {
+$kcov = @{}
+foreach ($key in 'daiquiri', 'negroni', 'mojito', 'margarita') {
     $d = Call GET "/classics/$key"
     $rids += $d.json.id
+    $kcov[$key] = $d.json.coverUrl
 }
 $note = @{ note = '夏天喝' } | ConvertTo-Json
 $r = Call PUT "/menus/$menu1/items/$($rids[0])" $note $tok1
@@ -111,6 +114,10 @@ $titles = @($r.json.items | ForEach-Object { $_.recipe.classicKey })
 Check "初始顺序 daiquiri,negroni,mojito（实际 $($titles -join ',')）" ($titles -join ',' -eq 'daiquiri,negroni,mojito')
 Check 'note 已存' ($r.json.items[0].note -eq '夏天喝')
 Check '条目含配方卡片' ($r.json.items[0].recipe.isCanonical -eq $true)
+# 封面投影 = 条目顺序的配方封面（跳过无封面），详情与列表共用此语义
+$expCov = @('daiquiri', 'negroni', 'mojito' | ForEach-Object { $kcov[$_] } | Where-Object { $_ })
+Check "详情 coverUrls 投影（$(@($r.json.menu.coverUrls).Count) 张，期望 $($expCov.Count)）" (
+    (@($r.json.menu.coverUrls) -join '|') -eq ($expCov -join '|'))
 
 # mojito 移到最前
 $r = Call POST "/menus/$menu1/items/reorder" (@{ recipeId = $rids[2] } | ConvertTo-Json) $tok1
@@ -121,6 +128,16 @@ Check '锚点重排 → 204' ($r.status -eq 204)
 $r = Call GET "/menus/$menu1" $null $tok1
 $titles = @($r.json.items | ForEach-Object { $_.recipe.classicKey })
 Check "重排后 mojito,negroni,daiquiri（实际 $($titles -join ',')）" ($titles -join ',' -eq 'mojito,negroni,daiquiri')
+$expCov = @('mojito', 'negroni', 'daiquiri' | ForEach-Object { $kcov[$_] } | Where-Object { $_ })
+Check '重排后 coverUrls 跟随新顺序' (
+    (@($r.json.menu.coverUrls) -join '|') -eq ($expCov -join '|'))
+
+# 第 4 个配方：投影封顶 3 张，margarita 即使有封面也不进投影
+$r = Call PUT "/menus/$menu1/items/$($rids[3])" '{}' $tok1
+Check '加入 margarita → 204' ($r.status -eq 204)
+$r = Call GET "/menus/$menu1" $null $tok1
+Check '4 条目时 itemCount = 4' ($r.json.menu.itemCount -eq 4)
+Check 'coverUrls 封顶 3 张' (@($r.json.menu.coverUrls).Count -le 3 -and (@($r.json.menu.coverUrls) -join '|') -eq ($expCov -join '|'))
 
 # 坏锚点
 $r = Call POST "/menus/$menu1/items/reorder" (@{ recipeId = $rids[0]; afterRecipeId = '00000000-0000-0000-0000-000000000001' } | ConvertTo-Json) $tok1
@@ -136,9 +153,13 @@ Check '他人加条目 → 403' ($r.status -eq 403)
 $r = Call POST "/menus/$menu1/items/reorder" (@{ recipeId = $rids[0] } | ConvertTo-Json) $tok2
 Check '他人重排 → 403' ($r.status -eq 403)
 
-# ── 5. /me/menus + containsRecipe ──
+# ── 5. /me/menus + containsRecipe + 列表封面投影 ──
 $r = Call GET '/me/menus' $null $tok1
 Check '/me/menus → 3 个' (@($r.json.items).Count -eq 3)
+$m1row = @($r.json.items | Where-Object { $_.id -eq $menu1 })[0]
+$m3row = @($r.json.items | Where-Object { $_.id -eq $menu3 })[0]
+Check '列表 coverUrls 与详情一致' ((@($m1row.coverUrls) -join '|') -eq ($expCov -join '|'))
+Check '空酒单 coverUrls 为空数组（非 null）' ($null -ne $m3row.coverUrls -and @($m3row.coverUrls).Count -eq 0)
 $r = Call GET "/me/menus?containsRecipe=$($rids[0])" $null $tok1
 $marks = @($r.json.items | ForEach-Object { "$($_.title)=$($_.containsRecipe)" })
 Check "containsRecipe 标记（实际 $($marks -join ', ')）" (
@@ -152,7 +173,9 @@ Check '移出 mojito → 204' ($r.status -eq 204)
 $r = Call DELETE "/menus/$menu1/items/$($rids[2])" $null $tok1
 Check '重复移出 → 幂等 204' ($r.status -eq 204)
 $r = Call GET "/menus/$menu1" $null $tok1
-Check '移出后 itemCount = 2' ($r.json.menu.itemCount -eq 2)
+Check '移出后 itemCount = 3' ($r.json.menu.itemCount -eq 3)
+$expCov = @('negroni', 'daiquiri', 'margarita' | ForEach-Object { $kcov[$_] } | Where-Object { $_ })
+Check '移出首条后 coverUrls 更新' ((@($r.json.menu.coverUrls) -join '|') -eq ($expCov -join '|'))
 
 $r = Call PATCH "/menus/$menu3" (@{ title = '公开推荐（改）' } | ConvertTo-Json) $tok1
 Check 'PATCH 标题 → 200' ($r.status -eq 200 -and $r.json.title -eq '公开推荐（改）')

@@ -117,6 +117,7 @@ type menuBody struct {
 	CoverURL    *string    `json:"coverUrl"`
 	Visibility  string     `json:"visibility"`
 	ItemCount   int        `json:"itemCount"`
+	CoverURLs   []string   `json:"coverUrls"` // position 前 3 条目的配方封面（展示投影，可为空数组）
 	ShareToken  *string    `json:"shareToken,omitempty"` // 仅主人可见
 	CreatedAt   string     `json:"createdAt" format:"date-time"`
 	UpdatedAt   string     `json:"updatedAt" format:"date-time"`
@@ -173,7 +174,7 @@ type myMenusOutput struct {
 func menuToBody(m *menu.Menu, isOwner bool) menuBody {
 	b := menuBody{
 		ID: m.ID, Title: m.Title, Description: m.Description, CoverURL: m.CoverURL,
-		Visibility: m.Visibility, ItemCount: m.ItemCount,
+		Visibility: m.Visibility, ItemCount: m.ItemCount, CoverURLs: []string{},
 		CreatedAt: m.CreatedAt.UTC().Format(time.RFC3339Nano),
 		UpdatedAt: m.UpdatedAt.UTC().Format(time.RFC3339Nano),
 	}
@@ -181,6 +182,22 @@ func menuToBody(m *menu.Menu, isOwner bool) menuBody {
 		b.ShareToken = m.ShareToken
 	}
 	return b
+}
+
+// itemCovers 详情响应的封面投影：items 已按 position 排序，
+// 跳过已删/无封面条目，最多取 3 张。
+func itemCovers(items []menu.Item) []string {
+	covers := []string{}
+	for _, it := range items {
+		if it.Recipe.Deleted || it.Recipe.CoverURL == nil {
+			continue
+		}
+		covers = append(covers, *it.Recipe.CoverURL)
+		if len(covers) == 3 {
+			break
+		}
+	}
+	return covers
 }
 
 func menuItemsOut(items []menu.Item) []menuItemBody {
@@ -282,6 +299,7 @@ func (a *API) getMenuHandler(ctx context.Context, in *menuIDInput) (*menuDetailO
 	}
 	out := &menuDetailOutput{}
 	out.Body.Menu = menuToBody(m, viewer != nil && *viewer == m.OwnerID)
+	out.Body.Menu.CoverURLs = itemCovers(items)
 	out.Body.Items = menuItemsOut(items)
 	return out, nil
 }
@@ -301,6 +319,7 @@ func (a *API) getSharedMenuHandler(ctx context.Context, in *shareTokenInput) (*m
 	}
 	out := &menuDetailOutput{}
 	out.Body.Menu = menuToBody(m, false)
+	out.Body.Menu.CoverURLs = itemCovers(items)
 	out.Body.Items = menuItemsOut(items)
 	return out, nil
 }
@@ -411,10 +430,22 @@ func (a *API) myMenusHandler(ctx context.Context, in *struct {
 	if err != nil {
 		return nil, menuErr(err)
 	}
+	ids := make([]uuid.UUID, len(menus))
+	for i := range menus {
+		ids[i] = menus[i].Menu.ID
+	}
+	cov, err := a.menus.Covers(ctx, ids)
+	if err != nil {
+		return nil, menuErr(err)
+	}
 	out := &myMenusOutput{}
 	out.Body.Items = make([]myMenuBody, 0, len(menus))
 	for _, m := range menus {
-		out.Body.Items = append(out.Body.Items, myMenuBody{MenuBody: menuToBody(&m.Menu, true), ContainsRecipe: m.ContainsRecipe})
+		mb := myMenuBody{MenuBody: menuToBody(&m.Menu, true), ContainsRecipe: m.ContainsRecipe}
+		if c := cov[m.Menu.ID]; len(c) > 0 {
+			mb.CoverURLs = c
+		}
+		out.Body.Items = append(out.Body.Items, mb)
 	}
 	return out, nil
 }
@@ -435,10 +466,22 @@ func (a *API) userMenusHandler(ctx context.Context, in *struct {
 	if err != nil {
 		return nil, listErr(err)
 	}
+	ids := make([]uuid.UUID, len(res.Items))
+	for i := range res.Items {
+		ids[i] = res.Items[i].ID
+	}
+	cov, err := a.menus.Covers(ctx, ids)
+	if err != nil {
+		return nil, menuErr(err)
+	}
 	out := &menuListOutput{}
 	out.Body.Items = make([]menuBody, 0, len(res.Items))
 	for i := range res.Items {
-		out.Body.Items = append(out.Body.Items, menuToBody(&res.Items[i], isSelf))
+		mb := menuToBody(&res.Items[i], isSelf)
+		if c := cov[res.Items[i].ID]; len(c) > 0 {
+			mb.CoverURLs = c
+		}
+		out.Body.Items = append(out.Body.Items, mb)
 	}
 	if res.NextCursor != "" {
 		s := res.NextCursor
