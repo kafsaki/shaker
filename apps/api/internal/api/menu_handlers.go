@@ -118,6 +118,7 @@ type menuBody struct {
 	Visibility  string     `json:"visibility"`
 	ItemCount   int        `json:"itemCount"`
 	CoverURLs   []string   `json:"coverUrls"` // position 前 3 条目的配方封面（展示投影，可为空数组）
+	ViewerIsOwner bool     `json:"viewerIsOwner"` // 当前请求者是否为酒单主人（shareToken 因 omitempty 不可靠，前端以此判定属主 UI）
 	ShareToken  *string    `json:"shareToken,omitempty"` // 仅主人可见
 	CreatedAt   string     `json:"createdAt" format:"date-time"`
 	UpdatedAt   string     `json:"updatedAt" format:"date-time"`
@@ -175,6 +176,7 @@ func menuToBody(m *menu.Menu, isOwner bool) menuBody {
 	b := menuBody{
 		ID: m.ID, Title: m.Title, Description: m.Description, CoverURL: m.CoverURL,
 		Visibility: m.Visibility, ItemCount: m.ItemCount, CoverURLs: []string{},
+		ViewerIsOwner: isOwner,
 		CreatedAt: m.CreatedAt.UTC().Format(time.RFC3339Nano),
 		UpdatedAt: m.UpdatedAt.UTC().Format(time.RFC3339Nano),
 	}

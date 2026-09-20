@@ -840,6 +840,8 @@ components:
         updatedAt:
           format: date-time
           type: string
+        viewerIsOwner:
+          type: boolean
         visibility:
           type: string
       required:
@@ -850,6 +852,7 @@ components:
         - visibility
         - itemCount
         - coverUrls
+        - viewerIsOwner
         - createdAt
         - updatedAt
       type: object
@@ -1081,6 +1084,8 @@ components:
         updatedAt:
           format: date-time
           type: string
+        viewerIsOwner:
+          type: boolean
         visibility:
           type: string
       required:
@@ -1092,6 +1097,7 @@ components:
         - visibility
         - itemCount
         - coverUrls
+        - viewerIsOwner
         - createdAt
         - updatedAt
       type: object

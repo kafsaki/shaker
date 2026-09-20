@@ -65,12 +65,15 @@ Check '非法 visibility → 422' ($bad.status -eq 422)
 # ── 2. 可见性鉴权 ──
 $r = Call GET "/menus/$menu3"
 Check '匿名读公开酒单 → 200' ($r.status -eq 200)
+Check '匿名 viewerIsOwner = false' ($r.json.menu.viewerIsOwner -eq $false)
 $r = Call GET "/menus/$menu1"
 Check '匿名读私密 → 404' ($r.status -eq 404)
 $r = Call GET "/menus/$menu1" $null $tok2
 Check '他人读私密 → 404' ($r.status -eq 404)
 $r = Call GET "/menus/$menu1" $null $tok1
 Check '主人读私密 → 200' ($r.status -eq 200)
+Check '主人 viewerIsOwner = true' ($r.json.menu.viewerIsOwner -eq $true)
+Check '主人（未分享过）shareToken 为空' ($null -eq $r.json.menu.shareToken)
 $r = Call GET "/menus/$menu2" $null $tok2
 Check '他人按 id 读 unlisted → 404（分享走 token）' ($r.status -eq 404)
 

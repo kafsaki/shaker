@@ -1435,6 +1435,7 @@ export interface components {
             title: string;
             /** Format: date-time */
             updatedAt: string;
+            viewerIsOwner: boolean;
             visibility: string;
         };
         MenuDetailOutputBody: {
@@ -1538,6 +1539,7 @@ export interface components {
             title: string;
             /** Format: date-time */
             updatedAt: string;
+            viewerIsOwner: boolean;
             visibility: string;
         };
         MyMenusOutputBody: {
