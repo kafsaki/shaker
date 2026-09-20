@@ -3,6 +3,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/vue-query";
 import { toast } from "vue-sonner";
 import type { components } from "@shaker/api-client";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -74,6 +75,86 @@ const saveProfile = useMutation({
   onError: (e) => toast.error(apiErrorMessage(e)),
 });
 
+/* ── 头像 ── */
+const fileInput = ref<HTMLInputElement | null>(null);
+
+/** 中心方形裁切 + 缩到 512px，重编码 PNG（canvas 技术同封面截帧，ADR-015）。 */
+async function squareize(file: File): Promise<Blob> {
+  const img = await createImageBitmap(file);
+  const side = Math.min(img.width, img.height);
+  const size = Math.min(512, side);
+  const canvas = document.createElement("canvas");
+  canvas.width = canvas.height = size;
+  const ctx = canvas.getContext("2d");
+  if (!ctx) throw new Error("无法创建画布");
+  ctx.drawImage(
+    img,
+    (img.width - side) / 2,
+    (img.height - side) / 2,
+    side,
+    side,
+    0,
+    0,
+    size,
+    size,
+  );
+  img.close();
+  const blob = await new Promise<Blob | null>((r) => canvas.toBlob(r, "image/png"));
+  if (!blob) throw new Error("头像编码失败");
+  return blob;
+}
+
+const uploadAvatar = useMutation({
+  mutationFn: async (file: File) => {
+    // 直传链路同编辑器封面：presign → PUT → commit → 写回指针（ADR-015）
+    const blob = await squareize(file);
+    const up = await api.POST("/api/v1/media/upload-url", {
+      body: {
+        purpose: "user_avatar" as const,
+        entityId: auth.user!.id,
+        mimeType: "image/png" as const,
+        byteSize: blob.size,
+      },
+    });
+    if (up.error) throw up.error;
+    const put = await fetch(up.data.uploadUrl, {
+      method: "PUT",
+      headers: { "Content-Type": "image/png" },
+      body: blob,
+    });
+    if (!put.ok) throw new Error(`头像上传失败（${put.status}）`);
+    const commit = await api.POST("/api/v1/media/{assetId}/commit", {
+      params: { path: { assetId: up.data.assetId } },
+    });
+    if (commit.error) throw commit.error;
+    const { error } = await api.PATCH("/api/v1/me", {
+      body: { avatarUrl: commit.data.url },
+    });
+    if (error) throw error;
+  },
+  onSuccess: async () => {
+    toast.success("头像已更新");
+    await auth.fetchMe();
+  },
+  onError: (e) => toast.error(apiErrorMessage(e)),
+});
+
+function onAvatarChange(e: Event): void {
+  const input = e.target as HTMLInputElement;
+  const file = input.files?.[0];
+  input.value = ""; // 允许重选同一文件
+  if (!file) return;
+  if (!["image/png", "image/jpeg", "image/webp"].includes(file.type)) {
+    toast.error("仅支持 PNG / JPEG / WebP");
+    return;
+  }
+  if (file.size > 10 << 20) {
+    toast.error("图片不能超过 10MB");
+    return;
+  }
+  uploadAvatar.mutate(file);
+}
+
 /* ── 改密 ── */
 const currentPassword = ref("");
 const newPassword = ref("");
@@ -138,6 +219,32 @@ async function logoutAll(): Promise<void> {
         <CardDescription>@{{ auth.user?.handle }} · {{ auth.user?.email }}</CardDescription>
       </CardHeader>
       <CardContent class="flex flex-col gap-3">
+        <div class="flex items-center gap-4">
+          <Avatar class="size-16">
+            <AvatarImage v-if="auth.user?.avatarUrl" :src="auth.user.avatarUrl" />
+            <AvatarFallback class="text-xl">
+              {{ (auth.user?.displayName ?? "?").slice(0, 1) }}
+            </AvatarFallback>
+          </Avatar>
+          <div class="flex flex-col items-start gap-1">
+            <input
+              ref="fileInput"
+              type="file"
+              accept="image/png,image/jpeg,image/webp"
+              class="hidden"
+              @change="onAvatarChange"
+            />
+            <Button
+              size="sm"
+              variant="outline"
+              :disabled="uploadAvatar.isPending.value"
+              @click="fileInput?.click()"
+            >
+              {{ uploadAvatar.isPending.value ? "上传中…" : "更换头像" }}
+            </Button>
+            <p class="text-xs text-muted-foreground">PNG / JPEG / WebP，自动裁为 512px 方形</p>
+          </div>
+        </div>
         <div class="flex flex-col gap-1.5">
           <Label for="dn">昵称</Label>
           <Input id="dn" v-model="displayName" maxlength="60" />
