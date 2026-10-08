@@ -18,8 +18,8 @@
 | 配方 IR 规范（21 个动作） | ✅ `docs/01-配方IR规范.md` |
 | 数据库设计 + DDL | ✅ goose 内嵌迁移，启动自动执行，Up/Down 均经 e2e 验证 |
 | API 定义 | ✅ `docs/03-API定义.md`，`schema/openapi.yaml` 由代码生成（ADR-017） |
-| `packages/recipe-ir` | ✅ 53 个测试全绿 |
-| `packages/animator-core` | ✅ 27 个测试全绿 |
+| `packages/recipe-ir` | ✅ 54 个测试全绿 |
+| `packages/animator-core` | ✅ 32 个测试全绿 |
 | `packages/animator-web` | ✅ 类型检查通过，**动画观感未经人眼确认** |
 | 动画原型 | ✅ 可跑，**等你打开看效果** |
 | `apps/api`（Go） | ✅ v1 功能全集：认证/词表/配方/Feed/互动/用户/搜索/经典/酒单/通知/举报/媒体直传 |
@@ -172,9 +172,8 @@ docs/             设计文档
 ## 下一步
 
 1. **打开 http://localhost:3000 肉眼验收前端**（视觉与动画观感由作者确认）；原型在手机 WebView 实测帧率 → 定移动端框架
-2. 补齐后端小缺口：`GET /ingredients/:id/recipes`（原料反查，前端暂用 `/search?type=recipe&ingredient=` 等价替代）
-3. 孤儿媒体清理任务（未 commit 的 asset + 对象，契约预留了 river 周期任务位）
-4. 三条架构纪律 + openapi 同步检查进 CI
+2. 孤儿媒体清理任务（未 commit 的 asset + 对象，契约预留了 river 周期任务位）
+3. 三条架构纪律 + openapi 同步检查进 CI
 
 ---
 
