@@ -129,6 +129,9 @@ Check '分页第二页 2 条' (@($p2.json.items).Count -eq 2)
 $ids1 = @($p1.json.items | ForEach-Object { $_.id })
 $ids2 = @($p2.json.items | ForEach-Object { $_.id })
 Check '两页无重叠' (@($ids1 | Where-Object { $ids2 -contains $_ }).Count -eq 0)
+# 通知 nextCursor 同为不透明串：传原始 UUID（前端曾犯的错）必须 400
+$badn = Call GET '/notifications?limit=2&cursor=3f2a1c9e-0000-4000-8000-000000000001' $null $tok2
+Check '原始 UUID 当游标 → 400 cursor.invalid' ($badn.status -eq 400 -and $badn.json.error.code -eq 'cursor.invalid')
 
 # ── 6. 标读：指定 ids → 剩 2 未读；全部 → 0 ──
 $readIds = ConvertTo-Json @($ids1)

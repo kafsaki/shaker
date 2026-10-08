@@ -112,7 +112,10 @@ Check '第二页无重叠' ((@($page1 | Where-Object { $page2 -contains $_ })).C
 $r = Call GET '/feed/hot?cursor=@@invalid@@'
 Check '坏游标 → 400' ($r.status -eq 400 -and $r.json.error.code -eq 'cursor.invalid')
 $r = Call GET '/feed/hot?window=24h'
-Check 'window=24h 有内容（今天发布的种子+变体）' ($r.status -eq 200 -and @($r.json.items).Count -ge 5)
+# 原断言“≥5 条”假设种子发布于当天；种子滑出 24h 窗口后必挂。
+# 改为断言脚本自己刚发布的变体出现在窗内（确定性，不依赖种子数据年龄）。
+$inWin = @($r.json.items | Where-Object { $variantIds -contains $_.id })
+Check 'window=24h 含刚发布的变体' ($r.status -eq 200 -and $inWin.Count -ge 1)
 $r = Call GET '/feed/new'
 Check 'limit 缺省 → 兜底 20 → 200' ($r.status -eq 200)
 
@@ -240,6 +243,25 @@ $r3 = Call GET "/comments/$c2/replies?limit=2&cursor=$($r2.json.nextCursor)"
 $rp3 = @($r3.json.items | ForEach-Object { $_.id })
 Check '回复分页第三页 1 条' ($rp3.Count -eq 1)
 Check '回复分页三页合计 5' (($rp1 + $rp2 + $rp3).Count -eq 5)
+
+# ── 7.6 顶层评论分页（limit=1 强制翻页）+ 坏游标契约 ──
+# 评论接口的 nextCursor 是服务端编码的不透明串；前端曾把最后一条评论的 id
+# 当游标回传导致 400，这条契约必须被锁住（见 §1.5 cursor.invalid）。
+Call POST "/recipes/$rid/comments" '{"body":"分页测试顶层 A"}' $tok1 | Out-Null
+Call POST "/recipes/$rid/comments" '{"body":"分页测试顶层 B"}' $tok2 | Out-Null
+# 此刻顶层共 3 条（c2 + A + B，新→旧排列）
+$t1 = Call GET "/recipes/$rid/comments?limit=1"
+Check '顶层分页第一页 1 条 + 游标' (@($t1.json.items).Count -eq 1 -and $t1.json.nextCursor)
+$t2 = Call GET "/recipes/$rid/comments?limit=1&cursor=$($t1.json.nextCursor)"
+Check '顶层分页第二页 1 条 + 游标' (@($t2.json.items).Count -eq 1 -and $t2.json.nextCursor)
+Check '顶层分页前两页无重叠' ($t1.json.items[0].id -ne $t2.json.items[0].id)
+$t3 = Call GET "/recipes/$rid/comments?limit=1&cursor=$($t2.json.nextCursor)"
+Check '顶层分页第三页 1 条、无重叠、游标到底' (
+    @($t3.json.items).Count -eq 1 -and
+    -not $t3.json.nextCursor -and
+    $t3.json.items[0].id -notin @($t1.json.items[0].id, $t2.json.items[0].id))
+$bad = Call GET "/recipes/$rid/comments?limit=1&cursor=3f2a1c9e-0000-4000-8000-000000000001"
+Check '原始 UUID 当游标 → 400 cursor.invalid' ($bad.status -eq 400 -and $bad.json.error.code -eq 'cursor.invalid')
 
 $h1 = Call GET '/feed/hot?window=all&limit=2'
 $hp1 = @($h1.json.items | ForEach-Object { $_.id })
