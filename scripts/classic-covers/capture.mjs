@@ -1,14 +1,15 @@
 /**
  * 经典配方封面截帧导入（一次性工具，可幂等重跑）。
  *
- * 流程：对每个无封面的经典配方，Playwright（Edge/Chromium headless）打开
+ * 流程：对每个已发布的经典配方，Playwright（Edge/Chromium headless）打开
  * /r/{code}?__cover=1 → 调用页面暴露的 window.__shakerCover（与编辑器发布
- * 走同一条 captureCover 路径，ADR-015 同源逻辑）→ PNG 直传 MinIO
- * （服务端有凭证，不走 presign）→ 写 media_assets（committed 直接置位，
- * owner=官方账号）→ UPDATE recipes.cover_url。
+ * 走同一条 captureCover 路径，ADR-015 同源逻辑）→ 拿到暗/亮两套 PNG 直传 MinIO
+ * （服务端有凭证，不走 presign）→ UPSERT media_assets 两行（variant=dark/light，
+ * committed 直接置位，owner=官方账号）→ UPDATE recipes.cover_url / cover_url_light。
  *
- * 幂等：默认跳过已有封面的配方；--force 全部重截（revision 递增出新 key，
- * recipes.cover_url 指向最新版，旧版留给孤儿清理任务处理）。
+ * 幂等：对象键固定为 recipes/{id}/cover-dark.png | cover-light.png（覆盖写，
+ * 不再产生新版本）；media_assets 按 storage_key UPSERT（保留 committed_at）。
+ * 迁移到固定键后，旧的带序号记录 cover-{rev}.png 与其对象成为孤儿，脚本顺手清理。
  *
  * 环境变量与 API 同名同默认值（apps/api/internal/config）：
  *   SHAKER_DATABASE_URL / SHAKER_S3_ENDPOINT / SHAKER_S3_BUCKET /
@@ -16,7 +17,7 @@
  * 另有 SHAKER_WEB_BASE（默认 http://localhost:3000）。
  */
 import { randomUUID } from "node:crypto";
-import { PutObjectCommand, S3Client } from "@aws-sdk/client-s3";
+import { DeleteObjectCommand, PutObjectCommand, S3Client } from "@aws-sdk/client-s3";
 import pg from "pg";
 import { chromium } from "playwright-core";
 
@@ -28,7 +29,6 @@ const S3_ACCESS_KEY = env("SHAKER_S3_ACCESS_KEY", "shaker");
 const S3_SECRET_KEY = env("SHAKER_S3_SECRET_KEY", "shaker_dev_secret");
 const S3_PUBLIC_URL = env("SHAKER_S3_PUBLIC_URL", "http://localhost:9000/shaker-media");
 const WEB_BASE = env("SHAKER_WEB_BASE", "http://localhost:3000");
-const FORCE = process.argv.includes("--force");
 
 /* base58：与 apps/api/internal/base58 完全一致（BTC 字符集）。 */
 const B58 = "123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz";
@@ -68,11 +68,10 @@ async function launchBrowser() {
 
 const pool = new pg.Pool({ connectionString: DB_URL });
 
-const { rows: classicsAll } = await pool.query(`
-  SELECT id, short_no, title, cover_url FROM recipes
+const { rows: classics } = await pool.query(`
+  SELECT id, short_no, title FROM recipes
   WHERE is_canonical AND status = 'published' AND deleted_at IS NULL
   ORDER BY short_no`);
-const todo = classicsAll.filter((c) => FORCE || !c.cover_url);
 
 const { rows: official } = await pool.query(
   `SELECT id FROM users WHERE is_official LIMIT 1`);
@@ -85,16 +84,62 @@ const s3 = new S3Client({
   credentials: { accessKeyId: S3_ACCESS_KEY, secretAccessKey: S3_SECRET_KEY },
 });
 
-console.log(
-  `经典配方 ${classicsAll.length} 个，本次处理 ${todo.length} 个${FORCE ? "（--force 全量重截）" : ""}`,
-);
+/* 固定的暗/亮对象键：覆盖写，不留版本，故可反复重跑。 */
+const keysOf = (id) => ({
+  dark: `recipes/${id}/cover-dark.png`,
+  light: `recipes/${id}/cover-light.png`,
+});
+
+/* UPSERT media_assets：storage_key 唯一，重跑覆盖元数据、保留 committed_at；
+   首次写入直接置 committed（脚本已把对象传完）。 */
+async function upsertAsset(id, key, variant, buf, width, height) {
+  await pool.query(
+    `INSERT INTO media_assets
+       (id, storage_key, owner_id, entity_type, entity_id,
+        mime_type, byte_size, width, height, variant, committed_at)
+     VALUES ($1, $2, $3, 'recipe_cover', $4, 'image/png', $5, $6, $7, $8, now())
+     ON CONFLICT (storage_key) DO UPDATE SET
+       owner_id = EXCLUDED.owner_id,
+       entity_type = EXCLUDED.entity_type,
+       entity_id = EXCLUDED.entity_id,
+       mime_type = EXCLUDED.mime_type,
+       byte_size = EXCLUDED.byte_size,
+       width = EXCLUDED.width,
+       height = EXCLUDED.height,
+       variant = EXCLUDED.variant,
+       committed_at = COALESCE(media_assets.committed_at, now())`,
+    [uuidv7(), key, official[0].id, id, buf.length, width, height, variant],
+  );
+}
+
+/* 清理迁移前的孤儿：该实体除固定键外的旧记录（cover-{rev}.png）+ 桶内对象。 */
+async function purgeLegacy(id, keep) {
+  const { rows } = await pool.query(
+    `SELECT id, storage_key FROM media_assets
+     WHERE entity_type = 'recipe_cover' AND entity_id = $1
+       AND storage_key <> ALL($2)`,
+    [id, [keep.dark, keep.light]],
+  );
+  if (rows.length === 0) return 0;
+  for (const r of rows) {
+    await s3.send(
+      new DeleteObjectCommand({ Bucket: S3_BUCKET, Key: r.storage_key }),
+    );
+  }
+  await pool.query(`DELETE FROM media_assets WHERE id = ANY($1)`, [
+    rows.map((r) => r.id),
+  ]);
+  return rows.length;
+}
+
+console.log(`经典配方 ${classics.length} 个，全部重截（固定键覆盖写）`);
 
 const browser = await launchBrowser();
 const page = await browser.newPage({ viewport: { width: 1280, height: 900 } });
 
 let ok = 0;
 let fail = 0;
-for (const c of todo) {
+for (const c of classics) {
   const code = base58(BigInt(c.short_no));
   try {
     await page.goto(`${WEB_BASE}/r/${code}?__cover=1`, {
@@ -104,58 +149,36 @@ for (const c of todo) {
     await page.waitForFunction(() => "__shakerCover" in window, null, {
       timeout: 30_000,
     });
-    const shot = await page.evaluate(() => window.__shakerCover());
-    if (!shot) throw new Error("封面帧未就绪（timeline 编译失败或超时）");
+    const shots = await page.evaluate(() => window.__shakerCover());
+    if (!shots) throw new Error("封面帧未就绪（timeline 编译失败或超时）");
 
-    const buf = Buffer.from(shot.dataUrl.split(",")[1], "base64");
-    if (buf.subarray(0, 8).toString("hex") !== "89504e470d0a1a0a") {
-      throw new Error("截帧产物不是 PNG");
-    }
-
-    // revision = 该实体已有媒体数 + 1（镜像 media.nextRevision；撞唯一键则递增重试）
-    let rev =
-      (
-        await pool.query(
-          `SELECT count(*)::int AS n FROM media_assets
-           WHERE entity_type = 'recipe_cover' AND entity_id = $1`,
-          [c.id],
-        )
-      ).rows[0].n + 1;
-    let key;
-    for (;;) {
-      key = `recipes/${c.id}/cover-${rev}.png`;
-      try {
-        await pool.query(
-          `INSERT INTO media_assets
-             (id, storage_key, owner_id, entity_type, entity_id,
-              mime_type, byte_size, width, height, committed_at)
-           VALUES ($1, $2, $3, 'recipe_cover', $4, 'image/png', $5, $6, $7, now())`,
-          [uuidv7(), key, official[0].id, c.id, buf.length, shot.width, shot.height],
-        );
-        break;
-      } catch (e) {
-        if (e.code === "23505") {
-          rev++;
-          continue;
-        }
-        throw e;
+    const keys = keysOf(c.id);
+    for (const variant of ["dark", "light"]) {
+      const shot = shots[variant];
+      const buf = Buffer.from(shot.dataUrl.split(",")[1], "base64");
+      if (buf.subarray(0, 8).toString("hex") !== "89504e470d0a1a0a") {
+        throw new Error(`${variant} 截帧产物不是 PNG`);
       }
+      await s3.send(
+        new PutObjectCommand({
+          Bucket: S3_BUCKET,
+          Key: keys[variant],
+          Body: buf,
+          ContentType: "image/png",
+        }),
+      );
+      await upsertAsset(c.id, keys[variant], variant, buf, shot.width, shot.height);
     }
 
-    await s3.send(
-      new PutObjectCommand({
-        Bucket: S3_BUCKET,
-        Key: key,
-        Body: buf,
-        ContentType: "image/png",
-      }),
+    const purged = await purgeLegacy(c.id, keys);
+    await pool.query(
+      `UPDATE recipes SET cover_url = $1, cover_url_light = $2 WHERE id = $3`,
+      [`${S3_PUBLIC_URL}/${keys.dark}`, `${S3_PUBLIC_URL}/${keys.light}`, c.id],
     );
-    await pool.query(`UPDATE recipes SET cover_url = $1 WHERE id = $2`, [
-      `${S3_PUBLIC_URL}/${key}`,
-      c.id,
-    ]);
     ok++;
-    console.log(`  ✓ ${code} ${c.title} → ${key}（${buf.length}B）`);
+    console.log(
+      `  ✓ ${code} ${c.title} → cover-dark/light.png${purged ? `（清理旧版 ${purged} 个）` : ""}`,
+    );
   } catch (err) {
     fail++;
     console.error(`  ✗ ${code} ${c.title}：${err.message}`);

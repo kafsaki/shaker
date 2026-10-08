@@ -79,7 +79,7 @@ try {
     Check '匿名读取公网 URL → 200' ($img.StatusCode -eq 200 -and $img.RawContentLength -eq $png.Length)
 } catch { Check '匿名读取公网 URL → 200' $false $_.Exception.Message }
 
-# ── 2. 配方封面：主人校验 + revision 递增 ──
+# ── 2. 配方封面：主人校验 + 固定键（暗/亮）UPSERT ──
 $goodIR = @'
 {
   "schemaVersion": 1, "glass": "coupe", "method": "shaken", "servings": 1,
@@ -101,16 +101,31 @@ Check '创建配方 → 201' ($r.status -eq 201)
 $rid = $r.json.recipe.id
 $made += $rid
 
+# 暗色版（variant 缺省即 dark）→ 固定键
 $p2 = Call POST '/media/upload-url' (@{
     purpose = 'recipe_cover'; entityId = $rid; mimeType = 'image/jpeg'; byteSize = 1024
 } | ConvertTo-Json) $tok1
-Check '签发配方封面 → 201' ($p2.status -eq 201)
-Check 'storageKey 规范（recipes/{id}/cover-1.jpg）' ($p2.json.storageKey -eq "recipes/$rid/cover-1.jpg")
+Check '签发配方封面（暗）→ 201' ($p2.status -eq 201)
+Check 'storageKey 规范（recipes/{id}/cover-dark.jpg）' ($p2.json.storageKey -eq "recipes/$rid/cover-dark.jpg")
 
+# 同 variant 重复签发：固定键 UPSERT，得同一 key（覆盖写，不留孤儿）
 $p3 = Call POST '/media/upload-url' (@{
-    purpose = 'recipe_cover'; entityId = $rid; mimeType = 'image/jpeg'; byteSize = 1024
+    purpose = 'recipe_cover'; entityId = $rid; mimeType = 'image/jpeg'; byteSize = 1024; variant = 'dark'
 } | ConvertTo-Json) $tok1
-Check '再次签发 revision 递增（cover-2）' ($p3.json.storageKey -eq "recipes/$rid/cover-2.jpg")
+Check '同 variant 重复签发 → 同一 key' ($p3.json.storageKey -eq "recipes/$rid/cover-dark.jpg")
+
+# 亮色版：独立固定键
+$p4 = Call POST '/media/upload-url' (@{
+    purpose = 'recipe_cover'; entityId = $rid; mimeType = 'image/jpeg'; byteSize = 1024; variant = 'light'
+} | ConvertTo-Json) $tok1
+Check '签发配方封面（亮）→ 201' ($p4.status -eq 201)
+Check 'storageKey 规范（recipes/{id}/cover-light.jpg）' ($p4.json.storageKey -eq "recipes/$rid/cover-light.jpg")
+
+# 非法 variant → 422
+$p5 = Call POST '/media/upload-url' (@{
+    purpose = 'recipe_cover'; entityId = $rid; mimeType = 'image/jpeg'; byteSize = 1024; variant = 'sepia'
+} | ConvertTo-Json) $tok1
+Check '非法 variant → 422' ($p5.status -eq 422)
 
 # ── 3. 校验边界 ──
 # 非主人（乙给甲的配方签）→ 404（不泄露存在性）
