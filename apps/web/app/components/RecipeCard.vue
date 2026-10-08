@@ -18,7 +18,7 @@ const target = computed(() => props.to ?? `/r/${props.recipe.code}`);
     class="group flex flex-col overflow-hidden rounded-xl border border-border bg-card transition-colors hover:border-primary/40"
   >
     <div
-      class="relative aspect-[4/3] overflow-hidden bg-gradient-to-b from-secondary to-background"
+      class="relative aspect-[400/520] overflow-hidden bg-gradient-to-b from-secondary to-background"
     >
       <img
         v-if="recipe.coverUrl"
