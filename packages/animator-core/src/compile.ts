@@ -168,9 +168,15 @@ export function compile(ir: RecipeIR, vocab: ResolvedVocab, opts: CompileOptions
     ],
   });
 
+  // 截帧点取定格段的**末帧**而非首帧：
+  // ① 首帧是上一步刚结束的瞬间，编辑器 ADD 的倒注编排会在末关键帧保留量酒器道具，
+  //    播放器按 80ms 向下量化取样时又会往回踩一格，于是封面里残留"倒入的容器"；
+  // ② 末帧处 serveProgress ≥ 0.85，serve 星星与杯口闪光都已熄灭（见 render.ts），
+  //    这正是渲染端「末帧要作用户截图/封面」的设计意图。
+  const totalMs = cursorMs + holdMs;
   return {
-    totalMs: cursorMs + holdMs,
-    finalSceneMs: cursorMs,
+    totalMs,
+    finalSceneMs: totalMs,
     steps,
     stage,
   };

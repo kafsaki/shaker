@@ -18,7 +18,7 @@ export interface Timeline {
   totalMs: number;
   /** 与 IR steps 一一对应 —— 支撑「单步回看」。 */
   steps: TimelineStep[];
-  /** 成品定格时刻，用于截封面图（ADR-015）。 */
+  /** 成品定格段**末帧**时刻（= totalMs），用于截封面图（ADR-015）：此刻无道具残留、serve 特效已熄灭。 */
   finalSceneMs: number;
   /** 舞台逻辑尺寸。所有坐标都是这个坐标系内的，由渲染器映射到像素。 */
   stage: { width: number; height: number };

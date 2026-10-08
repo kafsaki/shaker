@@ -85,8 +85,10 @@ test("时间轴末尾有成品定格段，供截封面图", () => {
   for (const { f, tl } of compiled) {
     const last = tl.steps[tl.steps.length - 1]!;
     assert.equal(last.stepId, "__final", `${f.title} 缺少定格段`);
-    assert.ok(tl.finalSceneMs < tl.totalMs);
-    assert.equal(tl.finalSceneMs, last.startMs);
+    // 截帧点取定格段末帧：末帧处无道具残留、serve 特效已熄灭（封面要干净）
+    assert.equal(tl.finalSceneMs, tl.totalMs);
+    // 定格段足够长，播放器按 80ms 向下量化取样后仍落在段内（不会退回上一个真实步骤）
+    assert.ok(last.durationMs >= 160, `${f.title} 定格段过短`);
   }
 });
 
