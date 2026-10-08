@@ -43,7 +43,7 @@ const router = useRouter();
 const api = useApi();
 const auth = useAuthStore();
 const vocab = useVocabStore();
-const player = ref<{ captureCover: () => Promise<Blob | null> } | null>(null);
+const player = ref<{ captureCover: () => Promise<{ dark: Blob; light: Blob } | null> } | null>(null);
 
 const isNew = computed(() => route.params.id === "new");
 const recipeId = computed(() => (isNew.value ? null : String(route.params.id)));
@@ -358,40 +358,50 @@ async function onPublish(): Promise<void> {
     // 先 snapshotPreview + nextTick，保证截的是当前编辑状态而非 debounce 前的旧帧。
     snapshotPreview();
     await nextTick();
-    const blob = player.value ? await player.value.captureCover() : null;
+    const covers = player.value ? await player.value.captureCover() : null;
 
     const saved = await saveDraft();
     if (!saved) return;
 
-    if (!blob) {
+    if (!covers) {
       toast.error("封面生成失败，本次发布不带封面");
     } else {
-      // 预签名三步直传（ADR-015）：签发 → PUT 直传 MinIO → commit → 落库 coverUrl
-      const up = await api.POST("/api/v1/media/upload-url", {
-        body: {
-          purpose: "recipe_cover" as const,
-          entityId: saved.id,
-          mimeType: "image/png" as const,
-          byteSize: blob.size,
-        },
-      });
-      if (up.error) throw up.error;
-      const put = await fetch(up.data.uploadUrl, {
-        method: "PUT",
-        headers: { "Content-Type": "image/png" },
-        body: blob,
-      });
-      if (!put.ok) throw new Error(`封面上传失败（${put.status}）`);
-      const commit = await api.POST("/api/v1/media/{assetId}/commit", {
-        params: { path: { assetId: up.data.assetId } },
-      });
-      if (commit.error) throw commit.error;
+      // 预签名三步直传（ADR-015）：签发 → PUT 直传 MinIO → commit → 落库 coverUrl。
+      // 暗/亮两个 variant 走固定对象键（cover-dark / cover-light），互不冲突可并发。
+      const uploadCover = async (variant: "dark" | "light", blob: Blob): Promise<string> => {
+        const up = await api.POST("/api/v1/media/upload-url", {
+          body: {
+            purpose: "recipe_cover" as const,
+            entityId: saved.id,
+            mimeType: "image/png" as const,
+            byteSize: blob.size,
+            variant,
+          },
+        });
+        if (up.error) throw up.error;
+        const put = await fetch(up.data.uploadUrl, {
+          method: "PUT",
+          headers: { "Content-Type": "image/png" },
+          body: blob,
+        });
+        if (!put.ok) throw new Error(`封面上传失败（${put.status}）`);
+        const commit = await api.POST("/api/v1/media/{assetId}/commit", {
+          params: { path: { assetId: up.data.assetId } },
+        });
+        if (commit.error) throw commit.error;
+        return commit.data.url;
+      };
+
+      const [coverUrl, coverUrlLight] = await Promise.all([
+        uploadCover("dark", covers.dark),
+        uploadCover("light", covers.light),
+      ]);
       const patch = await api.PATCH("/api/v1/recipes/{id}", {
         params: {
           path: { id: saved.id },
           header: { "If-Match": String(saved.version) },
         },
-        body: { coverUrl: commit.data.url },
+        body: { coverUrl, coverUrlLight },
       });
       if (patch.error) throw patch.error;
     }

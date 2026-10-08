@@ -12,6 +12,7 @@ type MenuDetail = components["schemas"]["MenuDetailOutputBody"];
 
 const route = useRoute();
 const api = useApi();
+const { pickCovers } = useCover();
 const token = computed(() => String(route.params.token ?? ""));
 
 const { data: detail, isLoading, error } = useQuery({
@@ -44,7 +45,7 @@ useHead(() => ({ title: `${menu.value?.title ?? "分享的酒单"} · Shaker` })
   </Alert>
 
   <div v-else-if="menu" class="flex flex-col gap-5">
-    <MenuCoverStack :covers="menu.coverUrls" class="w-28 sm:w-40" />
+    <MenuCoverStack :covers="pickCovers(menu.coverUrls, menu.coverUrlsLight)" class="w-28 sm:w-40" />
 
     <div>
       <h1 class="flex flex-wrap items-center gap-2 text-xl font-bold">

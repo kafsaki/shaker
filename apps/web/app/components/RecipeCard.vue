@@ -10,6 +10,8 @@ type Recipe = components["schemas"]["FeedCard"];
 // 而不是再嵌一层 <a> —— 嵌套链接内层优先生效，外层会被吃掉）
 const props = defineProps<{ recipe: Recipe; to?: string }>();
 const target = computed(() => props.to ?? `/r/${props.recipe.code}`);
+const { pickCover } = useCover();
+const cover = computed(() => pickCover(props.recipe.coverUrl, props.recipe.coverUrlLight));
 </script>
 
 <template>
@@ -21,8 +23,8 @@ const target = computed(() => props.to ?? `/r/${props.recipe.code}`);
       class="relative aspect-[400/520] overflow-hidden bg-gradient-to-b from-secondary to-background"
     >
       <img
-        v-if="recipe.coverUrl"
-        :src="recipe.coverUrl"
+        v-if="cover"
+        :src="cover"
         :alt="recipe.title"
         class="size-full object-cover transition-transform group-hover:scale-105"
         loading="lazy"

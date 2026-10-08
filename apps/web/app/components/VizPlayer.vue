@@ -95,22 +95,39 @@ let lastEmitKey = "";
 const bannerText = ref("");
 const bannerOn = ref(false);
 
+/**
+ * 按指定主题在给定时刻渲染一帧，返回该帧的采样结果。
+ * 与播放器当前主题解耦——封面需要在同一时刻分别渲染暗/亮两套（ADR-015）。
+ * 12fps 定格感：场景几何按 80ms 步进量化；液流条纹/水花/闪烁用原始时间。
+ */
+function renderSceneAt(
+  c: CanvasRenderingContext2D,
+  themeName: "dark" | "light",
+  ms: number,
+) {
+  const tl = timeline.value;
+  if (!tl) return null;
+  const tQ = Math.floor(ms / 80) * 80;
+  const s = sample(tl, tQ);
+  renderScene(c, s.scene, {
+    theme: themeName === "dark" ? DARK_THEME : LIGHT_THEME,
+    timeMs: tQ,
+    fxMs: ms,
+    vessel: props.vocab.vessel,
+    stage: STAGE,
+    serveProgress: s.step.stepId === "__final" ? s.stepProgress : undefined,
+  });
+  return s;
+}
+
 function draw(): void {
   const tl = timeline.value;
   const c = ensureCtx();
   if (!tl || !c) return;
 
-  // 12fps 定格感：场景几何按 80ms 步进量化；液流条纹/水花/闪烁用原始时间
-  const tQ = Math.floor(tMs.value / 80) * 80;
-  const { scene, step, stepProgress } = sample(tl, tQ);
-  renderScene(c, scene, {
-    theme: theme.value === "dark" ? DARK_THEME : LIGHT_THEME,
-    timeMs: tQ,
-    fxMs: tMs.value,
-    vessel: props.vocab.vessel,
-    stage: STAGE,
-    serveProgress: step.stepId === "__final" ? stepProgress : undefined,
-  });
+  const sampled = renderSceneAt(c, theme.value, tMs.value);
+  if (!sampled) return;
+  const { step, stepProgress } = sampled;
 
   // 步骤事件按量化节流：只在步骤切换或进度每 10% 时向父组件发一次
   const idx = tl.steps.findIndex((s) => s.stepId === step.stepId);
@@ -187,22 +204,30 @@ function togglePlay(): void {
   playing.value = !playing.value;
 }
 
-/** 成品定格帧截图（ADR-015：封面图 = finalSceneMs 上的 toBlob）。 */
-async function captureCover(): Promise<Blob | null> {
+/** 成品定格帧截图：暗/亮两套主题各截一帧（ADR-015：封面 = finalSceneMs 定格帧 toBlob）。 */
+async function captureCover(): Promise<{ dark: Blob; light: Blob } | null> {
   const tl = timeline.value;
   const el = canvasEl.value;
-  if (!tl || !el) return null;
+  const c = ensureCtx();
+  if (!tl || !el || !c) return null;
   const wasPlaying = playing.value;
   playing.value = false;
   const restore = tMs.value;
   tMs.value = tl.finalSceneMs;
-  draw();
-  const blob = await new Promise<Blob | null>((resolve) =>
-    el.toBlob((b) => resolve(b), "image/png"),
-  );
+
+  const grab = (): Promise<Blob | null> =>
+    new Promise((resolve) => el.toBlob((b) => resolve(b), "image/png"));
+
+  renderSceneAt(c, "dark", tMs.value);
+  const dark = await grab();
+  renderSceneAt(c, "light", tMs.value);
+  const light = await grab();
+
   tMs.value = restore;
   playing.value = wasPlaying;
-  return blob;
+  draw(); // 立即把画布恢复成当前主题的帧（rAF 下一帧也会重绘，这里避免闪一瞬）
+  if (!dark || !light) return null;
+  return { dark, light };
 }
 
 defineExpose({

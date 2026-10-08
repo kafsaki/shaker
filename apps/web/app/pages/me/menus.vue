@@ -38,6 +38,7 @@ useHead({ title: "我的酒单 · Shaker" });
 
 const api = useApi();
 const qc = useQueryClient();
+const { pickCover, pickCovers } = useCover();
 
 const { data: menus, isLoading } = useQuery({
   queryKey: ["my-menus", "list"],
@@ -215,7 +216,7 @@ const VIS_ZH: Record<string, string> = {
             : 'border-transparent bg-card hover:border-primary/30'"
           @click="selectedId = m.id"
         >
-          <MenuCoverStack :covers="m.coverUrls" class="w-16 shrink-0" />
+          <MenuCoverStack :covers="pickCovers(m.coverUrls, m.coverUrlsLight)" class="w-16 shrink-0" />
           <div class="flex min-w-0 flex-1 flex-col gap-1">
             <span class="truncate text-sm font-medium">{{ m.title }}</span>
             <span class="text-xs text-muted-foreground">
@@ -256,7 +257,7 @@ const VIS_ZH: Record<string, string> = {
               >
                 <img
                   v-if="it.recipe.coverUrl && !it.recipe.deleted"
-                  :src="it.recipe.coverUrl"
+                  :src="pickCover(it.recipe.coverUrl, it.recipe.coverUrlLight)"
                   alt=""
                   loading="lazy"
                   class="size-14 shrink-0 rounded-lg border border-border object-cover"

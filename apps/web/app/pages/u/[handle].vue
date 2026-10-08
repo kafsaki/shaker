@@ -21,6 +21,7 @@ type UserPage = components["schemas"]["UserListOutputBody"];
 const route = useRoute();
 const api = useApi();
 const auth = useAuthStore();
+const { pickCovers } = useCover();
 const handle = computed(() => String(route.params.handle ?? ""));
 const tab = ref((route.query.tab as string) || "recipes");
 
@@ -194,7 +195,7 @@ const menuVis: Record<string, string> = {
             :to="m.visibility === 'unlisted' && m.shareToken ? `/menus/shared/${m.shareToken}` : `/menus/${m.id}`"
             class="flex items-center gap-4 rounded-xl border border-border bg-card p-4 transition-colors hover:border-primary/40"
           >
-            <MenuCoverStack :covers="m.coverUrls" class="w-20 shrink-0" />
+            <MenuCoverStack :covers="pickCovers(m.coverUrls, m.coverUrlsLight)" class="w-20 shrink-0" />
             <div class="flex min-w-0 flex-1 flex-col gap-1">
               <span class="truncate font-medium">{{ m.title }}</span>
               <span class="text-xs text-muted-foreground">

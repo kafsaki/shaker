@@ -37,6 +37,7 @@ type MenuDetail = components["schemas"]["MenuDetailOutputBody"];
 const route = useRoute();
 const api = useApi();
 const qc = useQueryClient();
+const { pickCover } = useCover();
 const id = computed(() => String(route.params.id ?? ""));
 
 const { data: detail, isLoading, error } = useQuery({
@@ -231,7 +232,7 @@ const VIS_ZH: Record<string, string> = {
         >
           <img
             v-if="it.recipe.coverUrl && !it.recipe.deleted"
-            :src="it.recipe.coverUrl"
+            :src="pickCover(it.recipe.coverUrl, it.recipe.coverUrlLight)"
             alt=""
             loading="lazy"
             class="size-14 shrink-0 rounded-lg border border-border object-cover"
