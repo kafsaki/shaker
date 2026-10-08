@@ -1,8 +1,9 @@
 <script setup lang="ts">
 /** 原料详情：物理/视觉数据 + 反查「用到它的配方」（需求 1）。 */
-import { useQuery } from "@tanstack/vue-query";
+import { useInfiniteQuery, useQuery } from "@tanstack/vue-query";
 import type { components } from "@shaker/api-client";
 import { CATEGORY_ZH } from "@/lib/labels";
+import InfiniteLoader from "@/components/InfiniteLoader.vue";
 import RecipeCard from "@/components/RecipeCard.vue";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
@@ -14,7 +15,7 @@ import {
 } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 type Detail = components["schemas"]["IngredientDetailBody"];
 type SearchOut = components["schemas"]["SearchOutputBody"];
@@ -37,10 +38,17 @@ const { data: ing, error, isLoading } = useQuery({
 const sort = ref<"hot" | "new">("hot");
 
 // 反查「用到它的配方」：文档 §2.2 的 /ingredients/:id/recipes 端点后端未实现，
-// 用 /search?type=recipe&ingredient= 等价替代（数据同源：recipe_ingredients 投影）。
-const { data: searchOut } = useQuery({
+// 用 /search?type=recipe&ingredient= 等价替代（数据同源：recipe_ingredients 投影，
+// 筛选条件与 hot/new 排序一致）。接上游标分页，避免高频原料被首页上限截断。
+const {
+  data: recipePages,
+  isError: recipesError,
+  fetchNextPage,
+  hasNextPage,
+  isFetchingNextPage,
+} = useInfiniteQuery({
   queryKey: computed(() => ["ingredient-recipes", id.value, sort.value] as const),
-  queryFn: async (): Promise<SearchOut> => {
+  queryFn: async ({ pageParam }): Promise<SearchOut> => {
     const { data, error } = await api.GET("/api/v1/search", {
       params: {
         query: {
@@ -48,15 +56,20 @@ const { data: searchOut } = useQuery({
           ingredient: [id.value],
           sort: sort.value,
           limit: 24,
+          cursor: pageParam || undefined,
         },
       },
     });
     if (error) throw error;
     return data;
   },
+  initialPageParam: "",
+  getNextPageParam: (last) => last.recipes?.nextCursor ?? undefined,
 });
 
-const recipes = computed(() => searchOut.value?.recipes?.items ?? []);
+const recipes = computed(
+  () => recipePages.value?.pages.flatMap((p) => p.recipes?.items ?? []) ?? [],
+);
 
 useHead(() => ({ title: `${ing.value?.nameZh ?? id.value} · Shaker` }));
 
@@ -137,23 +150,23 @@ const texture = computed(() => String(viz.value?.texture ?? "—"));
           <TabsTrigger value="hot">热门</TabsTrigger>
           <TabsTrigger value="new">最新</TabsTrigger>
         </TabsList>
-        <TabsContent value="hot" class="mt-0">
-          <div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-            <RecipeCard v-for="r in recipes" :key="r.id" :recipe="r" />
-          </div>
-        </TabsContent>
-        <TabsContent value="new" class="mt-0">
-          <div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-            <RecipeCard v-for="r in recipes" :key="r.id" :recipe="r" />
-          </div>
-        </TabsContent>
       </Tabs>
+      <div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        <RecipeCard v-for="r in recipes" :key="r.id" :recipe="r" />
+      </div>
       <p
         v-if="recipes.length === 0"
         class="py-8 text-center text-sm text-muted-foreground"
       >
         还没有配方用到它。
       </p>
+      <InfiniteLoader
+        :has-next-page="hasNextPage"
+        :is-fetching-next-page="isFetchingNextPage"
+        :error="recipesError"
+        ended-text=""
+        @load="fetchNextPage()"
+      />
     </div>
   </div>
 </template>
