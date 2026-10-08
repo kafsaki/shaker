@@ -152,9 +152,20 @@ export function compile(ir: RecipeIR, vocab: ResolvedVocab, opts: CompileOptions
   }
 
   // 成品定格：给一段静止时间，供截封面图（ADR-015）。
-  // 定格帧不出雾 —— 喷雾是上一步的事，封面要干净
+  //
+  // 定格段在步骤循环之外合成，拿不到普通步骤边界的那套重置（见上方循环里的扰动衰减），
+  // 所以这里必须手动把"还带动作感"的状态清干净：
+  // ① agitation 归零 —— 它是纯 fxMs 驱动的液面行波（render.ts 的 waveAmp = agitation × 2.2），
+  //    自己不衰减。若最后一步是 ADD/SHAKE 之类会设 agitation 的动作，残留的扰动会让
+  //    整段 hold 一直晃、冰块也一直抖（drawIce 同样吃 agitation）。hold 是成品定格，本就该绝对静止。
+  // ② aromaMist 归零 —— 喷雾是上一步的事，封面要干净。
+  // 注意：smokeDensity 刻意**不**在这里衰减 —— 烟雾只由 WAIT 步骤按半衰期衰减，
+  // 上桌后烟还该继续冒一会儿；配方想收烟请在末尾排一步 WAIT。
   const holdMs = Math.round(900 / speed);
-  for (const c of containers.values()) c.aromaMist = 0;
+  for (const c of containers.values()) {
+    c.agitation = 0;
+    c.aromaMist = 0;
+  }
   const finalScene = toScene(containers, "glass", [], collectEffects(containers, 0, holdMs, stage));
   steps.push({
     stepId: "__final",

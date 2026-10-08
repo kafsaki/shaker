@@ -92,6 +92,21 @@ test("时间轴末尾有成品定格段，供截封面图", () => {
   }
 });
 
+test("定格段绝对静止：容器扰动已归零（液面不再起伏、冰块不再抖）", () => {
+  // 回归：__final 在步骤循环外合成，曾漏跑步骤边界的扰动衰减，导致以 ADD/SHAKE 收尾的
+  // 配方在 serve 阶段液面一直晃、冰块一直抖（agitation 是纯 fxMs 驱动的行波，自身不衰减）。
+  for (const { f, tl } of compiled) {
+    const last = tl.steps[tl.steps.length - 1]!;
+    for (const kf of last.keyframes) {
+      for (const c of kf.scene.containers) {
+        assert.equal(c.agitation, 0, `${f.title} 定格段的 ${c.id} 仍有扰动 ${c.agitation}`);
+        assert.equal(c.shake, null, `${f.title} 定格段的 ${c.id} 仍在摇晃`);
+        assert.equal(c.tilt, 0, `${f.title} 定格段的 ${c.id} 仍有倾角`);
+      }
+    }
+  }
+});
+
 test("静置容器的最低点都落在台面线上（碗底 y + 柱脚/底座落差 = 464）", () => {
   // 台面线 = stage.height − 14×4 = 464（渲染器 drawBackdrop 的 counterY）
   const COUNTER_Y = 464;
