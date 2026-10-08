@@ -23,6 +23,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Textarea } from "@/components/ui/textarea";
 
 type Comment = components["schemas"]["CommentBody"];
+type CommentsPage = components["schemas"]["CommentsOutputBody"];
 
 const props = defineProps<{ recipeId: string }>();
 
@@ -33,21 +34,23 @@ const qc = useQueryClient();
 const { data, isLoading, isError, fetchNextPage, hasNextPage, isFetchingNextPage } =
   useInfiniteQuery({
     queryKey: computed(() => ["comments", props.recipeId] as const),
-    queryFn: async ({ pageParam }): Promise<Comment[]> => {
+    // 游标是服务端编码的不透明串，必须原样回传（传评论 id 会被判 cursor.invalid）
+    queryFn: async ({ pageParam }): Promise<CommentsPage> => {
       const cursor = pageParam || undefined;
       const { data, error } = await api.GET(
         "/api/v1/recipes/{id}/comments",
         { params: { path: { id: props.recipeId }, query: { cursor } } },
       );
       if (error) throw error;
-      return data.items ?? [];
+      return data;
     },
     initialPageParam: "",
-    getNextPageParam: (last) =>
-      last.length > 0 ? last[last.length - 1]?.id : undefined,
+    getNextPageParam: (last) => last.nextCursor ?? undefined,
   });
 
-const comments = computed(() => data.value?.pages.flat() ?? []);
+const comments = computed(
+  () => data.value?.pages.flatMap((p) => p.items ?? []) ?? [],
+);
 
 /* ── 发表 ── */
 const draft = ref("");

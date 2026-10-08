@@ -11,6 +11,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 
 type Notice = components["schemas"]["NotificationBody"];
+type NoticesPage = components["schemas"]["NotificationListOutputBody"];
 
 definePageMeta({ middleware: "auth" });
 useHead({ title: "通知 · Shaker" });
@@ -21,20 +22,22 @@ const qc = useQueryClient();
 const { data, isLoading, isError, fetchNextPage, hasNextPage, isFetchingNextPage } =
   useInfiniteQuery({
     queryKey: ["notifications"],
-    queryFn: async ({ pageParam }): Promise<Notice[]> => {
+    // 游标是服务端编码的不透明串，必须原样回传（传通知 id 会被判 cursor.invalid）
+    queryFn: async ({ pageParam }): Promise<NoticesPage> => {
       const cursor = pageParam || undefined;
       const { data, error } = await api.GET("/api/v1/notifications", {
         params: { query: { cursor } },
       });
       if (error) throw error;
-      return data.items ?? [];
+      return data;
     },
     initialPageParam: "",
-    getNextPageParam: (last) =>
-      last.length > 0 ? last[last.length - 1]?.id : undefined,
+    getNextPageParam: (last) => last.nextCursor ?? undefined,
   });
 
-const notices = computed(() => data.value?.pages.flat() ?? []);
+const notices = computed(
+  () => data.value?.pages.flatMap((p) => p.items ?? []) ?? [],
+);
 
 const markAll = useMutation({
   mutationFn: async () => {
