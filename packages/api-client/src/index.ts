@@ -53,7 +53,11 @@ export function createShakerClient(opts: ShakerClientOptions): ShakerClient {
 
   const authedFetch: typeof fetch = async (input, init) => {
     const doFetch = (): Promise<Response> => {
-      const headers = new Headers(init?.headers);
+      // openapi-fetch 把请求头（如 PATCH 的 If-Match）挂在 Request 实例上再调 fetch(request)；
+      // 这里若只传 init.headers 给 fetch，会整体替换掉 Request 自带的头，只剩 Authorization，
+      // 于是服务端收不到 If-Match 而返回 400。故先合并两侧的头，再补 Authorization。
+      const headers = new Headers(input instanceof Request ? input.headers : undefined);
+      new Headers(init?.headers).forEach((value, key) => headers.set(key, value));
       const at = opts.getAccessToken();
       if (at) headers.set("Authorization", `Bearer ${at}`);
       return fetch(input, { ...init, headers });
