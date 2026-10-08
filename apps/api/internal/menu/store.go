@@ -53,6 +53,7 @@ type RecipeCard struct {
 	ClassicKey  *string
 	IsCanonical bool
 	CoverURL    *string
+	CoverURLLight *string
 	LikeCount   int
 	CommentCount int
 	Deleted     bool
@@ -320,7 +321,7 @@ func (s *Store) ReorderItem(ctx context.Context, menuID, ownerID, recipeID uuid.
 func (s *Store) Items(ctx context.Context, menuID uuid.UUID) ([]Item, error) {
 	rows, err := s.pool.Query(ctx, `
 		SELECT mi.recipe_id, mi.note, mi.added_at,
-			r.short_no, r.title, r.classic_key, r.is_canonical, r.cover_url, r.like_count, r.comment_count,
+			r.short_no, r.title, r.classic_key, r.is_canonical, r.cover_url, r.cover_url_light, r.like_count, r.comment_count,
 			r.deleted_at IS NOT NULL
 		FROM menu_items mi JOIN recipes r ON r.id = mi.recipe_id
 		WHERE mi.menu_id = $1
@@ -333,7 +334,7 @@ func (s *Store) Items(ctx context.Context, menuID uuid.UUID) ([]Item, error) {
 	for rows.Next() {
 		var it Item
 		if err := rows.Scan(&it.Recipe.ID, &it.Note, &it.AddedAt, &it.Recipe.ShortNo, &it.Recipe.Title,
-			&it.Recipe.ClassicKey, &it.Recipe.IsCanonical, &it.Recipe.CoverURL,
+			&it.Recipe.ClassicKey, &it.Recipe.IsCanonical, &it.Recipe.CoverURL, &it.Recipe.CoverURLLight,
 			&it.Recipe.LikeCount, &it.Recipe.CommentCount, &it.Recipe.Deleted); err != nil {
 			return nil, fmt.Errorf("扫描条目: %w", err)
 		}
@@ -393,22 +394,29 @@ func (s *Store) ListMine(ctx context.Context, ownerID uuid.UUID, containsRecipe 
 	return out, rows.Err()
 }
 
+// CoverSet 酒单封面投影的暗/亮两套（各最多 3 张；缺失的版本不补，前端回落）。
+type CoverSet struct {
+	Dark  []string
+	Light []string
+}
+
 // Covers 批量取酒单封面投影：每个酒单按 position 取前 3 个条目
 // （跳过已删/无封面的配方，不足 3 张有几张给几张）。
 // 封面不是存储的资产而是条目的展示投影（用户决策 2026-09-20）；
 // 详情页直接从 Items() 计算，这里只服务列表页的批量场景。
-func (s *Store) Covers(ctx context.Context, menuIDs []uuid.UUID) (map[uuid.UUID][]string, error) {
-	out := make(map[uuid.UUID][]string, len(menuIDs))
+func (s *Store) Covers(ctx context.Context, menuIDs []uuid.UUID) (map[uuid.UUID]*CoverSet, error) {
+	out := make(map[uuid.UUID]*CoverSet, len(menuIDs))
 	if len(menuIDs) == 0 {
 		return out, nil
 	}
-	// 行按 (menu_id, position) 排序：每个酒单的行连续且 position 有序，追加到 3 即止。
+	// 行按 (menu_id, position) 排序：每个酒单的行连续且 position 有序，各版本追加到 3 即止。
 	rows, err := s.pool.Query(ctx, `
-		SELECT mi.menu_id, r.cover_url
+		SELECT mi.menu_id, r.cover_url, r.cover_url_light
 		FROM menu_items mi
 		JOIN recipes r ON r.id = mi.recipe_id
 		WHERE mi.menu_id = ANY($1)
-			AND r.deleted_at IS NULL AND r.cover_url IS NOT NULL
+			AND r.deleted_at IS NULL
+			AND (r.cover_url IS NOT NULL OR r.cover_url_light IS NOT NULL)
 		ORDER BY mi.menu_id, mi.position`, menuIDs)
 	if err != nil {
 		return nil, fmt.Errorf("查询酒单封面: %w", err)
@@ -416,12 +424,20 @@ func (s *Store) Covers(ctx context.Context, menuIDs []uuid.UUID) (map[uuid.UUID]
 	defer rows.Close()
 	for rows.Next() {
 		var id uuid.UUID
-		var cover string
-		if err := rows.Scan(&id, &cover); err != nil {
+		var dark, light *string
+		if err := rows.Scan(&id, &dark, &light); err != nil {
 			return nil, fmt.Errorf("扫描酒单封面: %w", err)
 		}
-		if len(out[id]) < 3 {
-			out[id] = append(out[id], cover)
+		set := out[id]
+		if set == nil {
+			set = &CoverSet{}
+			out[id] = set
+		}
+		if dark != nil && len(set.Dark) < 3 {
+			set.Dark = append(set.Dark, *dark)
+		}
+		if light != nil && len(set.Light) < 3 {
+			set.Light = append(set.Light, *light)
 		}
 	}
 	return out, rows.Err()

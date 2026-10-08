@@ -35,6 +35,8 @@ var (
 	ErrForbidden = errors.New("只能给自己的对象上传媒体")
 	// ErrNotUploaded commit 时对象存储里还没有这个 key（客户端还没直传完）。
 	ErrNotUploaded = errors.New("对象尚未上传")
+	// ErrBadVariant 配方封面的 variant 不是 dark/light。
+	ErrBadVariant = errors.New("封面版本必须是 dark 或 light")
 )
 
 const (
@@ -99,8 +101,9 @@ type Asset struct {
 }
 
 // Presign 校验归属 → 生成规范 key → 建 pending 记录 → 签 PUT URL。
+// variant 仅对 recipe_cover 有意义（dark/light）；其余用途忽略。
 func (s *Store) Presign(ctx context.Context, ownerID uuid.UUID,
-	purpose string, entityID uuid.UUID, mimeType string, byteSize int64) (*Asset, error) {
+	purpose string, entityID uuid.UUID, mimeType string, byteSize int64, variant string) (*Asset, error) {
 	meta, ok := purposes[purpose]
 	if !ok {
 		return nil, ErrBadPurpose
@@ -115,8 +118,24 @@ func (s *Store) Presign(ctx context.Context, ownerID uuid.UUID,
 		return nil, err
 	}
 
-	// revision = 该实体已有媒体数 + 1；唯一索引冲突（并发签发）时递增重试。
-	var asset *Asset
+	// 配方封面：key 固定为 cover-dark / cover-light，覆盖写（不留孤儿）。
+	if purpose == "recipe_cover" {
+		if variant != "dark" && variant != "light" {
+			return nil, ErrBadVariant
+		}
+		key := fmt.Sprintf("%s/%s/%s-%s.%s", meta.dir, entityID, meta.kind, variant, mimeExt[mimeType])
+		id, err := s.upsertAsset(ctx, key, ownerID, purpose, entityID, mimeType, byteSize, variant)
+		if err != nil {
+			return nil, err
+		}
+		url, err := s.presignPut(ctx, key, mimeType)
+		if err != nil {
+			return nil, err
+		}
+		return &Asset{ID: id, StorageKey: key, UploadURL: url, ExpiresIn: int(PresignTTL.Seconds())}, nil
+	}
+
+	// 其余用途：revision = 该实体已有媒体数 + 1；唯一索引冲突（并发签发）时递增重试。
 	for rev := s.nextRevision(ctx, purpose, entityID) + 1; ; rev++ {
 		key := fmt.Sprintf("%s/%s/%s-%d.%s", meta.dir, entityID, meta.kind, rev, mimeExt[mimeType])
 		id := uuid.Must(uuid.NewV7())
@@ -135,10 +154,33 @@ func (s *Store) Presign(ctx context.Context, ownerID uuid.UUID,
 		if err != nil {
 			return nil, err
 		}
-		asset = &Asset{ID: id, StorageKey: key, UploadURL: url, ExpiresIn: int(PresignTTL.Seconds())}
-		break
+		return &Asset{ID: id, StorageKey: key, UploadURL: url, ExpiresIn: int(PresignTTL.Seconds())}, nil
 	}
-	return asset, nil
+}
+
+// upsertAsset 固定 key 的「现状」写入：首次 INSERT，重复签发 UPSERT 覆盖元数据。
+// 保留 committed_at（对象通常已在桶里，避免被孤儿清理任务误删）；返回既有行的 id，
+// 保证 Commit 能按 id 查到。storage_key 上有唯一索引 media_assets_key_idx。
+func (s *Store) upsertAsset(ctx context.Context, key string, ownerID uuid.UUID,
+	purpose string, entityID uuid.UUID, mimeType string, byteSize int64, variant string) (uuid.UUID, error) {
+	id := uuid.Must(uuid.NewV7())
+	var out uuid.UUID
+	err := s.pool.QueryRow(ctx, `
+		INSERT INTO media_assets (id, storage_key, owner_id, entity_type, entity_id, mime_type, byte_size, variant)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+		ON CONFLICT (storage_key) DO UPDATE SET
+			owner_id = EXCLUDED.owner_id,
+			entity_type = EXCLUDED.entity_type,
+			entity_id = EXCLUDED.entity_id,
+			mime_type = EXCLUDED.mime_type,
+			byte_size = EXCLUDED.byte_size,
+			variant = EXCLUDED.variant
+		RETURNING id`,
+		id, key, ownerID, purpose, entityID, mimeType, byteSize, variant).Scan(&out)
+	if err != nil {
+		return uuid.Nil, fmt.Errorf("写媒体记录: %w", err)
+	}
+	return out, nil
 }
 
 // Commit 确认直传完成：HEAD 校验对象存在 → 置 committed_at → 返回公网 URL。

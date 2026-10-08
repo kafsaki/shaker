@@ -37,6 +37,8 @@ func (a *API) uploadURLHandler(ctx context.Context, in *struct {
 		EntityID string `json:"entityId" format:"uuid"`
 		MimeType string `json:"mimeType" enum:"image/png,image/jpeg,image/webp"`
 		ByteSize int64  `json:"byteSize" minimum:"1" maximum:"10485760"`
+		// 配方封面版本：dark|light（缺省 dark）。对象键固定为 cover-dark/cover-light。
+		Variant string `json:"variant,omitempty"`
 	}
 }) (*struct {
 	Status int
@@ -55,7 +57,11 @@ func (a *API) uploadURLHandler(ctx context.Context, in *struct {
 	if err != nil {
 		return nil, newErr(http.StatusBadRequest, "media.entity_id_invalid", "entityId 不是合法的 UUID")
 	}
-	asset, err := a.media.Presign(ctx, claims.UserUUID(), in.Body.Purpose, entityID, in.Body.MimeType, in.Body.ByteSize)
+	variant := in.Body.Variant
+	if in.Body.Purpose == "recipe_cover" && variant == "" {
+		variant = "dark" // 缺省按暗色，兼容只传一张的旧客户端
+	}
+	asset, err := a.media.Presign(ctx, claims.UserUUID(), in.Body.Purpose, entityID, in.Body.MimeType, in.Body.ByteSize, variant)
 	if err != nil {
 		return nil, mediaErr(err)
 	}
@@ -111,6 +117,8 @@ func mediaErr(err error) error {
 		return newErr(http.StatusUnprocessableEntity, "media.bad_mime", "不支持的媒体类型")
 	case errors.Is(err, media.ErrTooLarge):
 		return newErr(http.StatusUnprocessableEntity, "media.too_large", "文件超过 10MB 上限")
+	case errors.Is(err, media.ErrBadVariant):
+		return newErr(http.StatusUnprocessableEntity, "media.bad_variant", "封面版本必须是 dark 或 light")
 	case errors.Is(err, media.ErrNotFound):
 		return newErr(http.StatusNotFound, "media.not_found", "对象不存在")
 	case errors.Is(err, media.ErrForbidden):

@@ -1236,6 +1236,7 @@ export interface components {
             collapsedVariants?: components["schemas"]["CollapsedVariantsBody"];
             counts: components["schemas"]["RecipeCountsBody"];
             coverUrl: string | null;
+            coverUrlLight: string | null;
             createdAt: string;
             /** Format: int64 */
             derivedCount: number;
@@ -1392,6 +1393,7 @@ export interface components {
             mimeType: "image/png" | "image/jpeg" | "image/webp";
             /** @enum {string} */
             purpose: "recipe_cover" | "user_avatar" | "menu_cover";
+            variant?: string;
         };
         "Media-upload-urlResponse": {
             /**
@@ -1425,6 +1427,7 @@ export interface components {
             readonly $schema?: string;
             coverUrl: string | null;
             coverUrls: string[] | null;
+            coverUrlsLight: string[] | null;
             /** Format: date-time */
             createdAt: string;
             description: string | null;
@@ -1470,6 +1473,7 @@ export interface components {
             /** Format: int64 */
             commentCount: number;
             coverUrl: string | null;
+            coverUrlLight: string | null;
             deleted: boolean;
             id: string;
             isCanonical: boolean;
@@ -1529,6 +1533,7 @@ export interface components {
             containsRecipe: boolean;
             coverUrl: string | null;
             coverUrls: string[] | null;
+            coverUrlsLight: string[] | null;
             /** Format: date-time */
             createdAt: string;
             description: string | null;
@@ -1641,6 +1646,7 @@ export interface components {
             code: string;
             counts: components["schemas"]["RecipeCountsBody"];
             coverUrl: string | null;
+            coverUrlLight: string | null;
             createdAt: string;
             /** Format: int64 */
             derivedCount: number;
@@ -1923,6 +1929,7 @@ export interface components {
             readonly $schema?: string;
             classicKey?: string;
             coverUrl?: string;
+            coverUrlLight?: string;
             /** Format: uuid */
             derivedFrom?: string;
             descriptionMd?: string;

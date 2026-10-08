@@ -84,6 +84,7 @@ type Recipe struct {
 	DerivedCount  int
 	IbaCategory   *string
 	CoverURL      *string
+	CoverURLLight *string // 亮色主题封面；缺失时前端回落 CoverURL
 	Status        string
 	AbvEst        *float64
 	TotalVolumeMl *float64
@@ -134,6 +135,7 @@ type UpdateInput struct {
 	TasteProfile  *TasteProfile
 	Difficulty    *int
 	CoverURL      *string
+	CoverURLLight *string
 	Tags          []string
 	IR            *irv.IR // IRRaw 非 nil 时必填
 	IRRaw         []byte
@@ -153,7 +155,7 @@ type Revision struct {
 // recipeCols 详情/锁行共用的列。author 由调用方决定是否 join。
 const recipeCols = `r.id, r.author_id, r.short_no, r.title, r.subtitle, r.description_md, r.lang,
 	r.ir, r.ir_version, r.glass_id, r.method, r.family, r.source, r.is_canonical, r.classic_key,
-	r.derived_from, r.derived_count, r.iba_category, r.cover_url, r.status,
+	r.derived_from, r.derived_count, r.iba_category, r.cover_url, r.cover_url_light, r.status,
 	r.abv_est, r.total_volume_ml, r.taste_profile, r.difficulty,
 	r.like_count, r.comment_count, r.collect_count, r.view_count, r.hot_score,
 	r.created_at, r.updated_at, r.published_at, r.deleted_at`
@@ -165,7 +167,7 @@ func scanRecipe(row pgx.Row) (*Recipe, error) {
 	var taste []byte
 	err := row.Scan(&r.ID, &r.AuthorID, &r.ShortNo, &r.Title, &r.Subtitle, &r.DescriptionMd, &r.Lang,
 		&r.IR, &r.IRVersion, &r.GlassID, &r.Method, &r.Family, &r.Source, &r.IsCanonical, &r.ClassicKey,
-		&r.DerivedFrom, &r.DerivedCount, &r.IbaCategory, &r.CoverURL, &r.Status,
+		&r.DerivedFrom, &r.DerivedCount, &r.IbaCategory, &r.CoverURL, &r.CoverURLLight, &r.Status,
 		&r.AbvEst, &r.TotalVolumeMl, &taste, &r.Difficulty,
 		&r.LikeCount, &r.CommentCount, &r.CollectCount, &r.ViewCount, &r.HotScore,
 		&r.CreatedAt, &r.UpdatedAt, &r.PublishedAt, &r.DeletedAt)
@@ -179,7 +181,7 @@ func scanRecipeWithAuthor(row pgx.Row) (*Recipe, error) {
 	var taste []byte
 	err := row.Scan(&r.ID, &r.AuthorID, &r.ShortNo, &r.Title, &r.Subtitle, &r.DescriptionMd, &r.Lang,
 		&r.IR, &r.IRVersion, &r.GlassID, &r.Method, &r.Family, &r.Source, &r.IsCanonical, &r.ClassicKey,
-		&r.DerivedFrom, &r.DerivedCount, &r.IbaCategory, &r.CoverURL, &r.Status,
+		&r.DerivedFrom, &r.DerivedCount, &r.IbaCategory, &r.CoverURL, &r.CoverURLLight, &r.Status,
 		&r.AbvEst, &r.TotalVolumeMl, &taste, &r.Difficulty,
 		&r.LikeCount, &r.CommentCount, &r.CollectCount, &r.ViewCount, &r.HotScore,
 		&r.CreatedAt, &r.UpdatedAt, &r.PublishedAt, &r.DeletedAt,
@@ -399,6 +401,9 @@ func (s *Store) Update(ctx context.Context, id, authorID uuid.UUID, in UpdateInp
 	}
 	if in.CoverURL != nil {
 		add("cover_url", *in.CoverURL)
+	}
+	if in.CoverURLLight != nil {
+		add("cover_url_light", *in.CoverURLLight)
 	}
 	if in.Difficulty != nil {
 		add("difficulty", *in.Difficulty)

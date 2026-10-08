@@ -368,6 +368,10 @@ components:
           type:
             - string
             - "null"
+        coverUrlLight:
+          type:
+            - string
+            - "null"
         createdAt:
           type: string
         derivedCount:
@@ -464,6 +468,7 @@ components:
         - servings
         - tags
         - coverUrl
+        - coverUrlLight
         - status
         - counts
         - publishedAt
@@ -753,6 +758,8 @@ components:
             - user_avatar
             - menu_cover
           type: string
+        variant:
+          type: string
       required:
         - purpose
         - entityId
@@ -821,6 +828,12 @@ components:
           type:
             - array
             - "null"
+        coverUrlsLight:
+          items:
+            type: string
+          type:
+            - array
+            - "null"
         createdAt:
           format: date-time
           type: string
@@ -852,6 +865,7 @@ components:
         - visibility
         - itemCount
         - coverUrls
+        - coverUrlsLight
         - viewerIsOwner
         - createdAt
         - updatedAt
@@ -935,6 +949,10 @@ components:
           type:
             - string
             - "null"
+        coverUrlLight:
+          type:
+            - string
+            - "null"
         deleted:
           type: boolean
         id:
@@ -953,6 +971,7 @@ components:
         - classicKey
         - isCanonical
         - coverUrl
+        - coverUrlLight
         - likeCount
         - commentCount
         - deleted
@@ -1065,6 +1084,12 @@ components:
           type:
             - array
             - "null"
+        coverUrlsLight:
+          items:
+            type: string
+          type:
+            - array
+            - "null"
         createdAt:
           format: date-time
           type: string
@@ -1097,6 +1122,7 @@ components:
         - visibility
         - itemCount
         - coverUrls
+        - coverUrlsLight
         - viewerIsOwner
         - createdAt
         - updatedAt
@@ -1338,6 +1364,10 @@ components:
           type:
             - string
             - "null"
+        coverUrlLight:
+          type:
+            - string
+            - "null"
         createdAt:
           type: string
         derivedCount:
@@ -1434,6 +1464,7 @@ components:
         - servings
         - tags
         - coverUrl
+        - coverUrlLight
         - status
         - counts
         - publishedAt
@@ -2021,6 +2052,9 @@ components:
           maxLength: 64
           type: string
         coverUrl:
+          maxLength: 500
+          type: string
+        coverUrlLight:
           maxLength: 500
           type: string
         derivedFrom:

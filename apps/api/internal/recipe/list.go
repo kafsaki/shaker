@@ -357,7 +357,7 @@ func (s *Store) queryRecipesSim(ctx context.Context, sql string, args ...any) ([
 		var taste []byte
 		err := rows.Scan(&r.Sim, &r.ID, &r.AuthorID, &r.ShortNo, &r.Title, &r.Subtitle, &r.DescriptionMd, &r.Lang,
 			&r.IR, &r.IRVersion, &r.GlassID, &r.Method, &r.Family, &r.Source, &r.IsCanonical, &r.ClassicKey,
-			&r.DerivedFrom, &r.DerivedCount, &r.IbaCategory, &r.CoverURL, &r.Status,
+			&r.DerivedFrom, &r.DerivedCount, &r.IbaCategory, &r.CoverURL, &r.CoverURLLight, &r.Status,
 			&r.AbvEst, &r.TotalVolumeMl, &taste, &r.Difficulty,
 			&r.LikeCount, &r.CommentCount, &r.CollectCount, &r.ViewCount, &r.HotScore,
 			&r.CreatedAt, &r.UpdatedAt, &r.PublishedAt, &r.DeletedAt,

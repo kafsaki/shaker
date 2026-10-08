@@ -165,6 +165,7 @@ type recipeBody struct {
 	Servings      int                 `json:"servings"`
 	Tags          []string            `json:"tags"`
 	CoverURL      *string             `json:"coverUrl"`
+	CoverURLLight *string             `json:"coverUrlLight"`
 	Status        string              `json:"status"`
 	Counts        recipeCountsBody    `json:"counts"`
 	ViewerState   *recipeViewerStateBody `json:"viewerState,omitempty"`
@@ -198,7 +199,7 @@ func recipeToBody(r *recipe.Recipe) recipeBody {
 		AbvEst: r.AbvEst, TotalVolumeMl: r.TotalVolumeMl,
 		Difficulty: r.Difficulty, Servings: 1,
 		Tags:   r.Tags,
-		CoverURL: r.CoverURL, Status: r.Status,
+		CoverURL: r.CoverURL, CoverURLLight: r.CoverURLLight, Status: r.Status,
 		Counts: recipeCountsBody{Like: r.LikeCount, Comment: r.CommentCount, Collect: r.CollectCount, View: r.ViewCount},
 		CreatedAt: r.CreatedAt.UTC().Format(time.RFC3339Nano),
 		UpdatedAt: r.UpdatedAt.UTC().Format(time.RFC3339Nano),
@@ -429,6 +430,7 @@ type updateRecipeInput struct {
 		TasteProfile  *tasteProfileInput `json:"tasteProfile,omitempty"`
 		Difficulty    *int               `json:"difficulty,omitempty" minimum:"1" maximum:"5"`
 		CoverURL      *string            `json:"coverUrl,omitempty" maxLength:"500"`
+		CoverURLLight *string            `json:"coverUrlLight,omitempty" maxLength:"500"`
 		Tags          []string           `json:"tags,omitempty" maxItems:"20"`
 		IR            json.RawMessage    `json:"ir,omitempty"`
 	}
@@ -463,7 +465,7 @@ func (a *API) updateRecipeHandler(ctx context.Context, in *updateRecipeInput) (*
 		Title: in.Body.Title, Subtitle: in.Body.Subtitle, DescriptionMd: in.Body.DescriptionMd,
 		Lang: in.Body.Lang, Family: in.Body.Family, ClassicKey: in.Body.ClassicKey,
 		TasteProfile: tasteToDomain(in.Body.TasteProfile), Difficulty: in.Body.Difficulty,
-		CoverURL: in.Body.CoverURL, Tags: in.Body.Tags,
+		CoverURL: in.Body.CoverURL, CoverURLLight: in.Body.CoverURLLight, Tags: in.Body.Tags,
 		IR: ir, IRRaw: in.Body.IR, IfMatch: ifMatch,
 		EditorID: claims.UserUUID(), Vocab: vocab,
 	}
