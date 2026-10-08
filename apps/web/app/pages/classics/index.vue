@@ -3,8 +3,8 @@
 import { useInfiniteQuery } from "@tanstack/vue-query";
 import type { components } from "@shaker/api-client";
 import { FAMILY_ZH, IBA_ZH } from "@/lib/labels";
+import InfiniteLoader from "@/components/InfiniteLoader.vue";
 import RecipeCard from "@/components/RecipeCard.vue";
-import { Button } from "@/components/ui/button";
 import {
   Select,
   SelectContent,
@@ -24,7 +24,7 @@ type IbaFilter = "all" | "none" | "unforgettable" | "contemporary" | "new_era";
 const iba = ref<IbaFilter>("all");
 const family = ref("all");
 
-const { data, isLoading, fetchNextPage, hasNextPage, isFetchingNextPage } =
+const { data, isLoading, isError, fetchNextPage, hasNextPage, isFetchingNextPage } =
   useInfiniteQuery({
     queryKey: computed(() => ["classics", iba.value, family.value] as const),
     queryFn: async ({ pageParam }): Promise<Page> => {
@@ -84,11 +84,12 @@ const items = computed(() => data.value?.pages.flatMap((p) => p.items ?? []) ?? 
       <p v-if="items.length === 0" class="py-12 text-center text-sm text-muted-foreground">
         没有匹配的经典
       </p>
-      <div v-if="hasNextPage" class="flex justify-center">
-        <Button variant="outline" :disabled="isFetchingNextPage" @click="fetchNextPage()">
-          {{ isFetchingNextPage ? "加载中…" : "加载更多" }}
-        </Button>
-      </div>
+      <InfiniteLoader
+        :has-next-page="hasNextPage"
+        :is-fetching-next-page="isFetchingNextPage"
+        :error="isError"
+        @load="fetchNextPage()"
+      />
     </template>
   </div>
 </template>

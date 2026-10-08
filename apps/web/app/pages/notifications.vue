@@ -4,6 +4,7 @@ import { useInfiniteQuery, useMutation, useQueryClient } from "@tanstack/vue-que
 import { CheckCheck } from "lucide-vue-next";
 import { toast } from "vue-sonner";
 import type { components } from "@shaker/api-client";
+import InfiniteLoader from "@/components/InfiniteLoader.vue";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -17,7 +18,7 @@ useHead({ title: "通知 · Shaker" });
 const api = useApi();
 const qc = useQueryClient();
 
-const { data, isLoading, fetchNextPage, hasNextPage, isFetchingNextPage } =
+const { data, isLoading, isError, fetchNextPage, hasNextPage, isFetchingNextPage } =
   useInfiniteQuery({
     queryKey: ["notifications"],
     queryFn: async ({ pageParam }): Promise<Notice[]> => {
@@ -132,11 +133,13 @@ function fmt(iso: string): string {
         </component>
       </CardContent></Card>
 
-      <div v-if="hasNextPage" class="flex justify-center">
-        <Button variant="outline" :disabled="isFetchingNextPage" @click="fetchNextPage()">
-          {{ isFetchingNextPage ? "加载中…" : "更多" }}
-        </Button>
-      </div>
+      <InfiniteLoader
+        :has-next-page="hasNextPage"
+        :is-fetching-next-page="isFetchingNextPage"
+        :error="isError"
+        ended-text="没有更多通知了"
+        @load="fetchNextPage()"
+      />
     </template>
   </div>
 </template>

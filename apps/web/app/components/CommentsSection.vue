@@ -8,6 +8,7 @@ import { Heart, Pencil, Reply, Trash2 } from "lucide-vue-next";
 import { computed, ref } from "vue";
 import { toast } from "vue-sonner";
 import type { components } from "@shaker/api-client";
+import InfiniteLoader from "@/components/InfiniteLoader.vue";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import {
@@ -29,7 +30,7 @@ const auth = useAuthStore();
 const api = useApi();
 const qc = useQueryClient();
 
-const { data, isLoading, fetchNextPage, hasNextPage, isFetchingNextPage } =
+const { data, isLoading, isError, fetchNextPage, hasNextPage, isFetchingNextPage } =
   useInfiniteQuery({
     queryKey: computed(() => ["comments", props.recipeId] as const),
     queryFn: async ({ pageParam }): Promise<Comment[]> => {
@@ -293,11 +294,13 @@ const isMine = (c: Comment): boolean =>
           <Separator class="last:hidden" />
         </div>
 
-        <div v-if="hasNextPage" class="flex justify-center">
-          <Button variant="outline" :disabled="isFetchingNextPage" @click="fetchNextPage()">
-            {{ isFetchingNextPage ? "加载中…" : "更多评论" }}
-          </Button>
-        </div>
+        <InfiniteLoader
+          :has-next-page="hasNextPage"
+          :is-fetching-next-page="isFetchingNextPage"
+          :error="isError"
+          ended-text="没有更多评论了"
+          @load="fetchNextPage()"
+        />
       </div>
     </CardContent>
   </Card>

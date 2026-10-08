@@ -2,8 +2,8 @@
 import { useInfiniteQuery } from "@tanstack/vue-query";
 import { Flame, Sparkles, Users } from "lucide-vue-next";
 import type { components } from "@shaker/api-client";
+import InfiniteLoader from "@/components/InfiniteLoader.vue";
 import RecipeCard from "@/components/RecipeCard.vue";
-import { Button } from "@/components/ui/button";
 import {
   Select,
   SelectContent,
@@ -126,16 +126,12 @@ const items = computed(() => data.value?.pages.flatMap((p) => p.items ?? []) ?? 
         <RecipeCard v-for="r in items" :key="r.id" :recipe="r" />
       </div>
 
-      <div v-if="hasNextPage" class="flex justify-center py-2">
-        <Button
-          variant="outline"
-          :disabled="isFetchingNextPage"
-          @click="fetchNextPage()"
-        >
-          {{ isFetchingNextPage ? "加载中…" : "加载更多" }}
-        </Button>
-      </div>
-      <p v-else class="pb-4 text-center text-xs text-muted-foreground">到底了</p>
+      <InfiniteLoader
+        :has-next-page="hasNextPage"
+        :is-fetching-next-page="isFetchingNextPage"
+        :error="isError"
+        @load="fetchNextPage()"
+      />
     </template>
   </div>
 </template>

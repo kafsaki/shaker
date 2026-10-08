@@ -4,8 +4,8 @@ import { useInfiniteQuery } from "@tanstack/vue-query";
 import { Search } from "lucide-vue-next";
 import type { components } from "@shaker/api-client";
 import { CATEGORY_ZH } from "@/lib/labels";
+import InfiniteLoader from "@/components/InfiniteLoader.vue";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 
@@ -34,7 +34,7 @@ watch([category, debouncedQ], () => {
   });
 });
 
-const { data, isLoading, fetchNextPage, hasNextPage, isFetchingNextPage } =
+const { data, isLoading, isError, fetchNextPage, hasNextPage, isFetchingNextPage } =
   useInfiniteQuery({
     queryKey: computed(
       () => ["ingredients", category.value, debouncedQ.value] as const,
@@ -127,11 +127,12 @@ const items = computed(() => data.value?.pages.flatMap((p) => p.items ?? []) ?? 
         </NuxtLink>
       </div>
 
-      <div v-if="hasNextPage" class="flex justify-center">
-        <Button variant="outline" :disabled="isFetchingNextPage" @click="fetchNextPage()">
-          {{ isFetchingNextPage ? "加载中…" : "加载更多" }}
-        </Button>
-      </div>
+      <InfiniteLoader
+        :has-next-page="hasNextPage"
+        :is-fetching-next-page="isFetchingNextPage"
+        :error="isError"
+        @load="fetchNextPage()"
+      />
     </template>
   </div>
 </template>
