@@ -353,12 +353,20 @@ async function onPublish(): Promise<void> {
   }
   publishing.value = true;
   try {
+    // 封面必须在 saveDraft 之前截帧：新建配方保存时会 router.replace 改路由参数，
+    // 期间播放器可能被替换掉，之后再取 player 会拿到 null，截帧就被静默跳过（于是没有封面）。
+    // 先 snapshotPreview + nextTick，保证截的是当前编辑状态而非 debounce 前的旧帧。
+    snapshotPreview();
+    await nextTick();
+    const blob = player.value ? await player.value.captureCover() : null;
+
     const saved = await saveDraft();
     if (!saved) return;
 
-    // 封面：预览定格帧 → 预签名直传（ADR-015）
-    const blob = await player.value?.captureCover();
-    if (blob) {
+    if (!blob) {
+      toast.error("封面生成失败，本次发布不带封面");
+    } else {
+      // 预签名三步直传（ADR-015）：签发 → PUT 直传 MinIO → commit → 落库 coverUrl
       const up = await api.POST("/api/v1/media/upload-url", {
         body: {
           purpose: "recipe_cover" as const,
@@ -378,13 +386,14 @@ async function onPublish(): Promise<void> {
         params: { path: { assetId: up.data.assetId } },
       });
       if (commit.error) throw commit.error;
-      await api.PATCH("/api/v1/recipes/{id}", {
+      const patch = await api.PATCH("/api/v1/recipes/{id}", {
         params: {
           path: { id: saved.id },
           header: { "If-Match": String(saved.version) },
         },
         body: { coverUrl: commit.data.url },
       });
+      if (patch.error) throw patch.error;
     }
 
     const pub = await api.POST("/api/v1/recipes/{id}/publish", {
@@ -412,7 +421,9 @@ const tasteKeys: Array<{ key: keyof typeof taste.value; label: string }> = [
 </script>
 
 <template>
-  <div v-if="!isNew && isLoading" class="flex flex-col gap-4">
+  <!-- 新建配方保存后 router.replace 会改路由参数，useQuery 随之重新加载；此时 savedId
+       已有值，不能再回落到骨架屏——否则编辑器（含预览播放器）被整块卸载，接着的封面截帧就没有播放器可用。 -->
+  <div v-if="!isNew && isLoading && !savedId" class="flex flex-col gap-4">
     <Skeleton class="h-10 w-64" />
     <Skeleton class="h-96 w-full" />
   </div>
