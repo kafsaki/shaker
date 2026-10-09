@@ -40,6 +40,12 @@ const ORIGINS = [
   { key: "canonical", label: "权威" },
 ] as const;
 
+/** 多选标签之间的组合方式（对应后端 tagMode）。 */
+const TAG_MODES = [
+  { key: "or", label: "任一" },
+  { key: "and", label: "全部" },
+] as const;
+
 const vocab = useVocabStore();
 
 onMounted(() => {
@@ -146,21 +152,46 @@ function toggleTag(id: string): void {
       </Button>
     </div>
 
-    <div v-if="vocab.tags.length" class="flex flex-wrap gap-1.5">
-      <button
-        v-for="t in vocab.tags"
-        :key="t.id"
-        type="button"
-        class="rounded-sm border px-2 py-1 text-xs transition-colors"
-        :class="
-          filter.tags.includes(t.id)
-            ? 'border-primary bg-primary text-primary-foreground'
-            : 'border-border text-muted-foreground hover:border-primary/50 hover:text-foreground'
-        "
-        @click="toggleTag(t.id)"
+    <div v-if="vocab.tags.length" class="flex flex-wrap items-center gap-x-4 gap-y-2">
+      <div class="flex flex-wrap items-center gap-1.5">
+        <span class="text-xs text-muted-foreground">标签</span>
+        <button
+          v-for="t in vocab.tags"
+          :key="t.id"
+          type="button"
+          class="rounded-sm border px-2 py-1 text-xs transition-colors"
+          :class="
+            filter.tags.includes(t.id)
+              ? 'border-primary bg-primary text-primary-foreground'
+              : 'border-border text-muted-foreground hover:border-primary/50 hover:text-foreground'
+          "
+          @click="toggleTag(t.id)"
+        >
+          {{ t.nameZh }}
+        </button>
+      </div>
+
+      <!-- 组合方式：选到第 2 个标签才开始影响结果，所以此时才出现 -->
+      <div
+        v-if="filter.tags.length > 1"
+        class="flex items-center gap-1.5 border-l-2 border-border pl-3"
       >
-        {{ t.nameZh }}
-      </button>
+        <span class="text-xs text-muted-foreground">多选组合</span>
+        <button
+          v-for="m in TAG_MODES"
+          :key="m.key"
+          type="button"
+          class="rounded-sm border px-2 py-1 text-xs transition-colors"
+          :class="
+            filter.tagMode === m.key
+              ? 'border-primary bg-primary text-primary-foreground'
+              : 'border-border text-muted-foreground hover:border-primary/50 hover:text-foreground'
+          "
+          @click="patch({ tagMode: m.key })"
+        >
+          {{ m.label }}
+        </button>
+      </div>
     </div>
 
     <!-- 数值维度：区间条形 + 星级 -->

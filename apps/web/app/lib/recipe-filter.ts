@@ -10,6 +10,9 @@ export type SortKey = "relevance" | "hot" | "new";
 /** "" 不限 | original 原创 | canonical 权威（IBA 经典） */
 export type OriginKey = "" | "original" | "canonical";
 
+/** 多选标签之间的组合方式：or=命中任一（默认）| and=必须全部命中 */
+export type TagMode = "or" | "and";
+
 /** 酒精度滑块上限（%）：滑到上限 = 不限。现有数据 6~45.5。 */
 export const ABV_MAX = 50;
 /** 容量滑块上限（ml）：滑到上限 = 不限。现有数据 30~276。 */
@@ -19,8 +22,10 @@ export interface RecipeFilterState {
   family: string;
   method: string;
   glass: string;
-  /** 多选，OR 语义：命中任一标签（与后端 tag 参数一致） */
+  /** 多选，命中任一或必须全部，见 tagMode */
   tags: string[];
+  /** 多选标签之间的组合方式 */
+  tagMode: TagMode;
   /** "" 不限 | original 原创 | canonical 权威（IBA 经典） */
   origin: OriginKey;
   /** relevance | hot | new（探索页用 Tab 表达热度/时间，不用这个） */
@@ -39,6 +44,7 @@ export function defaultFilter(): RecipeFilterState {
     method: "all",
     glass: "all",
     tags: [],
+    tagMode: "or",
     origin: "",
     sort: "relevance",
     abvMin: 0,
@@ -76,6 +82,7 @@ export function filterFromQuery(q: LocationQuery): RecipeFilterState {
     method: asStr(q.method, d.method),
     glass: asStr(q.glass, d.glass),
     tags: asTags(q.tag),
+    tagMode: q.tagMode === "and" ? "and" : "or",
     origin: q.origin === "original" || q.origin === "canonical" ? (q.origin as OriginKey) : "",
     sort: sort === "hot" || sort === "new" ? sort : "relevance",
     abvMin: asNum(q.abvMin, d.abvMin),
@@ -110,6 +117,8 @@ export function filterToQuery(f: RecipeFilterState): Record<string, string | str
     ...(f.method !== "all" ? { method: f.method } : {}),
     ...(f.glass !== "all" ? { glass: f.glass } : {}),
     ...(f.tags.length ? { tag: [...f.tags] } : {}),
+    // 组合方式只在会改变结果时写进地址栏（or 是默认值）
+    ...(f.tags.length > 1 && f.tagMode === "and" ? { tagMode: f.tagMode } : {}),
     ...(f.origin ? { origin: f.origin } : {}),
     ...(f.sort !== "relevance" ? { sort: f.sort } : {}),
     ...(f.abvMin > 0 ? { abvMin: String(f.abvMin) } : {}),
@@ -125,8 +134,10 @@ export interface RecipeFilterParams {
   family?: string;
   method?: string;
   glass?: string;
-  /** 重复传参，OR 语义 */
+  /** 重复传参 */
   tag?: string[];
+  /** 多标签之间的组合方式 */
+  tagMode?: TagMode;
   origin?: "original" | "canonical";
   abvMin?: number;
   abvMax?: number;
@@ -141,6 +152,7 @@ export function filterToParams(f: RecipeFilterState): RecipeFilterParams {
     ...(f.method !== "all" ? { method: f.method } : {}),
     ...(f.glass !== "all" ? { glass: f.glass } : {}),
     ...(f.tags.length ? { tag: [...f.tags] } : {}),
+    ...(f.tags.length > 1 && f.tagMode === "and" ? { tagMode: f.tagMode } : {}),
     ...(f.origin ? { origin: f.origin } : {}),
     ...(f.abvMin > 0 ? { abvMin: f.abvMin } : {}),
     ...(f.abvMax < ABV_MAX ? { abvMax: f.abvMax } : {}),
@@ -158,6 +170,7 @@ export function filterKey(f: RecipeFilterState, withSort = false): string {
     f.glass,
     // 排序后再拼，避免勾选顺序不同造成同一个结果集命中不同缓存
     [...f.tags].sort().join(","),
+    f.tags.length > 1 ? f.tagMode : "",
     f.origin,
     f.abvMin,
     f.abvMax,
