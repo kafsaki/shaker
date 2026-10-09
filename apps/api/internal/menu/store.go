@@ -2,13 +2,11 @@
 //
 // position 用 numeric(20,10) 中点插值（DB 设计 §9.1）：拖拽重排取两项中点，
 // 不重写整列表。精度约 30 次同点插入后耗尽，由对账任务重整（v1 不做）。
-// shareToken 是 unlisted 酒单的分享凭证：32 字节随机数 base64url，不可猜。
+// 可见性只有 public/private；分享走直接分享 /menus/{id} 链接（无分享令牌）。
 package menu
 
 import (
 	"context"
-	"crypto/rand"
-	"encoding/base64"
 	"errors"
 	"fmt"
 	"time"
@@ -37,11 +35,19 @@ type Menu struct {
 	Title       string
 	Description *string
 	CoverURL    *string
-	Visibility  string // private | unlisted | public
-	ShareToken  *string
+	Visibility  string // private | public
 	ItemCount   int
 	CreatedAt   time.Time
 	UpdatedAt   time.Time
+}
+
+// AuthorBrief 配方卡片上的作者简介（够展示即可）。
+type AuthorBrief struct {
+	ID          string
+	Handle      string
+	DisplayName string
+	AvatarURL   *string
+	IsOfficial  bool
 }
 
 // RecipeCard 酒单条目里的配方卡片（比 Feed 卡片更瘦：列表场景够用即可）。
@@ -52,11 +58,13 @@ type RecipeCard struct {
 	Title       string
 	ClassicKey  *string
 	IsCanonical bool
+	Family      *string
 	CoverURL    *string
 	CoverURLLight *string
 	LikeCount   int
 	CommentCount int
 	Deleted     bool
+	Author      *AuthorBrief
 }
 
 // Code 对外短号。
@@ -78,12 +86,12 @@ func NewStore(pool *pgxpool.Pool) *Store {
 	return &Store{pool: pool}
 }
 
-const menuCols = `id, owner_id, title, description, cover_url, visibility, share_token, item_count, created_at, updated_at`
+const menuCols = `id, owner_id, title, description, cover_url, visibility, item_count, created_at, updated_at`
 
 func scanMenu(row pgx.Row) (*Menu, error) {
 	m := &Menu{}
 	if err := row.Scan(&m.ID, &m.OwnerID, &m.Title, &m.Description, &m.CoverURL,
-		&m.Visibility, &m.ShareToken, &m.ItemCount, &m.CreatedAt, &m.UpdatedAt); err != nil {
+		&m.Visibility, &m.ItemCount, &m.CreatedAt, &m.UpdatedAt); err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return nil, ErrNotFound
 		}
@@ -102,27 +110,12 @@ func (s *Store) Create(ctx context.Context, ownerID uuid.UUID, title string, des
 		uuid.Must(uuid.NewV7()), ownerID, title, description, visibility))
 }
 
-// Get 按 ID 取（不校验可见性——那是 handler 的事：private/unlisted 仅主人，
-// public 对所有人；unlisted 的分享访问走 GetByShareToken）。
+// Get 按 ID 取（不校验可见性——那是 handler 的事：private 仅主人，public 对所有人）。
 func (s *Store) Get(ctx context.Context, id uuid.UUID) (*Menu, error) {
 	m, err := scanMenu(s.pool.QueryRow(ctx, `
 		SELECT `+menuCols+` FROM menus WHERE id = $1 AND deleted_at IS NULL`, id))
 	if err != nil {
 		return nil, fmt.Errorf("查询酒单: %w", err)
-	}
-	return m, nil
-}
-
-// GetByShareToken 通过分享链接取 unlisted 酒单。token 对不上 → 不存在。
-func (s *Store) GetByShareToken(ctx context.Context, token string) (*Menu, error) {
-	m, err := scanMenu(s.pool.QueryRow(ctx, `
-		SELECT `+menuCols+` FROM menus
-		WHERE share_token = $1 AND visibility = 'unlisted' AND deleted_at IS NULL`, token))
-	if err != nil {
-		if errors.Is(err, pgx.ErrNoRows) {
-			return nil, ErrNotFound
-		}
-		return nil, fmt.Errorf("查询分享酒单: %w", err)
 	}
 	return m, nil
 }
@@ -182,19 +175,6 @@ func (s *Store) Delete(ctx context.Context, id, ownerID uuid.UUID) error {
 		return ErrForbidden
 	}
 	return nil
-}
-
-// RotateShareToken 生成/轮换分享令牌（仅主人）。
-func (s *Store) RotateShareToken(ctx context.Context, id, ownerID uuid.UUID) (*Menu, error) {
-	raw := make([]byte, 32)
-	if _, err := rand.Read(raw); err != nil {
-		return nil, fmt.Errorf("生成令牌: %w", err)
-	}
-	token := base64.RawURLEncoding.EncodeToString(raw)
-	return scanMenu(s.pool.QueryRow(ctx, `
-		UPDATE menus SET share_token = $3
-		WHERE id = $1 AND owner_id = $2 AND deleted_at IS NULL
-		RETURNING `+menuCols, id, ownerID, token))
 }
 
 /* ────────────────────────── 条目 ────────────────────────── */
@@ -317,13 +297,36 @@ func (s *Store) ReorderItem(ctx context.Context, menuID, ownerID, recipeID uuid.
 	return tx.Commit(ctx)
 }
 
+// recipeCardCols/recipeCardJoin 是配方卡片的公共列与连接：items 与列表预览共用。
+// 作者可能已注销（LEFT JOIN → NULL），扫描时按可空处理。
+const recipeCardCols = `r.short_no, r.title, r.classic_key, r.is_canonical, r.family,
+	r.cover_url, r.cover_url_light, r.like_count, r.comment_count, r.deleted_at IS NOT NULL,
+	u.id, u.handle, u.display_name, u.avatar_url, u.is_official`
+const recipeCardJoin = ` JOIN recipes r ON r.id = mi.recipe_id LEFT JOIN users u ON u.id = r.author_id`
+
+// setCardAuthor 用扫描到的可空作者列填充卡片（作者已注销时不设）。
+func setCardAuthor(c *RecipeCard, id, handle, name, avatar *string, official *bool) {
+	if id == nil {
+		return
+	}
+	a := &AuthorBrief{ID: *id, AvatarURL: avatar}
+	if handle != nil {
+		a.Handle = *handle
+	}
+	if name != nil {
+		a.DisplayName = *name
+	}
+	if official != nil {
+		a.IsOfficial = *official
+	}
+	c.Author = a
+}
+
 // Items 酒单条目（按 position 升序）。
 func (s *Store) Items(ctx context.Context, menuID uuid.UUID) ([]Item, error) {
 	rows, err := s.pool.Query(ctx, `
-		SELECT mi.recipe_id, mi.note, mi.added_at,
-			r.short_no, r.title, r.classic_key, r.is_canonical, r.cover_url, r.cover_url_light, r.like_count, r.comment_count,
-			r.deleted_at IS NOT NULL
-		FROM menu_items mi JOIN recipes r ON r.id = mi.recipe_id
+		SELECT mi.recipe_id, mi.note, mi.added_at, `+recipeCardCols+`
+		FROM menu_items mi`+recipeCardJoin+`
 		WHERE mi.menu_id = $1
 		ORDER BY mi.position`, menuID)
 	if err != nil {
@@ -333,11 +336,15 @@ func (s *Store) Items(ctx context.Context, menuID uuid.UUID) ([]Item, error) {
 	out := []Item{}
 	for rows.Next() {
 		var it Item
-		if err := rows.Scan(&it.Recipe.ID, &it.Note, &it.AddedAt, &it.Recipe.ShortNo, &it.Recipe.Title,
-			&it.Recipe.ClassicKey, &it.Recipe.IsCanonical, &it.Recipe.CoverURL, &it.Recipe.CoverURLLight,
-			&it.Recipe.LikeCount, &it.Recipe.CommentCount, &it.Recipe.Deleted); err != nil {
+		var authorID, authorHandle, authorName, authorAvatar *string
+		var authorOfficial *bool
+		if err := rows.Scan(&it.Recipe.ID, &it.Note, &it.AddedAt,
+			&it.Recipe.ShortNo, &it.Recipe.Title, &it.Recipe.ClassicKey, &it.Recipe.IsCanonical, &it.Recipe.Family,
+			&it.Recipe.CoverURL, &it.Recipe.CoverURLLight, &it.Recipe.LikeCount, &it.Recipe.CommentCount, &it.Recipe.Deleted,
+			&authorID, &authorHandle, &authorName, &authorAvatar, &authorOfficial); err != nil {
 			return nil, fmt.Errorf("扫描条目: %w", err)
 		}
+		setCardAuthor(&it.Recipe, authorID, authorHandle, authorName, authorAvatar, authorOfficial)
 		out = append(out, it)
 	}
 	return out, rows.Err()
@@ -371,7 +378,7 @@ type MineSummary struct {
 // containsRecipe 非 nil 时附带每个酒单是否已含该配方（「加进酒单」弹层用）。
 func (s *Store) ListMine(ctx context.Context, ownerID uuid.UUID, containsRecipe *uuid.UUID) ([]MineSummary, error) {
 	rows, err := s.pool.Query(ctx, `
-		SELECT m.id, m.owner_id, m.title, m.description, m.cover_url, m.visibility, m.share_token, m.item_count, m.created_at, m.updated_at,
+		SELECT m.id, m.owner_id, m.title, m.description, m.cover_url, m.visibility, m.item_count, m.created_at, m.updated_at,
 			($2::uuid IS NULL OR EXISTS(SELECT 1 FROM menu_items mi
 				WHERE mi.menu_id = m.id AND mi.recipe_id = $2))
 		FROM menus m
@@ -386,7 +393,7 @@ func (s *Store) ListMine(ctx context.Context, ownerID uuid.UUID, containsRecipe 
 	for rows.Next() {
 		var ms MineSummary
 		if err := rows.Scan(&ms.ID, &ms.OwnerID, &ms.Title, &ms.Description, &ms.CoverURL,
-			&ms.Visibility, &ms.ShareToken, &ms.ItemCount, &ms.CreatedAt, &ms.UpdatedAt, &ms.ContainsRecipe); err != nil {
+			&ms.Visibility, &ms.ItemCount, &ms.CreatedAt, &ms.UpdatedAt, &ms.ContainsRecipe); err != nil {
 			return nil, fmt.Errorf("扫描我的酒单: %w", err)
 		}
 		out = append(out, ms)
@@ -443,6 +450,79 @@ func (s *Store) Covers(ctx context.Context, menuIDs []uuid.UUID) (map[uuid.UUID]
 	return out, rows.Err()
 }
 
+// OwnerBrief 酒单主人的展示信息。
+type OwnerBrief struct {
+	ID          uuid.UUID
+	Handle      string
+	DisplayName string
+	AvatarURL   *string
+	IsOfficial  bool
+}
+
+// Owners 批量取酒单主人（列表/详情顶部展示用）。键为酒单 id。
+func (s *Store) Owners(ctx context.Context, menuIDs []uuid.UUID) (map[uuid.UUID]OwnerBrief, error) {
+	out := make(map[uuid.UUID]OwnerBrief, len(menuIDs))
+	if len(menuIDs) == 0 {
+		return out, nil
+	}
+	rows, err := s.pool.Query(ctx, `
+		SELECT m.id, u.id, u.handle, u.display_name, u.avatar_url, u.is_official
+		FROM menus m JOIN users u ON u.id = m.owner_id
+		WHERE m.id = ANY($1)`, menuIDs)
+	if err != nil {
+		return nil, fmt.Errorf("查询酒单主人: %w", err)
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var menuID, userID uuid.UUID
+		var handle, name string
+		var avatar *string
+		var official bool
+		if err := rows.Scan(&menuID, &userID, &handle, &name, &avatar, &official); err != nil {
+			return nil, fmt.Errorf("扫描酒单主人: %w", err)
+		}
+		out[menuID] = OwnerBrief{ID: userID, Handle: handle, DisplayName: name, AvatarURL: avatar, IsOfficial: official}
+	}
+	return out, rows.Err()
+}
+
+// Previews 批量取酒单的配方卡片预览：每个酒单按 position 取前 limit 张
+// （跳过已删配方，不足 limit 张有几张给几张）。列表页每行酒单展示用。
+func (s *Store) Previews(ctx context.Context, menuIDs []uuid.UUID, limit int) (map[uuid.UUID][]RecipeCard, error) {
+	out := make(map[uuid.UUID][]RecipeCard, len(menuIDs))
+	if len(menuIDs) == 0 || limit <= 0 {
+		return out, nil
+	}
+	rows, err := s.pool.Query(ctx, `
+		SELECT mi.menu_id, mi.recipe_id, `+recipeCardCols+`
+		FROM (
+			SELECT mi.menu_id, mi.recipe_id, mi.position,
+				row_number() OVER (PARTITION BY mi.menu_id ORDER BY mi.position) AS rn
+			FROM menu_items mi JOIN recipes r0 ON r0.id = mi.recipe_id
+			WHERE mi.menu_id = ANY($1) AND r0.deleted_at IS NULL
+		) mi`+recipeCardJoin+`
+		WHERE mi.rn <= $2
+		ORDER BY mi.menu_id, mi.position`, menuIDs, limit)
+	if err != nil {
+		return nil, fmt.Errorf("查询酒单预览: %w", err)
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var menuID uuid.UUID
+		var c RecipeCard
+		var authorID, authorHandle, authorName, authorAvatar *string
+		var authorOfficial *bool
+		if err := rows.Scan(&menuID, &c.ID, &c.ShortNo, &c.Title, &c.ClassicKey, &c.IsCanonical, &c.Family,
+			&c.CoverURL, &c.CoverURLLight, &c.LikeCount, &c.CommentCount, &c.Deleted,
+			&authorID, &authorHandle, &authorName, &authorAvatar, &authorOfficial); err != nil {
+			return nil, fmt.Errorf("扫描酒单预览: %w", err)
+		}
+		setCardAuthor(&c, authorID, authorHandle, authorName, authorAvatar, authorOfficial)
+		out[menuID] = append(out[menuID], c)
+	}
+	return out, rows.Err()
+}
+
 // ListResult 公开酒单分页页。
 type ListResult struct {
 	Items      []Menu
@@ -450,7 +530,7 @@ type ListResult struct {
 }
 
 // ListByUser 某人的酒单（updated_at DESC，Time 游标）。
-// publicOnly=false（本人视角）返回全部含 private/unlisted。
+// publicOnly=false（本人视角）返回全部含 private。
 func (s *Store) ListByUser(ctx context.Context, ownerID uuid.UUID, cur string, limit int, publicOnly bool) (*ListResult, error) {
 	c, err := cursor.Decode[cursor.Time](cur)
 	if err != nil {

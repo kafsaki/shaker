@@ -27,15 +27,8 @@ func (a *API) registerMenus(api huma.API) {
 		Method:      http.MethodGet,
 		Path:        "/api/v1/menus/{id}",
 		Summary:     "酒单详情",
-		Description: "按 visibility 鉴权：public 对所有人；private/unlisted 仅主人（分享访问走 /menus/shared/{shareToken}）。",
+		Description: "按 visibility 鉴权：public 对所有人；private 仅主人。",
 	}, a.getMenuHandler)
-
-	huma.Register(api, huma.Operation{
-		OperationID: "menus-get-shared",
-		Method:      http.MethodGet,
-		Path:        "/api/v1/menus/shared/{shareToken}",
-		Summary:     "分享链接访问 unlisted 酒单",
-	}, a.getSharedMenuHandler)
 
 	huma.Register(api, huma.Operation{
 		OperationID: "menus-update",
@@ -81,14 +74,6 @@ func (a *API) registerMenus(api huma.API) {
 	}, a.reorderMenuItemHandler)
 
 	huma.Register(api, huma.Operation{
-		OperationID: "menus-share",
-		Method:      http.MethodPost,
-		Path:        "/api/v1/menus/{id}/share",
-		Summary:     "生成/轮换分享令牌",
-		Security:    bearerSecurity,
-	}, a.shareMenuHandler)
-
-	huma.Register(api, huma.Operation{
 		OperationID: "me-menus",
 		Method:      http.MethodGet,
 		Path:        "/api/v1/me/menus",
@@ -102,13 +87,21 @@ func (a *API) registerMenus(api huma.API) {
 		Method:      http.MethodGet,
 		Path:        "/api/v1/users/{handle}/menus",
 		Summary:     "某人的酒单",
-		Description: "本人（携带 Bearer）可见全部含私密；他人仅公开。unlisted 的分享链接走 /menus/shared/{shareToken}。",
+		Description: "本人（携带 Bearer）可见全部含私密；他人仅公开。",
 	}, a.userMenusHandler)
 }
 
 /* ────────────────────────── 响应体 ────────────────────────── */
 
 type menuVisibility string
+
+type menuOwnerBody struct {
+	ID          string  `json:"id"`
+	Handle      string  `json:"handle"`
+	DisplayName string  `json:"displayName"`
+	AvatarURL   *string `json:"avatarUrl"`
+	IsOfficial  bool    `json:"isOfficial"`
+}
 
 type menuBody struct {
 	ID          uuid.UUID  `json:"id"`
@@ -119,8 +112,9 @@ type menuBody struct {
 	ItemCount   int        `json:"itemCount"`
 	CoverURLs   []string   `json:"coverUrls"` // position 前 3 条目的配方暗色封面（展示投影，可为空数组）
 	CoverURLsLight []string `json:"coverUrlsLight"` // 同上，亮色封面（缺失的版本不补，前端回落）
-	ViewerIsOwner bool     `json:"viewerIsOwner"` // 当前请求者是否为酒单主人（shareToken 因 omitempty 不可靠，前端以此判定属主 UI）
-	ShareToken  *string    `json:"shareToken,omitempty"` // 仅主人可见
+	ViewerIsOwner bool     `json:"viewerIsOwner"` // 当前请求者是否为酒单主人（前端以此判定属主 UI）
+	Owner       *menuOwnerBody        `json:"owner,omitempty"`      // 酒单主人（列表/详情展示）
+	RecipeCards []menuRecipeCardBody  `json:"recipeCards"`          // position 前 N 张配方卡片（列表行预览，可为空数组）
 	CreatedAt   string     `json:"createdAt" format:"date-time"`
 	UpdatedAt   string     `json:"updatedAt" format:"date-time"`
 }
@@ -131,11 +125,13 @@ type menuRecipeCardBody struct {
 	Title        string    `json:"title"`
 	ClassicKey   *string   `json:"classicKey"`
 	IsCanonical  bool      `json:"isCanonical"`
+	Family       *string   `json:"family"`
 	CoverURL     *string   `json:"coverUrl"`
 	CoverURLLight *string  `json:"coverUrlLight"`
 	LikeCount    int       `json:"likeCount"`
 	CommentCount int       `json:"commentCount"`
 	Deleted      bool      `json:"deleted"`
+	Author       *recipeAuthorBody `json:"author"`
 }
 
 type menuItemBody struct {
@@ -174,18 +170,71 @@ type myMenusOutput struct {
 	}
 }
 
+// menuPreviewLimit 列表页每行酒单展示的配方卡片数。
+const menuPreviewLimit = 6
+
 func menuToBody(m *menu.Menu, isOwner bool) menuBody {
-	b := menuBody{
+	return menuBody{
 		ID: m.ID, Title: m.Title, Description: m.Description, CoverURL: m.CoverURL,
 		Visibility: m.Visibility, ItemCount: m.ItemCount, CoverURLs: []string{}, CoverURLsLight: []string{},
-		ViewerIsOwner: isOwner,
+		ViewerIsOwner: isOwner, RecipeCards: []menuRecipeCardBody{},
 		CreatedAt: m.CreatedAt.UTC().Format(time.RFC3339Nano),
 		UpdatedAt: m.UpdatedAt.UTC().Format(time.RFC3339Nano),
 	}
-	if isOwner {
-		b.ShareToken = m.ShareToken
+}
+
+func menuOwnerOut(o *menu.OwnerBrief) *menuOwnerBody {
+	return &menuOwnerBody{
+		ID: o.ID.String(), Handle: o.Handle, DisplayName: o.DisplayName,
+		AvatarURL: o.AvatarURL, IsOfficial: o.IsOfficial,
+	}
+}
+
+func menuCardBody(c menu.RecipeCard) menuRecipeCardBody {
+	b := menuRecipeCardBody{
+		ID: c.ID, Code: c.Code(), Title: c.Title,
+		ClassicKey: c.ClassicKey, IsCanonical: c.IsCanonical, Family: c.Family,
+		CoverURL: c.CoverURL, CoverURLLight: c.CoverURLLight,
+		LikeCount: c.LikeCount, CommentCount: c.CommentCount, Deleted: c.Deleted,
+	}
+	if c.Author != nil {
+		b.Author = &recipeAuthorBody{
+			ID: c.Author.ID, Handle: c.Author.Handle, DisplayName: c.Author.DisplayName,
+			AvatarURL: c.Author.AvatarURL, IsOfficial: c.Author.IsOfficial,
+		}
 	}
 	return b
+}
+
+func menuCardBodies(cards []menu.RecipeCard) []menuRecipeCardBody {
+	out := make([]menuRecipeCardBody, 0, len(cards))
+	for _, c := range cards {
+		out = append(out, menuCardBody(c))
+	}
+	return out
+}
+
+// menuEnrich 批量补齐列表/详情共用的 Owner 与 RecipeCards。
+func (a *API) menuEnrich(ctx context.Context, ids []uuid.UUID) (
+	map[uuid.UUID]*menuOwnerBody, map[uuid.UUID][]menuRecipeCardBody, error) {
+	owners, err := a.menus.Owners(ctx, ids)
+	if err != nil {
+		return nil, nil, err
+	}
+	previews, err := a.menus.Previews(ctx, ids, menuPreviewLimit)
+	if err != nil {
+		return nil, nil, err
+	}
+	ownerOut := make(map[uuid.UUID]*menuOwnerBody, len(owners))
+	for id, o := range owners {
+		oo := o
+		ownerOut[id] = menuOwnerOut(&oo)
+	}
+	cardOut := make(map[uuid.UUID][]menuRecipeCardBody, len(previews))
+	for id, cs := range previews {
+		cardOut[id] = menuCardBodies(cs)
+	}
+	return ownerOut, cardOut, nil
 }
 
 // itemCovers 详情响应的封面投影：items 已按 position 排序，
@@ -213,13 +262,7 @@ func menuItemsOut(items []menu.Item) []menuItemBody {
 	out := make([]menuItemBody, 0, len(items))
 	for _, it := range items {
 		out = append(out, menuItemBody{
-			Recipe: menuRecipeCardBody{
-				ID: it.Recipe.ID, Code: it.Recipe.Code(), Title: it.Recipe.Title,
-				ClassicKey: it.Recipe.ClassicKey, IsCanonical: it.Recipe.IsCanonical,
-				CoverURL: it.Recipe.CoverURL, CoverURLLight: it.Recipe.CoverURLLight,
-				LikeCount: it.Recipe.LikeCount, CommentCount: it.Recipe.CommentCount,
-				Deleted: it.Recipe.Deleted,
-			},
+			Recipe:  menuCardBody(it.Recipe),
 			Note:    it.Note,
 			AddedAt: it.AddedAt.UTC().Format(time.RFC3339Nano),
 		})
@@ -246,7 +289,7 @@ type menuUpdateInput struct {
 	Body   struct {
 		Title       *string         `json:"title" minLength:"1" maxLength:"120" required:"false"`
 		Description *string         `json:"description" maxLength:"2000" required:"false"`
-		Visibility  *menuVisibility `json:"visibility" enum:"private,unlisted,public" required:"false"`
+		Visibility  *menuVisibility `json:"visibility" enum:"private,public" required:"false"`
 	}
 }
 
@@ -275,7 +318,7 @@ func (a *API) createMenuHandler(ctx context.Context, in *struct {
 	Body struct {
 		Title       string          `json:"title" minLength:"1" maxLength:"120"`
 		Description *string         `json:"description" maxLength:"2000" required:"false"`
-		Visibility  menuVisibility  `json:"visibility" enum:"private,unlisted,public" default:"private" required:"false"`
+		Visibility  menuVisibility  `json:"visibility" enum:"private,public" default:"private" required:"false"`
 	}
 }) (*menuCreateOutput, error) {
 	claims, herr := requireClaims(ctx)
@@ -289,7 +332,7 @@ func (a *API) createMenuHandler(ctx context.Context, in *struct {
 	return &menuCreateOutput{Status: http.StatusCreated, Body: menuToBody(m, true)}, nil
 }
 
-// canViewMenu 可见性规则：public → 所有人；其余 → 主人（unlisted 分享另走 token）。
+// canViewMenu 可见性规则：public → 所有人；private → 主人。
 func canViewMenu(m *menu.Menu, viewer *uuid.UUID) bool {
 	return m.Visibility == "public" || (viewer != nil && *viewer == m.OwnerID)
 }
@@ -307,28 +350,13 @@ func (a *API) getMenuHandler(ctx context.Context, in *menuIDInput) (*menuDetailO
 	if err != nil {
 		return nil, menuErr(err)
 	}
+	ownerOut, _, err := a.menuEnrich(ctx, []uuid.UUID{m.ID})
+	if err != nil {
+		return nil, menuErr(err)
+	}
 	out := &menuDetailOutput{}
 	out.Body.Menu = menuToBody(m, viewer != nil && *viewer == m.OwnerID)
-	out.Body.Menu.CoverURLs, out.Body.Menu.CoverURLsLight = itemCovers(items)
-	out.Body.Items = menuItemsOut(items)
-	return out, nil
-}
-
-type shareTokenInput struct {
-	ShareToken string `path:"shareToken" minLength:"16" maxLength:"64"`
-}
-
-func (a *API) getSharedMenuHandler(ctx context.Context, in *shareTokenInput) (*menuDetailOutput, error) {
-	m, err := a.menus.GetByShareToken(ctx, in.ShareToken)
-	if err != nil {
-		return nil, menuErr(err)
-	}
-	items, err := a.menus.Items(ctx, m.ID)
-	if err != nil {
-		return nil, menuErr(err)
-	}
-	out := &menuDetailOutput{}
-	out.Body.Menu = menuToBody(m, false)
+	out.Body.Menu.Owner = ownerOut[m.ID]
 	out.Body.Menu.CoverURLs, out.Body.Menu.CoverURLsLight = itemCovers(items)
 	out.Body.Items = menuItemsOut(items)
 	return out, nil
@@ -399,28 +427,6 @@ func (a *API) reorderMenuItemHandler(ctx context.Context, in *menuReorderInput) 
 	return &emptyOutput{}, nil
 }
 
-func (a *API) shareMenuHandler(ctx context.Context, in *menuIDInput) (*struct {
-	Body struct {
-		ShareToken string `json:"shareToken"`
-	}
-}, error) {
-	claims, herr := requireClaims(ctx)
-	if herr != nil {
-		return nil, herr
-	}
-	m, err := a.menus.RotateShareToken(ctx, in.ID, claims.UserUUID())
-	if err != nil {
-		return nil, menuErr(err)
-	}
-	return &struct {
-		Body struct {
-			ShareToken string `json:"shareToken"`
-		}
-	}{Body: struct {
-		ShareToken string `json:"shareToken"`
-	}{ShareToken: deref(m.ShareToken)}}, nil
-}
-
 func (a *API) myMenusHandler(ctx context.Context, in *struct {
 	ContainsRecipe string `query:"containsRecipe"`
 }) (*myMenusOutput, error) {
@@ -474,7 +480,7 @@ func (a *API) userMenusHandler(ctx context.Context, in *struct {
 	if err != nil {
 		return nil, userErr(err)
 	}
-	// 本人视角返回全部酒单（含 private/unlisted）并附 shareToken；他人仅公开。
+	// 本人视角返回全部酒单（含 private）；他人仅公开。
 	viewer := viewerID(ctx)
 	isSelf := viewer != nil && *viewer == p.ID
 	res, err := a.menus.ListByUser(ctx, p.ID, in.Cursor, limitOf(in.Limit), !isSelf)
@@ -489,6 +495,10 @@ func (a *API) userMenusHandler(ctx context.Context, in *struct {
 	if err != nil {
 		return nil, menuErr(err)
 	}
+	ownerOut, cardOut, err := a.menuEnrich(ctx, ids)
+	if err != nil {
+		return nil, menuErr(err)
+	}
 	out := &menuListOutput{}
 	out.Body.Items = make([]menuBody, 0, len(res.Items))
 	for i := range res.Items {
@@ -500,6 +510,10 @@ func (a *API) userMenusHandler(ctx context.Context, in *struct {
 			if len(set.Light) > 0 {
 				mb.CoverURLsLight = set.Light
 			}
+		}
+		mb.Owner = ownerOut[res.Items[i].ID]
+		if cards := cardOut[res.Items[i].ID]; cards != nil {
+			mb.RecipeCards = cards
 		}
 		out.Body.Items = append(out.Body.Items, mb)
 	}

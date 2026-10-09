@@ -1,6 +1,6 @@
 # 酒单端到端验证（对运行中的本地 API）。
-# 覆盖：CRUD + 可见性鉴权（private/unlisted/public）+ 分享令牌 + 幂等加入
-#      + numeric 中点重排 + containsRecipe 标记 + 公开酒单列表。
+# 覆盖：CRUD + 可见性鉴权（private/public）+ 幂等加入 + numeric 中点重排
+#      + containsRecipe 标记 + 公开酒单列表 + 主人/预览卡片投影。
 # 每次运行注册随机新用户、复用种子经典配方，可反复执行（结尾软删清理）。
 $ErrorActionPreference = 'Stop'
 Add-Type -AssemblyName System.Net.Http
@@ -45,15 +45,16 @@ $tok2 = $u2.json.accessToken
 $handle1 = "e2e_m$suffix"
 
 try {
-# ── 1. 建 3 个酒单（private 默认 / unlisted / public）──
+# ── 1. 建 3 个酒单（private 默认 / private 显式 / public）──
 $m1 = Call POST '/menus' (@{ title = '我的私藏'; description = '测试私密' } | ConvertTo-Json) $tok1
 Check '建私密酒单 → 201' ($m1.status -eq 201)
 $menu1 = $m1.json.id
 Check '默认 visibility = private' ($m1.json.visibility -eq 'private')
 Check 'itemCount = 0' ($m1.json.itemCount -eq 0)
+Check '新建响应 recipeCards 为空数组' ($null -ne $m1.json.recipeCards -and @($m1.json.recipeCards).Count -eq 0)
 
-$m2 = Call POST '/menus' (@{ title = '给朋友的清单'; visibility = 'unlisted' } | ConvertTo-Json) $tok1
-Check '建 unlisted 酒单 → 201' ($m2.status -eq 201)
+$m2 = Call POST '/menus' (@{ title = '私下清单'; visibility = 'private' } | ConvertTo-Json) $tok1
+Check '建私密酒单（显式）→ 201' ($m2.status -eq 201)
 $menu2 = $m2.json.id
 $m3 = Call POST '/menus' (@{ title = '公开推荐'; visibility = 'public' } | ConvertTo-Json) $tok1
 Check '建公开酒单 → 201' ($m3.status -eq 201)
@@ -61,35 +62,24 @@ $menu3 = $m3.json.id
 
 $bad = Call POST '/menus' (@{ title = 'x'; visibility = 'friends' } | ConvertTo-Json) $tok1
 Check '非法 visibility → 422' ($bad.status -eq 422)
+$bad = Call POST '/menus' (@{ title = 'x'; visibility = 'unlisted' } | ConvertTo-Json) $tok1
+Check '已弃用的 unlisted → 422' ($bad.status -eq 422)
 
 # ── 2. 可见性鉴权 ──
 $r = Call GET "/menus/$menu3"
 Check '匿名读公开酒单 → 200' ($r.status -eq 200)
 Check '匿名 viewerIsOwner = false' ($r.json.menu.viewerIsOwner -eq $false)
+Check '匿名响应不含 owner 之外无关字段' ($null -eq $r.json.menu.shareToken)
 $r = Call GET "/menus/$menu1"
 Check '匿名读私密 → 404' ($r.status -eq 404)
 $r = Call GET "/menus/$menu1" $null $tok2
 Check '他人读私密 → 404' ($r.status -eq 404)
+$r = Call GET "/menus/$menu2" $null $tok2
+Check '他人读（显式）私密 → 404' ($r.status -eq 404)
 $r = Call GET "/menus/$menu1" $null $tok1
 Check '主人读私密 → 200' ($r.status -eq 200)
 Check '主人 viewerIsOwner = true' ($r.json.menu.viewerIsOwner -eq $true)
-Check '主人（未分享过）shareToken 为空' ($null -eq $r.json.menu.shareToken)
-$r = Call GET "/menus/$menu2" $null $tok2
-Check '他人按 id 读 unlisted → 404（分享走 token）' ($r.status -eq 404)
-
-# ── 3. 分享令牌 ──
-$sh = Call POST "/menus/$menu2/share" '{}' $tok1
-Check '生成分享令牌 → 200' ($sh.status -eq 200 -and $sh.json.shareToken.Length -ge 16)
-$token = $sh.json.shareToken
-$r = Call GET "/menus/shared/$token" $null $tok2
-Check '分享链接读 unlisted → 200' ($r.status -eq 200)
-Check '分享响应不含 shareToken' ($null -eq $r.json.shareToken)
-$sh2 = Call POST "/menus/$menu2/share" '{}' $tok1
-Check '轮换令牌 → 新值' ($sh2.json.shareToken -ne $token)
-$r = Call GET "/menus/shared/$token" $null $tok2
-Check '旧令牌失效 → 404' ($r.status -eq 404)
-$r = Call GET "/menus/shared/aaaaaaaaaaaaaaaaaaaaaaaaaa"
-Check '瞎猜令牌 → 404' ($r.status -eq 404)
+Check '详情带 owner.handle' ($r.json.menu.owner.handle -eq $handle1)
 
 # ── 4. 加配方（幂等）+ 重排 ──
 # 种子经典：daiquiri / negroni / mojito / margarita（经典锚点直达权威条目，拿短号再取）
@@ -117,6 +107,7 @@ $titles = @($r.json.items | ForEach-Object { $_.recipe.classicKey })
 Check "初始顺序 daiquiri,negroni,mojito（实际 $($titles -join ',')）" ($titles -join ',' -eq 'daiquiri,negroni,mojito')
 Check 'note 已存' ($r.json.items[0].note -eq '夏天喝')
 Check '条目含配方卡片' ($r.json.items[0].recipe.isCanonical -eq $true)
+Check '条目卡片带作者' ($r.json.items[0].recipe.author.displayName)
 # 封面投影 = 条目顺序的配方封面（跳过无封面），详情与列表共用此语义
 $expCov = @('daiquiri', 'negroni', 'mojito' | ForEach-Object { $kcov[$_] } | Where-Object { $_ })
 Check "详情 coverUrls 投影（$(@($r.json.menu.coverUrls).Count) 张，期望 $($expCov.Count)）" (
@@ -170,6 +161,18 @@ Check "containsRecipe 标记（实际 $($marks -join ', ')）" (
     (-not (@($r.json.items | Where-Object { $_.id -eq $menu2 }).containsRecipe)) -and
     (-not (@($r.json.items | Where-Object { $_.id -eq $menu3 }).containsRecipe)))
 
+# ── 5b. /users/{handle}/menus：本人全部 + owner + 预览卡片 ──
+$r = Call GET "/users/$handle1/menus" $null $tok1
+Check '本人酒单列表 → 3 个（含私密）' (@($r.json.items).Count -eq 3)
+$m1row = @($r.json.items | Where-Object { $_.id -eq $menu1 })[0]
+Check '列表项带 owner.handle' ($m1row.owner.handle -eq $handle1)
+$preKeys = @($m1row.recipeCards | ForEach-Object { $_.classicKey })
+Check "预览卡片按顺序（实际 $($preKeys -join ',')）" ($preKeys -join ',' -eq 'mojito,negroni,daiquiri,margarita')
+Check '预览卡片带作者' ($m1row.recipeCards[0].author.displayName)
+Check '预览卡片带 family 字段（可为 null）' ($m1row.recipeCards[0].PSObject.Properties.Name -contains 'family')
+$m3row = @($r.json.items | Where-Object { $_.id -eq $menu3 })[0]
+Check '空酒单预览为空数组' ($null -ne $m3row.recipeCards -and @($m3row.recipeCards).Count -eq 0)
+
 # ── 6. 移出 + PATCH + 公开列表 ──
 $r = Call DELETE "/menus/$menu1/items/$($rids[2])" $null $tok1
 Check '移出 mojito → 204' ($r.status -eq 204)
@@ -188,13 +191,9 @@ Check '他人 PATCH → 403' ($r.status -eq 403)
 $r = Call GET "/users/$handle1/menus"
 Check '公开酒单列表 → 只有 1 个' (@($r.json.items).Count -eq 1)
 Check '公开列表标题正确' ($r.json.items[0].title -eq '公开推荐（改）')
-Check '公开列表不含 shareToken' ($null -eq $r.json.items[0].shareToken)
+Check '公开列表带 owner.handle' ($r.json.items[0].owner.handle -eq $handle1)
 
-# 本人视角：全部酒单（private/unlisted/public）+ 附带 shareToken
-$r = Call GET "/users/$handle1/menus" $null $tok1
-Check '本人酒单列表 → 3 个（含私密/unlisted）' (@($r.json.items).Count -eq 3)
-$m2row = @($r.json.items | Where-Object { $_.id -eq $menu2 })[0]
-Check '本人列表 unlisted 附带最新 shareToken' ($m2row.shareToken -eq $sh2.json.shareToken)
+# 他人视角：仅公开 1 个
 $r = Call GET "/users/$handle1/menus" $null $tok2
 Check '他人视角 → 仅公开 1 个' (@($r.json.items).Count -eq 1)
 
@@ -218,4 +217,3 @@ Check '删后本人列表 → 剩 2 个' (@($r.json.items).Count -eq 2)
 
 if ($fail) { Write-Host "`n存在失败" -ForegroundColor Red; exit 1 }
 else { Write-Host "`n全部通过" -ForegroundColor Green }
-

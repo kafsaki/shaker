@@ -287,14 +287,12 @@ GET /search?q=&type=recipe|user|ingredient|menu|all
 | 方法 | 路径 | 说明 |
 | --- | --- | --- |
 | `POST` | `/menus` | 建酒单 |
-| `GET` | `/menus/:id` | 详情（按 `visibility` 鉴权） |
-| `GET` | `/menus/shared/:shareToken` | 通过分享链接访问 `unlisted` 酒单 |
+| `GET` | `/menus/:id` | 详情（按 `visibility` 鉴权：public 对所有人，private 仅主人） |
 | `PATCH` | `/menus/:id` | 改标题/描述/可见性 |
 | `DELETE` | `/menus/:id` | 软删除 |
 | `PUT` | `/menus/:id/items/:recipeId` | **加入酒单（幂等）**，body 可带 `note` |
 | `DELETE` | `/menus/:id/items/:recipeId` | 移出 |
 | `POST` | `/menus/:id/items/reorder` | `{recipeId, afterRecipeId?}` → 服务端算 `position` 中点 |
-| `POST` | `/menus/:id/share` | 生成/轮换 `shareToken` |
 | `GET` | `/me/menus` | 我的全部酒单（含私密），**带 `containsRecipe` 标记** |
 
 `GET /me/menus?containsRecipe=<uuid>` 是"方便地把配方加进某个酒单"（需求 5）的关键接口：一次请求拿到我的所有酒单 + 每个酒单是否已含这个配方，弹层里直接渲染带勾选状态的列表。

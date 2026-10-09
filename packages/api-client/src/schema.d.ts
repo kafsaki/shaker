@@ -489,23 +489,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/menus/shared/{shareToken}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** 分享链接访问 unlisted 酒单 */
-        get: operations["menus-get-shared"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/api/v1/menus/{id}": {
         parameters: {
             query?: never;
@@ -515,7 +498,7 @@ export interface paths {
         };
         /**
          * 酒单详情
-         * @description 按 visibility 鉴权：public 对所有人；private/unlisted 仅主人（分享访问走 /menus/shared/{shareToken}）。
+         * @description 按 visibility 鉴权：public 对所有人；private 仅主人。
          */
         get: operations["menus-get"];
         put?: never;
@@ -567,23 +550,6 @@ export interface paths {
          * @description 幂等。
          */
         delete: operations["menu-items-remove"];
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/menus/{id}/share": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** 生成/轮换分享令牌 */
-        post: operations["menus-share"];
-        delete?: never;
         options?: never;
         head?: never;
         patch?: never;
@@ -1008,7 +974,7 @@ export interface paths {
         };
         /**
          * 某人的酒单
-         * @description 本人（携带 Bearer）可见全部含私密；他人仅公开。unlisted 的分享链接走 /menus/shared/{shareToken}。
+         * @description 本人（携带 Bearer）可见全部含私密；他人仅公开。
          */
         get: operations["users-menus"];
         put?: never;
@@ -1434,7 +1400,8 @@ export interface components {
             id: string;
             /** Format: int64 */
             itemCount: number;
-            shareToken?: string;
+            owner?: components["schemas"]["MenuOwnerBody"];
+            recipeCards: components["schemas"]["MenuRecipeCardBody"][] | null;
             title: string;
             /** Format: date-time */
             updatedAt: string;
@@ -1467,7 +1434,15 @@ export interface components {
             items: components["schemas"]["MenuBody"][] | null;
             nextCursor: string | null;
         };
+        MenuOwnerBody: {
+            avatarUrl: string | null;
+            displayName: string;
+            handle: string;
+            id: string;
+            isOfficial: boolean;
+        };
         MenuRecipeCardBody: {
+            author: components["schemas"]["RecipeAuthorBody"];
             classicKey: string | null;
             code: string;
             /** Format: int64 */
@@ -1475,6 +1450,7 @@ export interface components {
             coverUrl: string | null;
             coverUrlLight: string | null;
             deleted: boolean;
+            family: string | null;
             id: string;
             isCanonical: boolean;
             /** Format: int64 */
@@ -1503,7 +1479,7 @@ export interface components {
             description?: string | null;
             title?: string | null;
             /** @enum {string|null} */
-            visibility?: "private" | "unlisted" | "public" | null;
+            visibility?: "private" | "public" | null;
         };
         "Menus-createRequest": {
             /**
@@ -1518,16 +1494,7 @@ export interface components {
              * @default private
              * @enum {string}
              */
-            visibility: "private" | "unlisted" | "public";
-        };
-        "Menus-shareResponse": {
-            /**
-             * Format: uri
-             * @description A URL to the JSON Schema for this object.
-             * @example https://example.com/schemas/Menus-shareResponse.json
-             */
-            readonly $schema?: string;
-            shareToken: string;
+            visibility: "private" | "public";
         };
         MyMenuBody: {
             containsRecipe: boolean;
@@ -1540,7 +1507,8 @@ export interface components {
             id: string;
             /** Format: int64 */
             itemCount: number;
-            shareToken?: string;
+            owner?: components["schemas"]["MenuOwnerBody"];
+            recipeCards: components["schemas"]["MenuRecipeCardBody"][] | null;
             title: string;
             /** Format: date-time */
             updatedAt: string;
@@ -2918,37 +2886,6 @@ export interface operations {
             };
         };
     };
-    "menus-get-shared": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                shareToken: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description OK */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["MenuDetailOutputBody"];
-                };
-            };
-            /** @description Error */
-            default: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ApiError"];
-                };
-            };
-        };
-    };
     "menus-get": {
         parameters: {
             query?: never;
@@ -3129,37 +3066,6 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
-            };
-            /** @description Error */
-            default: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ApiError"];
-                };
-            };
-        };
-    };
-    "menus-share": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description OK */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["Menus-shareResponse"];
-                };
             };
             /** @description Error */
             default: {

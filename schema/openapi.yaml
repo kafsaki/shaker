@@ -846,8 +846,14 @@ components:
         itemCount:
           format: int64
           type: integer
-        shareToken:
-          type: string
+        owner:
+          $ref: "#/components/schemas/MenuOwnerBody"
+        recipeCards:
+          items:
+            $ref: "#/components/schemas/MenuRecipeCardBody"
+          type:
+            - array
+            - "null"
         title:
           type: string
         updatedAt:
@@ -867,6 +873,7 @@ components:
         - coverUrls
         - coverUrlsLight
         - viewerIsOwner
+        - recipeCards
         - createdAt
         - updatedAt
       type: object
@@ -933,9 +940,33 @@ components:
         - items
         - nextCursor
       type: object
+    MenuOwnerBody:
+      additionalProperties: false
+      properties:
+        avatarUrl:
+          type:
+            - string
+            - "null"
+        displayName:
+          type: string
+        handle:
+          type: string
+        id:
+          type: string
+        isOfficial:
+          type: boolean
+      required:
+        - id
+        - handle
+        - displayName
+        - avatarUrl
+        - isOfficial
+      type: object
     MenuRecipeCardBody:
       additionalProperties: false
       properties:
+        author:
+          $ref: "#/components/schemas/RecipeAuthorBody"
         classicKey:
           type:
             - string
@@ -955,6 +986,10 @@ components:
             - "null"
         deleted:
           type: boolean
+        family:
+          type:
+            - string
+            - "null"
         id:
           type: string
         isCanonical:
@@ -970,11 +1005,13 @@ components:
         - title
         - classicKey
         - isCanonical
+        - family
         - coverUrl
         - coverUrlLight
         - likeCount
         - commentCount
         - deleted
+        - author
       type: object
     MenuReorderInputBody:
       additionalProperties: false
@@ -1019,7 +1056,6 @@ components:
         visibility:
           enum:
             - private
-            - unlisted
             - public
           type:
             - string
@@ -1048,26 +1084,10 @@ components:
           default: private
           enum:
             - private
-            - unlisted
             - public
           type: string
       required:
         - title
-      type: object
-    Menus-shareResponse:
-      additionalProperties: false
-      properties:
-        $schema:
-          description: A URL to the JSON Schema for this object.
-          examples:
-            - https://example.com/schemas/Menus-shareResponse.json
-          format: uri
-          readOnly: true
-          type: string
-        shareToken:
-          type: string
-      required:
-        - shareToken
       type: object
     MyMenuBody:
       additionalProperties: false
@@ -1102,8 +1122,14 @@ components:
         itemCount:
           format: int64
           type: integer
-        shareToken:
-          type: string
+        owner:
+          $ref: "#/components/schemas/MenuOwnerBody"
+        recipeCards:
+          items:
+            $ref: "#/components/schemas/MenuRecipeCardBody"
+          type:
+            - array
+            - "null"
         title:
           type: string
         updatedAt:
@@ -1124,6 +1150,7 @@ components:
         - coverUrls
         - coverUrlsLight
         - viewerIsOwner
+        - recipeCards
         - createdAt
         - updatedAt
       type: object
@@ -3114,31 +3141,6 @@ paths:
       security:
         - bearerAuth: []
       summary: 建酒单
-  /api/v1/menus/shared/{shareToken}:
-    get:
-      operationId: menus-get-shared
-      parameters:
-        - in: path
-          name: shareToken
-          required: true
-          schema:
-            maxLength: 64
-            minLength: 16
-            type: string
-      responses:
-        "200":
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/MenuDetailOutputBody"
-          description: OK
-        default:
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ApiError"
-          description: Error
-      summary: 分享链接访问 unlisted 酒单
   /api/v1/menus/{id}:
     delete:
       operationId: menus-delete
@@ -3162,7 +3164,7 @@ paths:
         - bearerAuth: []
       summary: 删除酒单（软删）
     get:
-      description: 按 visibility 鉴权：public 对所有人；private/unlisted 仅主人（分享访问走 /menus/shared/{shareToken}）。
+      description: 按 visibility 鉴权：public 对所有人；private 仅主人。
       operationId: menus-get
       parameters:
         - in: path
@@ -3308,32 +3310,6 @@ paths:
       security:
         - bearerAuth: []
       summary: 配方加入酒单
-  /api/v1/menus/{id}/share:
-    post:
-      operationId: menus-share
-      parameters:
-        - in: path
-          name: id
-          required: true
-          schema:
-            format: uuid
-            type: string
-      responses:
-        "200":
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/Menus-shareResponse"
-          description: OK
-        default:
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ApiError"
-          description: Error
-      security:
-        - bearerAuth: []
-      summary: 生成/轮换分享令牌
   /api/v1/notifications:
     get:
       description: created_at 倒序。unreadOnly=true 只取未读。
@@ -4204,7 +4180,7 @@ paths:
       summary: 某人点赞过的配方
   /api/v1/users/{handle}/menus:
     get:
-      description: 本人（携带 Bearer）可见全部含私密；他人仅公开。unlisted 的分享链接走 /menus/shared/{shareToken}。
+      description: 本人（携带 Bearer）可见全部含私密；他人仅公开。
       operationId: users-menus
       parameters:
         - in: path
