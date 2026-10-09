@@ -4,6 +4,7 @@ import { Flame, Search, Sparkles, Users } from "lucide-vue-next";
 import type { components } from "@shaker/api-client";
 import InfiniteLoader from "@/components/InfiniteLoader.vue";
 import RecipeCard from "@/components/RecipeCard.vue";
+import RecipeFilterBar from "@/components/RecipeFilterBar.vue";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -49,33 +50,59 @@ watch(q, (v) => {
 });
 const searching = computed(() => debouncedQ.value !== "");
 
+// 筛选：与搜索结果页同一套组件、同一套后端谓词（Feed 与 /search 共用 filterConds）
+const family = ref("all");
+const method = ref("all");
+const glass = ref("all");
+const tag = ref("");
+const hasFilters = computed(
+  () =>
+    family.value !== "all" ||
+    method.value !== "all" ||
+    glass.value !== "all" ||
+    tag.value !== "",
+);
+
 const feedEnabled = computed(
   () => tab.value !== "following" || auth.isAuthenticated,
 );
 
 const feedQuery = useInfiniteQuery({
   queryKey: computed(
-    () => ["feed", String(tab.value), hotWindow.value, debouncedQ.value] as const,
+    () =>
+      [
+        "feed",
+        String(tab.value),
+        hotWindow.value,
+        debouncedQ.value,
+        family.value,
+        method.value,
+        glass.value,
+        tag.value,
+      ] as const,
   ),
   queryFn: async ({ pageParam }): Promise<FeedPage> => {
     const cursor = pageParam || undefined;
-    const keyword = debouncedQ.value || undefined;
+    const query = {
+      cursor,
+      q: debouncedQ.value || undefined,
+      family: family.value !== "all" ? family.value : undefined,
+      method: method.value !== "all" ? method.value : undefined,
+      glass: glass.value !== "all" ? glass.value : undefined,
+      tag: tag.value || undefined,
+    };
     if (tab.value === "new") {
-      const { data, error } = await api.GET("/api/v1/feed/new", {
-        params: { query: { cursor, q: keyword } },
-      });
+      const { data, error } = await api.GET("/api/v1/feed/new", { params: { query } });
       if (error) throw error;
       return data;
     }
     if (tab.value === "following") {
-      const { data, error } = await api.GET("/api/v1/feed/following", {
-        params: { query: { cursor, q: keyword } },
-      });
+      const { data, error } = await api.GET("/api/v1/feed/following", { params: { query } });
       if (error) throw error;
       return data;
     }
     const { data, error } = await api.GET("/api/v1/feed/hot", {
-      params: { query: { cursor, q: keyword, window: hotWindow.value as "24h" } },
+      params: { query: { ...query, window: hotWindow.value as "24h" } },
     });
     if (error) throw error;
     return data;
@@ -164,6 +191,14 @@ function loadMore(): void {
       <h1 class="sr-only">探索</h1>
     </div>
 
+    <!-- 配方筛选（与搜索结果页共用同一组件） -->
+    <RecipeFilterBar
+      v-model:family="family"
+      v-model:method="method"
+      v-model:glass="glass"
+      v-model:tag="tag"
+    />
+
     <p
       v-if="tab === 'following' && !auth.isAuthenticated"
       class="py-16 text-center text-sm text-muted-foreground"
@@ -181,7 +216,7 @@ function loadMore(): void {
     </p>
 
     <p v-else-if="items.length === 0" class="py-16 text-center text-sm text-muted-foreground">
-      {{ searching ? "没有匹配的配方，试试换个关键词。" : "这里还空空如也。" }}
+      {{ searching || hasFilters ? "没有匹配的配方，试试换个关键词或清除筛选。" : "这里还空空如也。" }}
     </p>
 
     <template v-else>

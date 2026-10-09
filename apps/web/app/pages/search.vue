@@ -5,23 +5,17 @@
  * 配方 Tab 额外提供标签、家族、手法、杯型与排序筛选。
  */
 import { useInfiniteQuery } from "@tanstack/vue-query";
-import { Search, SlidersHorizontal, X } from "lucide-vue-next";
+import { Search } from "lucide-vue-next";
 import type { components } from "@shaker/api-client";
-import { CATEGORY_ZH, FAMILY_ZH, METHOD_ZH } from "@/lib/labels";
+import { CATEGORY_ZH } from "@/lib/labels";
 import InfiniteLoader from "@/components/InfiniteLoader.vue";
 import MenuCoverStack from "@/components/MenuCoverStack.vue";
 import RecipeCard from "@/components/RecipeCard.vue";
+import RecipeFilterBar from "@/components/RecipeFilterBar.vue";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 
 type SearchOut = components["schemas"]["SearchOutputBody"];
@@ -34,16 +28,9 @@ const TABS = [
 ] as const;
 type TabKey = (typeof TABS)[number]["key"];
 
-const SORTS = [
-  { key: "relevance", label: "相关度" },
-  { key: "hot", label: "最热" },
-  { key: "new", label: "最新" },
-] as const;
-
 const route = useRoute();
 const router = useRouter();
 const api = useApi();
-const vocab = useVocabStore();
 const { pickCovers } = useCover();
 
 const q = ref((route.query.q as string) ?? "");
@@ -93,31 +80,8 @@ function switchTab(next: TabKey): void {
   syncQuery();
 }
 
-function toggleTag(id: string): void {
-  tag.value = tag.value === id ? "" : id;
-  syncQuery();
-}
-
-function clearFilters(): void {
-  family.value = "all";
-  method.value = "all";
-  glass.value = "all";
-  tag.value = "";
-  sort.value = "relevance";
-  syncQuery();
-}
-
-const hasFilters = computed(
-  () =>
-    family.value !== "all" ||
-    method.value !== "all" ||
-    glass.value !== "all" ||
-    tag.value !== "" ||
-    sort.value !== "relevance",
-);
-
-// 筛选变化即时重查（下拉/标签点了就走）
-watch([family, method, glass], () => searched.value && syncQuery());
+// 筛选变化即时重查并写回地址栏（下拉/标签点了就走）
+watch([family, method, glass, tag], () => searched.value && syncQuery());
 
 /** 各 Tab 独立的无限查询骨架：仅激活的 Tab 发请求。 */
 const recipeQuery = useInfiniteQuery({
@@ -260,13 +224,19 @@ const isEmpty = computed(() => {
 /** 当前 Tab 的中文名（空态文案复用）。 */
 const tabLabel = computed(() => TABS.find((t) => t.key === tab.value)?.label ?? "");
 
+/** 是否有生效的筛选（空态文案用）。 */
+const hasFilters = computed(
+  () =>
+    family.value !== "all" ||
+    method.value !== "all" ||
+    glass.value !== "all" ||
+    tag.value !== "" ||
+    sort.value !== "relevance",
+);
+
 function loadMore(): void {
   void activeQuery.value.fetchNextPage();
 }
-
-onMounted(() => {
-  void vocab.ensure().catch(() => {});
-});
 
 useHead(() => ({
   title: submitted.value ? `${submitted.value} · 搜索 · Shaker` : "搜索 · Shaker",
@@ -306,72 +276,16 @@ useHead(() => ({
       </button>
     </nav>
 
-    <!-- 配方筛选 -->
-    <div
+    <!-- 配方筛选（与「探索」页共用同一组件） -->
+    <RecipeFilterBar
       v-if="tab === 'recipe'"
-      class="flex flex-col gap-3 rounded-sm border-2 border-border bg-card p-3"
-    >
-      <div class="flex flex-wrap items-center gap-2">
-        <span class="flex items-center gap-1 text-xs text-muted-foreground">
-          <SlidersHorizontal class="size-3.5" /> 筛选
-        </span>
-        <Select v-model="sort">
-          <SelectTrigger class="h-8 w-28 text-xs"><SelectValue /></SelectTrigger>
-          <SelectContent>
-            <SelectItem v-for="s in SORTS" :key="s.key" :value="s.key">{{ s.label }}</SelectItem>
-          </SelectContent>
-        </Select>
-        <Select v-model="family">
-          <SelectTrigger class="h-8 w-28 text-xs"><SelectValue placeholder="家族" /></SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">全部家族</SelectItem>
-            <SelectItem v-for="(zh, f) in FAMILY_ZH" :key="f" :value="f">{{ zh }}</SelectItem>
-          </SelectContent>
-        </Select>
-        <Select v-model="method">
-          <SelectTrigger class="h-8 w-28 text-xs"><SelectValue placeholder="手法" /></SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">全部手法</SelectItem>
-            <SelectItem v-for="(zh, m) in METHOD_ZH" :key="m" :value="m">{{ zh }}</SelectItem>
-          </SelectContent>
-        </Select>
-        <Select v-model="glass">
-          <SelectTrigger class="h-8 w-28 text-xs"><SelectValue placeholder="杯型" /></SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">全部杯型</SelectItem>
-            <SelectItem v-for="g in vocab.glassware" :key="g.id" :value="g.id">
-              {{ g.nameZh }}
-            </SelectItem>
-          </SelectContent>
-        </Select>
-        <Button
-          v-if="hasFilters"
-          variant="ghost"
-          size="sm"
-          class="h-8 gap-1 text-xs"
-          @click="clearFilters()"
-        >
-          <X class="size-3.5" /> 清除
-        </Button>
-      </div>
-
-      <div v-if="vocab.tags.length" class="flex flex-wrap gap-1.5">
-        <button
-          v-for="t in vocab.tags"
-          :key="t.id"
-          type="button"
-          class="rounded-sm border px-2 py-1 text-xs transition-colors"
-          :class="
-            tag === t.id
-              ? 'border-primary bg-primary text-primary-foreground'
-              : 'border-border text-muted-foreground hover:border-primary/50 hover:text-foreground'
-          "
-          @click="toggleTag(t.id)"
-        >
-          {{ t.nameZh }}
-        </button>
-      </div>
-    </div>
+      v-model:family="family"
+      v-model:method="method"
+      v-model:glass="glass"
+      v-model:tag="tag"
+      v-model:sort="sort"
+      show-sort
+    />
 
     <!-- 结果 -->
     <div v-if="isLoading" class="flex flex-col gap-3">
