@@ -326,6 +326,12 @@ const deleteMutation = useMutation({
         <span v-if="recipe.difficulty" class="text-sm text-muted-foreground">
           难度 {{ "★".repeat(recipe.difficulty) }}
         </span>
+        <span
+          class="font-mono text-xs tracking-wide text-muted-foreground"
+          title="配方 ID"
+        >
+          {{ recipe.code }}
+        </span>
       </div>
 
       <!-- 标签（受控词表，点击可跳搜索页按标签筛） -->
