@@ -1857,7 +1857,7 @@ components:
       properties:
         items:
           items:
-            $ref: "#/components/schemas/RecipeBody"
+            $ref: "#/components/schemas/MenuBody"
           type:
             - array
             - "null"
@@ -3866,7 +3866,7 @@ paths:
       summary: 举报
   /api/v1/search:
     get:
-      description: type=all 返回分组（每组前 5 条 + total + 查看全部链接）；专用类型（recipe/user/ingredient）返回对应分组并带 nextCursor 翻页。配方搜索支持多维筛选：ingredient 可重复传（AND 语义），ingredientRole 限定角色，relevance 排序把权威条目置顶后按 trgm 相似度（ADR-012）。menu 分组随酒单功能填充。
+      description: type=all 返回分组（每组前 5 条 + total + 查看全部链接）；专用类型（recipe/user/menu/ingredient）返回对应分组并带 nextCursor 翻页。配方搜索支持多维筛选：ingredient 可重复传（AND 语义），ingredientRole 限定角色，relevance 排序把权威条目置顶后按 trgm 相似度（ADR-012）。酒单搜索仅覆盖公开酒单（标题/描述命中）。
       operationId: search
       parameters:
         - explode: false

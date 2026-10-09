@@ -237,6 +237,41 @@ func (a *API) menuEnrich(ctx context.Context, ids []uuid.UUID) (
 	return ownerOut, cardOut, nil
 }
 
+// menusToBodies 批量把酒单列表补齐封面投影 / 主人 / 预览卡片，转成响应体。
+// isOwner 决定 ViewerIsOwner（列表页/搜索结果页对他人一律 false）。
+func (a *API) menusToBodies(ctx context.Context, items []menu.Menu, isOwner bool) ([]menuBody, error) {
+	ids := make([]uuid.UUID, len(items))
+	for i := range items {
+		ids[i] = items[i].ID
+	}
+	cov, err := a.menus.Covers(ctx, ids)
+	if err != nil {
+		return nil, menuErr(err)
+	}
+	ownerOut, cardOut, err := a.menuEnrich(ctx, ids)
+	if err != nil {
+		return nil, menuErr(err)
+	}
+	out := make([]menuBody, 0, len(items))
+	for i := range items {
+		mb := menuToBody(&items[i], isOwner)
+		if set := cov[items[i].ID]; set != nil {
+			if len(set.Dark) > 0 {
+				mb.CoverURLs = set.Dark
+			}
+			if len(set.Light) > 0 {
+				mb.CoverURLsLight = set.Light
+			}
+		}
+		mb.Owner = ownerOut[items[i].ID]
+		if cards := cardOut[items[i].ID]; cards != nil {
+			mb.RecipeCards = cards
+		}
+		out = append(out, mb)
+	}
+	return out, nil
+}
+
 // itemCovers 详情响应的封面投影：items 已按 position 排序，
 // 跳过已删条目，暗/亮各最多取 3 张（缺失的版本不补，前端回落）。
 func itemCovers(items []menu.Item) (dark, light []string) {
@@ -487,36 +522,12 @@ func (a *API) userMenusHandler(ctx context.Context, in *struct {
 	if err != nil {
 		return nil, listErr(err)
 	}
-	ids := make([]uuid.UUID, len(res.Items))
-	for i := range res.Items {
-		ids[i] = res.Items[i].ID
-	}
-	cov, err := a.menus.Covers(ctx, ids)
+	items, err := a.menusToBodies(ctx, res.Items, isSelf)
 	if err != nil {
-		return nil, menuErr(err)
-	}
-	ownerOut, cardOut, err := a.menuEnrich(ctx, ids)
-	if err != nil {
-		return nil, menuErr(err)
+		return nil, err
 	}
 	out := &menuListOutput{}
-	out.Body.Items = make([]menuBody, 0, len(res.Items))
-	for i := range res.Items {
-		mb := menuToBody(&res.Items[i], isSelf)
-		if set := cov[res.Items[i].ID]; set != nil {
-			if len(set.Dark) > 0 {
-				mb.CoverURLs = set.Dark
-			}
-			if len(set.Light) > 0 {
-				mb.CoverURLsLight = set.Light
-			}
-		}
-		mb.Owner = ownerOut[res.Items[i].ID]
-		if cards := cardOut[res.Items[i].ID]; cards != nil {
-			mb.RecipeCards = cards
-		}
-		out.Body.Items = append(out.Body.Items, mb)
-	}
+	out.Body.Items = items
 	if res.NextCursor != "" {
 		s := res.NextCursor
 		out.Body.NextCursor = &s

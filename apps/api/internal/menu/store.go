@@ -556,6 +556,11 @@ func (s *Store) ListByUser(ctx context.Context, ownerID uuid.UUID, cur string, l
 		return nil, fmt.Errorf("查询酒单: %w", err)
 	}
 	defer rows.Close()
+	return collectMenus(rows, limit)
+}
+
+// collectMenus 收集时间游标分页的酒单行：多取一条用于判断是否还有下一页。
+func collectMenus(rows pgx.Rows, limit int) (*ListResult, error) {
 	var menus []Menu
 	var times []time.Time
 	for rows.Next() {
@@ -564,13 +569,13 @@ func (s *Store) ListByUser(ctx context.Context, ownerID uuid.UUID, cur string, l
 			if errors.Is(err, ErrNotFound) {
 				continue // scanMenu 把 ErrNoRows 归一成 NotFound；rows.Next 场景不该发生
 			}
-			return nil, fmt.Errorf("扫描公开酒单: %w", err)
+			return nil, fmt.Errorf("扫描酒单: %w", err)
 		}
 		menus = append(menus, *m)
 		times = append(times, m.UpdatedAt)
 	}
 	if err := rows.Err(); err != nil {
-		return nil, fmt.Errorf("遍历公开酒单: %w", err)
+		return nil, fmt.Errorf("遍历酒单: %w", err)
 	}
 	res := &ListResult{Items: []Menu{}}
 	if len(menus) > limit {
@@ -582,4 +587,45 @@ func (s *Store) ListByUser(ctx context.Context, ownerID uuid.UUID, cur string, l
 		res.Items = menus
 	}
 	return res, nil
+}
+
+// Search 搜索公开酒单：标题/描述命中（trgm 相似或子串），updated_at DESC 时间游标。
+// 只返回 public 且未删除的酒单——private 酒单不进搜索结果。
+func (s *Store) Search(ctx context.Context, q, cur string, limit int) (*ListResult, error) {
+	c, err := cursor.Decode[cursor.Time](cur)
+	if err != nil {
+		return nil, ErrBadCursor
+	}
+	args := []any{q}
+	pred := ""
+	if c != nil {
+		args = append(args, time.Unix(0, c.T).UTC(), c.ID)
+		n := len(args)
+		pred = fmt.Sprintf(" AND (updated_at < $%d OR (updated_at = $%d AND id > $%d))", n-1, n-1, n)
+	}
+	args = append(args, limit+1)
+	rows, err := s.pool.Query(ctx, `
+		SELECT `+menuCols+` FROM menus
+		WHERE deleted_at IS NULL AND visibility = 'public'
+			AND (title % $1 OR title ILIKE '%' || $1 || '%' OR description ILIKE '%' || $1 || '%')`+pred+`
+		ORDER BY updated_at DESC, id ASC
+		LIMIT $`+fmt.Sprint(len(args)), args...)
+	if err != nil {
+		return nil, fmt.Errorf("搜索酒单: %w", err)
+	}
+	defer rows.Close()
+	return collectMenus(rows, limit)
+}
+
+// SearchCount 与 Search 同条件的总数（搜索页分组计数）。
+func (s *Store) SearchCount(ctx context.Context, q string) (int, error) {
+	var n int
+	err := s.pool.QueryRow(ctx, `
+		SELECT count(*) FROM menus
+		WHERE deleted_at IS NULL AND visibility = 'public'
+			AND (title % $1 OR title ILIKE '%' || $1 || '%' OR description ILIKE '%' || $1 || '%')`, q).Scan(&n)
+	if err != nil {
+		return 0, fmt.Errorf("统计酒单搜索结果: %w", err)
+	}
+	return n, nil
 }

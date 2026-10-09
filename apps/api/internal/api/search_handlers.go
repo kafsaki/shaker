@@ -17,9 +17,10 @@ func (a *API) registerSearch(api huma.API) {
 		Path:        "/api/v1/search",
 		Summary:     "全站搜索",
 		Description: "type=all 返回分组（每组前 5 条 + total + 查看全部链接）；" +
-			"专用类型（recipe/user/ingredient）返回对应分组并带 nextCursor 翻页。" +
+			"专用类型（recipe/user/menu/ingredient）返回对应分组并带 nextCursor 翻页。" +
 			"配方搜索支持多维筛选：ingredient 可重复传（AND 语义），ingredientRole 限定角色，" +
-			"relevance 排序把权威条目置顶后按 trgm 相似度（ADR-012）。menu 分组随酒单功能填充。",
+			"relevance 排序把权威条目置顶后按 trgm 相似度（ADR-012）。" +
+			"酒单搜索仅覆盖公开酒单（标题/描述命中）。",
 	}, a.searchHandler)
 }
 
@@ -74,10 +75,10 @@ type searchIngredientGroup struct {
 }
 
 type searchMenuGroup struct {
-	Items      []recipeBody `json:"items"` // 酒单分组随任务 11 填充，先占住契约
-	Total      *int         `json:"total,omitempty"`
-	More       *string      `json:"more,omitempty"`
-	NextCursor *string      `json:"nextCursor,omitempty"`
+	Items      []menuBody `json:"items"`
+	Total      *int       `json:"total,omitempty"`
+	More       *string    `json:"more,omitempty"`
+	NextCursor *string    `json:"nextCursor,omitempty"`
 }
 
 type searchOutput struct {
@@ -119,7 +120,11 @@ func (a *API) searchHandler(ctx context.Context, in *searchInput) (*searchOutput
 		}
 		out.Body.Ingredients = g
 	case "menu":
-		out.Body.Menus = &searchMenuGroup{Items: []recipeBody{}, Total: intPtr(0)}
+		g, err := a.searchMenus(ctx, in, limit)
+		if err != nil {
+			return nil, err
+		}
+		out.Body.Menus = g
 	}
 	return out, nil
 }
@@ -165,6 +170,20 @@ func (a *API) searchGroups(ctx context.Context, in *searchInput, out *searchOutp
 	ig.Total = &itotal
 	ig.More = stringPtr("/api/v1/search?type=ingredient&q=" + in.Q)
 	out.Body.Ingredients = ig
+
+	mg, err := a.searchMenus(ctx, in, 5)
+	if err != nil {
+		return err
+	}
+	if in.Q != "" {
+		mtotal, err := a.menus.SearchCount(ctx, in.Q)
+		if err != nil {
+			return internalErr(err)
+		}
+		mg.Total = &mtotal
+	}
+	mg.More = stringPtr("/api/v1/search?type=menu&q=" + in.Q)
+	out.Body.Menus = mg
 	return nil
 }
 
@@ -235,6 +254,26 @@ func (a *API) searchIngredients(ctx context.Context, in *searchInput, limit int)
 	return g, nil
 }
 
+// searchMenus 酒单分组（仅公开酒单）。
+func (a *API) searchMenus(ctx context.Context, in *searchInput, limit int) (*searchMenuGroup, error) {
+	if in.Q == "" { // 无关键词不返回全站公开酒单
+		return &searchMenuGroup{Items: []menuBody{}}, nil
+	}
+	res, err := a.menus.Search(ctx, in.Q, in.Cursor, limit)
+	if err != nil {
+		return nil, listErr(err)
+	}
+	items, err := a.menusToBodies(ctx, res.Items, false)
+	if err != nil {
+		return nil, err
+	}
+	g := &searchMenuGroup{Items: items}
+	if res.NextCursor != "" {
+		g.NextCursor = &res.NextCursor
+	}
+	return g, nil
+}
+
 // searchParams 查询参数 → store 参数。数值筛选 0 表示未传。
 func (a *API) searchParams(in *searchInput) recipe.SearchParams {
 	p := recipe.SearchParams{
@@ -254,5 +293,4 @@ func (a *API) searchParams(in *searchInput) recipe.SearchParams {
 	return p
 }
 
-func intPtr(v int) *int    { return &v }
 func stringPtr(s string) *string { return &s }
