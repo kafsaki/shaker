@@ -1,6 +1,6 @@
 <script setup lang="ts">
 /**
- * 搜索结果页（B 站式）：顶部搜索框 + 「配方 / 酒单 / 用户 / 原料」Tab 切换。
+ * 搜索结果页（B 站式）：顶部搜索框 + 「配方 / 原料 / 酒单 / 用户」Tab 切换。
  * 各 Tab 独立游标分页（useInfiniteQuery），且只在激活时请求。
  * 配方 Tab 额外提供标签、家族、手法、杯型与排序筛选。
  */
@@ -28,9 +28,9 @@ type SearchOut = components["schemas"]["SearchOutputBody"];
 
 const TABS = [
   { key: "recipe", label: "配方" },
+  { key: "ingredient", label: "原料" },
   { key: "menu", label: "酒单" },
   { key: "user", label: "用户" },
-  { key: "ingredient", label: "原料" },
 ] as const;
 type TabKey = (typeof TABS)[number]["key"];
 
