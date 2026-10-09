@@ -120,9 +120,8 @@ function loadMore(): void {
 
 <template>
   <div class="flex flex-col gap-5">
-    <!-- 酒馆招牌（未登录访客可见）：旋转光束 + 像素标题 + 闪烁光标 -->
+    <!-- 酒馆招牌：旋转光束 + 像素标题 + 闪烁光标 -->
     <section
-      v-if="!auth.isAuthenticated"
       class="relative overflow-hidden rounded-sm border-2 border-border bg-card p-6 pixel-shadow sm:p-8"
     >
       <div
