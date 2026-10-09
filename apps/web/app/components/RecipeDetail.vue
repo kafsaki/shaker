@@ -248,7 +248,16 @@ const deleteMutation = useMutation({
       <!-- 标题与作者（经典页 hero 承载，hideHeader 时隐藏） -->
       <div v-if="!hideHeader" class="flex items-start justify-between gap-4">
         <div class="flex flex-col gap-2">
-          <h1 class="text-2xl font-bold">{{ recipe.title }}</h1>
+          <div class="flex flex-wrap items-baseline gap-x-3">
+            <h1 class="text-2xl font-bold">{{ recipe.title }}</h1>
+            <!-- 配方 ID 跟在标题右侧（经典档案模式由 hero 承载标题，这一行不渲染） -->
+            <span
+              class="font-mono text-xs tracking-wide text-muted-foreground"
+              title="配方 ID"
+            >
+              {{ recipe.code }}
+            </span>
+          </div>
           <p v-if="recipe.subtitle" class="text-sm text-muted-foreground">
             {{ recipe.subtitle }}
           </p>
@@ -325,12 +334,6 @@ const deleteMutation = useMutation({
         <span class="text-sm text-muted-foreground">{{ recipe.servings }} 人份</span>
         <span v-if="recipe.difficulty" class="text-sm text-muted-foreground">
           难度 {{ "★".repeat(recipe.difficulty) }}
-        </span>
-        <span
-          class="font-mono text-xs tracking-wide text-muted-foreground"
-          title="配方 ID"
-        >
-          {{ recipe.code }}
         </span>
       </div>
 

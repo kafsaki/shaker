@@ -226,9 +226,6 @@ async function goDistribution(): Promise<void> {
         <span v-if="canonical.difficulty">
           难度 {{ "★".repeat(canonical.difficulty) }}
         </span>
-        <span class="font-mono text-xs tracking-wide" title="配方 ID">
-          {{ canonical.code }}
-        </span>
       </p>
 
       <!-- 迷你共识分布：主原料用量中位前 3 的 p10~p90 区间 -->
