@@ -1,22 +1,28 @@
 <script setup lang="ts">
-/** 酒单详情：条目列表 + （属主）编辑/重排/分享/删除。 */
+/**
+ * 酒单展示详情页（类似歌单）：顶部封面 + 酒单名 + 作者 + 互动条，
+ * 正文用 RecipeCard 卡片排列。本人可「编辑信息」（含删除）与「编辑酒单」
+ * （编辑态：卡片可拖拽重排 + 卡片角上「X」移出）。
+ */
 import { useMutation, useQuery, useQueryClient } from "@tanstack/vue-query";
-import { ArrowDown, ArrowUp, Link2, Share2, Trash2 } from "lucide-vue-next";
+import {
+  ArrowUpDown,
+  Heart,
+  MessageCircle,
+  Pencil,
+  Share2,
+  Star,
+  Trash2,
+  X,
+} from "lucide-vue-next";
 import { toast } from "vue-sonner";
 import type { components } from "@shaker/api-client";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
-  Card,
-  CardContent,
-  CardHeader,
-} from "@/components/ui/card";
-import {
   Dialog,
   DialogContent,
-  DialogDescription,
-  DialogFooter,
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
@@ -31,6 +37,8 @@ import {
 } from "@/components/ui/select";
 import { Separator } from "@/components/ui/separator";
 import { Skeleton } from "@/components/ui/skeleton";
+import MenuCoverStack from "@/components/MenuCoverStack.vue";
+import RecipeCard from "@/components/RecipeCard.vue";
 
 type MenuDetail = components["schemas"]["MenuDetailOutputBody"];
 
@@ -38,7 +46,7 @@ const route = useRoute();
 const api = useApi();
 const auth = useAuthStore();
 const qc = useQueryClient();
-const { pickCover } = useCover();
+const { pickCovers } = useCover();
 const id = computed(() => String(route.params.id ?? ""));
 
 const { data: detail, isLoading, error } = useQuery({
@@ -54,20 +62,38 @@ const { data: detail, isLoading, error } = useQuery({
 
 const menu = computed(() => detail.value?.menu);
 const items = computed(() => detail.value?.items ?? []);
-// shareToken 带 omitempty（未分享过时主人也拿不到），属主判定必须用显式的 viewerIsOwner
 const isOwner = computed(() => menu.value?.viewerIsOwner ?? false);
 
-/* ── 编辑基本信息 ── */
+const VIS_ZH: Record<string, string> = { public: "公开", private: "私密" };
+
+/* ── 互动占位（后端未开放，仅 UI） ── */
+function notOpen(): void {
+  toast.info("该功能暂未开放");
+}
+
+/* ── 分享：直接分享 /menus/{id} 链接 ── */
+async function copyShare(): Promise<void> {
+  await navigator.clipboard.writeText(`${window.location.origin}/menus/${id.value}`);
+  toast.success("链接已复制");
+}
+
+/* ── 编辑信息（含删除） ── */
 const editOpen = ref(false);
+const confirmDelete = ref(false);
 const editTitle = ref("");
 const editDesc = ref("");
-const editVis = ref<"private" | "unlisted" | "public">("private");
+const editVis = ref<"private" | "public">("private");
+
+function openEditInfo(): void {
+  confirmDelete.value = false;
+  editOpen.value = true;
+}
 
 watch(editOpen, (o) => {
   if (o && menu.value) {
     editTitle.value = menu.value.title;
     editDesc.value = menu.value.description ?? "";
-    editVis.value = (menu.value.visibility as "private") ?? "private";
+    editVis.value = menu.value.visibility === "public" ? "public" : "private";
   }
 });
 
@@ -91,7 +117,30 @@ const updateMenu = useMutation({
   onError: (e) => toast.error(apiErrorMessage(e)),
 });
 
-/* ── 条目操作 ── */
+const deleteMenu = useMutation({
+  mutationFn: async () => {
+    const { error } = await api.DELETE("/api/v1/menus/{id}", {
+      params: { path: { id: id.value } },
+    });
+    if (error) throw error;
+  },
+  onSuccess: async () => {
+    toast.success("酒单已删除");
+    const handle = menu.value?.owner?.handle ?? auth.user?.handle ?? "";
+    await navigateTo(`/u/${handle}/menus`);
+  },
+  onError: (e) => toast.error(apiErrorMessage(e)),
+});
+
+/* ── 编辑酒单：拖拽重排 + 移出 ── */
+const editMode = ref(false);
+const dragIndex = ref<number | null>(null);
+
+function toggleEdit(): void {
+  editMode.value = !editMode.value;
+  resetDrag();
+}
+
 const removeItem = useMutation({
   mutationFn: async (recipeId: string) => {
     const { error } = await api.DELETE("/api/v1/menus/{id}/items/{recipeId}", {
@@ -120,73 +169,30 @@ const reorder = useMutation({
   onError: (e) => toast.error(apiErrorMessage(e)),
 });
 
-/** 上移：放到上一个条目之前 = afterRecipeId = 上上一个；列表头则 null。 */
-function moveUp(i: number): void {
-  const list = items.value;
-  if (i === 0) return;
-  reorder.mutate({
-    recipeId: list[i]!.recipe.id,
-    afterRecipeId: i >= 2 ? list[i - 2]!.recipe.id : null,
-  });
+function onDragStart(i: number): void {
+  dragIndex.value = i;
 }
 
-function moveDown(i: number): void {
-  const list = items.value;
-  if (i >= list.length - 1) return;
-  reorder.mutate({
-    recipeId: list[i + 1]!.recipe.id,
-    afterRecipeId: i >= 1 ? list[i - 1]!.recipe.id : null,
-  });
+function resetDrag(): void {
+  dragIndex.value = null;
 }
 
-/* ── 分享 ── */
-const shareOpen = ref(false);
-const shareUrl = ref("");
-
-const share = useMutation({
-  mutationFn: async () => {
-    const { data, error } = await api.POST("/api/v1/menus/{id}/share", {
-      params: { path: { id: id.value } },
-    });
-    if (error) throw error;
-    return data;
-  },
-  onSuccess: (d) => {
-    shareUrl.value = `${window.location.origin}/menus/shared/${d.shareToken}`;
-    void qc.invalidateQueries({ queryKey: ["menu"] });
-  },
-  onError: (e) => toast.error(apiErrorMessage(e)),
-});
-
-async function copyShare(): Promise<void> {
-  await navigator.clipboard.writeText(shareUrl.value);
-  toast.success("链接已复制");
+/** 拖到第 to 张卡片的位置：把被拖项移到该处，afterRecipeId = 前一张（null → 移到最前）。 */
+function onDrop(to: number): void {
+  const from = dragIndex.value;
+  resetDrag();
+  if (from === null || from === to) return;
+  const ids = items.value.map((it) => it.recipe.id);
+  const moved = ids[from]!;
+  ids.splice(from, 1);
+  const insertIdx = from < to ? to - 1 : to;
+  if (insertIdx === from) return; // 与相邻卡片互换等于原地不动
+  ids.splice(insertIdx, 0, moved);
+  const after = insertIdx > 0 ? ids[insertIdx - 1]! : null;
+  reorder.mutate({ recipeId: moved, afterRecipeId: after });
 }
-
-/* ── 删除 ── */
-const deleteOpen = ref(false);
-
-const deleteMenu = useMutation({
-  mutationFn: async () => {
-    const { error } = await api.DELETE("/api/v1/menus/{id}", {
-      params: { path: { id: id.value } },
-    });
-    if (error) throw error;
-  },
-  onSuccess: async () => {
-    toast.success("酒单已删除");
-    await navigateTo(`/u/${auth.user?.handle}/menus`);
-  },
-  onError: (e) => toast.error(apiErrorMessage(e)),
-});
 
 useHead(() => ({ title: `${menu.value?.title ?? "酒单"} · Shaker` }));
-
-const VIS_ZH: Record<string, string> = {
-  public: "公开",
-  unlisted: "不列出",
-  private: "私密",
-};
 </script>
 
 <template>
@@ -199,91 +205,110 @@ const VIS_ZH: Record<string, string> = {
     <AlertDescription>{{ apiErrorMessage(error) }}</AlertDescription>
   </Alert>
 
-  <div v-else-if="menu" class="flex flex-col gap-5">
-    <div class="flex flex-wrap items-start justify-between gap-3">
-      <div class="min-w-0">
-        <h1 class="flex flex-wrap items-center gap-2 text-xl font-bold">
-          {{ menu.title }}
+  <div v-else-if="menu" class="flex flex-col gap-6">
+    <!-- 头部（歌单式） -->
+    <div class="flex flex-col gap-5 sm:flex-row sm:items-start">
+      <MenuCoverStack
+        :covers="pickCovers(menu.coverUrls, menu.coverUrlsLight)"
+        class="w-32 shrink-0 sm:w-44"
+      />
+      <div class="flex min-w-0 flex-1 flex-col gap-3">
+        <div class="flex flex-wrap items-center gap-2">
+          <h1 class="text-2xl font-bold">{{ menu.title }}</h1>
           <Badge variant="secondary">{{ VIS_ZH[menu.visibility] ?? menu.visibility }}</Badge>
-        </h1>
-        <p v-if="menu.description" class="mt-1 text-sm text-muted-foreground">
-          {{ menu.description }}
-        </p>
-        <p class="mt-0.5 text-xs text-muted-foreground">{{ menu.itemCount }} 杯</p>
-      </div>
+        </div>
 
-      <div v-if="isOwner" class="flex flex-wrap gap-2">
-        <Button variant="outline" size="sm" @click="editOpen = true">编辑</Button>
-        <Button variant="outline" size="sm" @click="shareOpen = true">
-          <Share2 class="size-4" /> 分享
-        </Button>
-        <Button variant="outline" size="sm" class="text-destructive" @click="deleteOpen = true">
-          <Trash2 class="size-4" /> 删除
-        </Button>
+        <NuxtLink
+          v-if="menu.owner"
+          :to="`/u/${menu.owner.handle}`"
+          class="flex w-fit items-center gap-2 text-sm text-muted-foreground transition-colors hover:text-foreground"
+        >
+          <img
+            v-if="menu.owner.avatarUrl"
+            :src="menu.owner.avatarUrl"
+            alt=""
+            class="size-6 rounded-full object-cover"
+          >
+          <span>{{ menu.owner.displayName }}</span>
+          <span class="text-xs">@{{ menu.owner.handle }}</span>
+        </NuxtLink>
+
+        <p v-if="menu.description" class="text-sm text-muted-foreground">{{ menu.description }}</p>
+        <p class="text-xs text-muted-foreground">{{ menu.itemCount }} 杯</p>
+
+        <div class="flex flex-wrap items-center gap-2">
+          <Button variant="outline" size="sm" class="gap-1.5" @click="notOpen()">
+            <Heart class="size-4" /> 点赞
+          </Button>
+          <Button variant="outline" size="sm" class="gap-1.5" @click="notOpen()">
+            <Star class="size-4" /> 收藏
+          </Button>
+          <Button variant="outline" size="sm" class="gap-1.5" @click="notOpen()">
+            <MessageCircle class="size-4" /> 评论
+          </Button>
+          <Button variant="outline" size="sm" class="gap-1.5" @click="copyShare()">
+            <Share2 class="size-4" /> 分享
+          </Button>
+        </div>
+
+        <div v-if="isOwner" class="flex flex-wrap items-center gap-2">
+          <Button variant="outline" size="sm" class="gap-1.5" @click="openEditInfo()">
+            <Pencil class="size-4" /> 编辑信息
+          </Button>
+          <Button
+            :variant="editMode ? 'default' : 'outline'"
+            size="sm"
+            class="gap-1.5"
+            @click="toggleEdit()"
+          >
+            <ArrowUpDown class="size-4" /> {{ editMode ? "完成" : "编辑酒单" }}
+          </Button>
+        </div>
       </div>
     </div>
 
-    <Card v-if="items.length">
-      <CardContent class="flex flex-col divide-y divide-border">
-        <div
-          v-for="(it, i) in items"
-          :key="it.recipe.id"
-          class="flex items-center gap-3 py-3"
-          :class="it.recipe.deleted && 'opacity-50'"
+    <!-- 卡片排列 -->
+    <div
+      v-if="items.length"
+      class="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5"
+    >
+      <div
+        v-for="(it, i) in items"
+        :key="it.recipe.id"
+        class="relative"
+        :draggable="editMode"
+        :class="[editMode && 'cursor-grab', dragIndex === i && 'opacity-40']"
+        @dragstart="onDragStart(i)"
+        @dragover.prevent
+        @drop.prevent="onDrop(i)"
+        @dragend="resetDrag()"
+      >
+        <RecipeCard
+          :recipe="it.recipe"
+          :disabled="it.recipe.deleted"
+          :class="editMode && 'pointer-events-none'"
+        />
+        <button
+          v-if="editMode"
+          type="button"
+          draggable="false"
+          class="pointer-events-auto absolute -right-2 -top-2 z-10 flex size-6 items-center justify-center rounded-full border border-border bg-background text-destructive shadow-sm transition-colors hover:bg-destructive hover:text-destructive-foreground"
+          title="移出酒单"
+          @click.stop="removeItem.mutate(it.recipe.id)"
         >
-          <img
-            v-if="it.recipe.coverUrl && !it.recipe.deleted"
-            :src="pickCover(it.recipe.coverUrl, it.recipe.coverUrlLight)"
-            alt=""
-            loading="lazy"
-            class="size-14 shrink-0 rounded-lg border border-border object-cover"
-          >
-          <div v-else class="flex size-14 shrink-0 items-center justify-center rounded-lg border border-dashed border-border bg-muted/50 text-xs text-muted-foreground">
-            {{ it.recipe.deleted ? "已删" : "无封面" }}
-          </div>
-          <div class="min-w-0 flex-1">
-            <template v-if="it.recipe.deleted">
-              <span class="truncate font-medium line-through">{{ it.recipe.title }}</span>
-              <Badge variant="outline" class="ml-2 align-middle text-[11px]">配方已删除</Badge>
-            </template>
-            <NuxtLink
-              v-else
-              :to="`/r/${it.recipe.code}`"
-              class="truncate font-medium underline-offset-4 hover:underline"
-            >
-              {{ it.recipe.title }}
-            </NuxtLink>
-            <p v-if="it.note" class="truncate text-xs text-muted-foreground">{{ it.note }}</p>
-            <p v-if="!it.recipe.deleted" class="text-xs text-muted-foreground">
-              {{ it.recipe.likeCount }} 赞 · {{ it.recipe.commentCount }} 评论
-            </p>
-          </div>
-          <template v-if="isOwner">
-            <div class="flex shrink-0 items-center gap-0.5">
-              <Button variant="ghost" size="icon" class="size-7" :disabled="i === 0 || reorder.isPending.value" title="上移" @click="moveUp(i)">
-                <ArrowUp class="size-4" />
-              </Button>
-              <Button variant="ghost" size="icon" class="size-7" :disabled="i === items.length - 1 || reorder.isPending.value" title="下移" @click="moveDown(i)">
-                <ArrowDown class="size-4" />
-              </Button>
-              <Button variant="ghost" size="icon" class="size-7 text-destructive" title="移出" @click="removeItem.mutate(it.recipe.id)">
-                <Trash2 class="size-4" />
-              </Button>
-            </div>
-          </template>
-        </div>
-      </CardContent>
-    </Card>
-
+          <X class="size-3.5" />
+        </button>
+      </div>
+    </div>
     <p v-else class="py-16 text-center text-sm text-muted-foreground">
-      酒单还是空的。去配方页点「收藏」加进来。
+      这个酒单还是空的。去配方页点「收藏」加进来。
     </p>
 
-    <!-- 编辑 -->
+    <!-- 编辑信息 -->
     <Dialog v-model:open="editOpen">
       <DialogContent class="sm:max-w-sm">
         <DialogHeader>
-          <DialogTitle>编辑酒单</DialogTitle>
+          <DialogTitle>编辑信息</DialogTitle>
         </DialogHeader>
         <form class="flex flex-col gap-3" @submit.prevent="updateMenu.mutate()">
           <div class="flex flex-col gap-1.5">
@@ -300,57 +325,44 @@ const VIS_ZH: Record<string, string> = {
               <SelectTrigger><SelectValue /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="private">私密（仅自己）</SelectItem>
-                <SelectItem value="unlisted">不列出（链接可访问）</SelectItem>
                 <SelectItem value="public">公开</SelectItem>
               </SelectContent>
             </Select>
           </div>
           <Button type="submit" :disabled="updateMenu.isPending.value">保存</Button>
         </form>
-      </DialogContent>
-    </Dialog>
 
-    <!-- 分享 -->
-    <Dialog v-model:open="shareOpen">
-      <DialogContent class="sm:max-w-md">
-        <DialogHeader>
-          <DialogTitle>分享酒单</DialogTitle>
-          <DialogDescription>
-            生成（或轮换）分享链接。unlisted 酒单只有拿到链接的人能访问。
-          </DialogDescription>
-        </DialogHeader>
-        <div class="flex flex-col gap-3">
-          <template v-if="shareUrl">
-            <div class="flex items-center gap-2">
-              <Input :model-value="shareUrl" readonly class="h-9 text-xs" />
-              <Button size="sm" variant="outline" @click="copyShare()">
-                <Link2 class="size-4" /> 复制
-              </Button>
-            </div>
-            <Button variant="outline" size="sm" :disabled="share.isPending.value" @click="share.mutate()">
-              {{ share.isPending.value ? "轮换中…" : "轮换链接（旧链接作废）" }}
+        <Separator />
+        <div class="flex items-center justify-between gap-2">
+          <template v-if="!confirmDelete">
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              class="gap-1.5 text-destructive"
+              @click="confirmDelete = true"
+            >
+              <Trash2 class="size-4" /> 删除酒单
             </Button>
           </template>
-          <Button v-else :disabled="share.isPending.value" @click="share.mutate()">
-            {{ share.isPending.value ? "生成中…" : "生成分享链接" }}
-          </Button>
+          <template v-else>
+            <span class="text-sm text-muted-foreground">删除后无法恢复</span>
+            <div class="flex gap-2">
+              <Button type="button" variant="ghost" size="sm" @click="confirmDelete = false">
+                取消
+              </Button>
+              <Button
+                type="button"
+                variant="destructive"
+                size="sm"
+                :disabled="deleteMenu.isPending.value"
+                @click="deleteMenu.mutate()"
+              >
+                {{ deleteMenu.isPending.value ? "删除中…" : "确认删除" }}
+              </Button>
+            </div>
+          </template>
         </div>
-      </DialogContent>
-    </Dialog>
-
-    <!-- 删除 -->
-    <Dialog v-model:open="deleteOpen">
-      <DialogContent class="sm:max-w-sm">
-        <DialogHeader>
-          <DialogTitle>删除「{{ menu.title }}」？</DialogTitle>
-          <DialogDescription>删除后无法恢复（配方本身不受影响）。</DialogDescription>
-        </DialogHeader>
-        <DialogFooter>
-          <Button variant="ghost" @click="deleteOpen = false">取消</Button>
-          <Button variant="destructive" :disabled="deleteMenu.isPending.value" @click="deleteMenu.mutate()">
-            {{ deleteMenu.isPending.value ? "删除中…" : "删除" }}
-          </Button>
-        </DialogFooter>
       </DialogContent>
     </Dialog>
   </div>
