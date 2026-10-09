@@ -69,11 +69,11 @@ type feedQueryInput struct {
 	Window string `query:"window" enum:"24h,7d,30d,all" default:"7d"`
 	Q      string `query:"q" maxLength:"100"` // 标题关键词（「探索」页页内搜索）
 	// 以下筛选与 /search 同名同义（0 / 空表示未传）
-	Family        string  `query:"family" maxLength:"64"`
-	Method        string  `query:"method" maxLength:"32"`
-	Glass         string  `query:"glass" maxLength:"64"`
-	Tag           string  `query:"tag" maxLength:"64"`
-	Origin        string  `query:"origin" enum:"original,canonical"`
+	Family        string   `query:"family" maxLength:"64"`
+	Method        string   `query:"method" maxLength:"32"`
+	Glass         string   `query:"glass" maxLength:"64"`
+	Tag           []string `query:"tag,explode" maxItems:"10"` // 可重复传，OR 语义（命中任一标签）
+	Origin        string   `query:"origin" enum:"original,canonical"`
 	AbvMin        float64 `query:"abvMin" minimum:"0" maximum:"100"`
 	AbvMax        float64 `query:"abvMax" minimum:"0" maximum:"100"`
 	VolumeMin     float64 `query:"volumeMin" minimum:"0" maximum:"5000"`
@@ -87,7 +87,7 @@ type feedQueryInput struct {
 func (in *feedQueryInput) filter() recipe.RecipeFilter {
 	f := recipe.RecipeFilter{
 		Q: in.Q, Family: in.Family, Method: in.Method, Glass: in.Glass,
-		Tag: in.Tag, Origin: in.Origin,
+		Tags: in.Tag, Origin: in.Origin,
 	}
 	if in.AbvMin > 0 {
 		f.AbvMin = &in.AbvMin

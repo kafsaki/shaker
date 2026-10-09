@@ -2756,12 +2756,16 @@ paths:
           schema:
             maxLength: 64
             type: string
-        - explode: false
+        - explode: true
           in: query
           name: tag
           schema:
-            maxLength: 64
-            type: string
+            items:
+              type: string
+            maxItems: 10
+            type:
+              - array
+              - "null"
         - explode: false
           in: query
           name: origin
@@ -2879,12 +2883,16 @@ paths:
           schema:
             maxLength: 64
             type: string
-        - explode: false
+        - explode: true
           in: query
           name: tag
           schema:
-            maxLength: 64
-            type: string
+            items:
+              type: string
+            maxItems: 10
+            type:
+              - array
+              - "null"
         - explode: false
           in: query
           name: origin
@@ -3000,12 +3008,16 @@ paths:
           schema:
             maxLength: 64
             type: string
-        - explode: false
+        - explode: true
           in: query
           name: tag
           schema:
-            maxLength: 64
-            type: string
+            items:
+              type: string
+            maxItems: 10
+            type:
+              - array
+              - "null"
         - explode: false
           in: query
           name: origin
@@ -4169,12 +4181,16 @@ paths:
           schema:
             maxLength: 64
             type: string
-        - explode: false
+        - explode: true
           in: query
           name: tag
           schema:
-            maxLength: 64
-            type: string
+            items:
+              type: string
+            maxItems: 10
+            type:
+              - array
+              - "null"
         - explode: false
           in: query
           name: origin

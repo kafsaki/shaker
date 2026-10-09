@@ -34,7 +34,7 @@ type searchInput struct {
 	Family         string   `query:"family" maxLength:"64"`
 	Method         string   `query:"method" maxLength:"32"`
 	Glass          string   `query:"glass" maxLength:"64"`
-	Tag            string   `query:"tag" maxLength:"64"`
+	Tag            []string `query:"tag,explode" maxItems:"10"` // 可重复传，OR 语义（命中任一标签）
 	Origin         string   `query:"origin" enum:"original,canonical"`
 	AbvMin         float64  `query:"abvMin" minimum:"0" maximum:"100"`
 	AbvMax         float64  `query:"abvMax" minimum:"0" maximum:"100"`
@@ -281,7 +281,7 @@ func (a *API) searchMenus(ctx context.Context, in *searchInput, limit int) (*sea
 func (a *API) searchParams(in *searchInput) recipe.SearchParams {
 	p := recipe.SearchParams{
 		Q: in.Q, Ingredients: in.Ingredient, IngredientRole: in.IngredientRole,
-		Family: in.Family, Method: in.Method, Glass: in.Glass, Tag: in.Tag,
+		Family: in.Family, Method: in.Method, Glass: in.Glass, Tags: in.Tag,
 		Origin: in.Origin,
 		Sort:   in.Sort,
 	}

@@ -2446,7 +2446,7 @@ export interface operations {
                 family?: string;
                 method?: string;
                 glass?: string;
-                tag?: string;
+                tag?: string[] | null;
                 origin?: "original" | "canonical";
                 abvMin?: number;
                 abvMax?: number;
@@ -2490,7 +2490,7 @@ export interface operations {
                 family?: string;
                 method?: string;
                 glass?: string;
-                tag?: string;
+                tag?: string[] | null;
                 origin?: "original" | "canonical";
                 abvMin?: number;
                 abvMax?: number;
@@ -2534,7 +2534,7 @@ export interface operations {
                 family?: string;
                 method?: string;
                 glass?: string;
-                tag?: string;
+                tag?: string[] | null;
                 origin?: "original" | "canonical";
                 abvMin?: number;
                 abvMax?: number;
@@ -3734,7 +3734,7 @@ export interface operations {
                 family?: string;
                 method?: string;
                 glass?: string;
-                tag?: string;
+                tag?: string[] | null;
                 origin?: "original" | "canonical";
                 abvMin?: number;
                 abvMax?: number;

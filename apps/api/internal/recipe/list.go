@@ -153,7 +153,7 @@ type SearchParams struct {
 	Family         string
 	Method         string
 	Glass          string
-	Tag            string
+	Tags           []string // OR 语义：命中任一标签
 	Origin         string   // original=用户原创（source）| canonical=权威条目（is_canonical）
 	AbvMin         *float64
 	AbvMax         *float64
@@ -255,7 +255,7 @@ type RecipeFilter struct {
 	Family        string
 	Method        string
 	Glass         string
-	Tag           string
+	Tags          []string
 	Origin        string
 	AbvMin        *float64
 	AbvMax        *float64
@@ -267,7 +267,7 @@ type RecipeFilter struct {
 // Filter 摘出共用筛选子集供 Feed 复用。
 func (p SearchParams) Filter() RecipeFilter {
 	return RecipeFilter{
-		Q: p.Q, Family: p.Family, Method: p.Method, Glass: p.Glass, Tag: p.Tag,
+		Q: p.Q, Family: p.Family, Method: p.Method, Glass: p.Glass, Tags: p.Tags,
 		Origin: p.Origin,
 		AbvMin: p.AbvMin, AbvMax: p.AbvMax,
 		VolumeMin: p.VolumeMin, VolumeMax: p.VolumeMax,
@@ -300,9 +300,9 @@ func filterConds(f RecipeFilter, start int) ([]string, []any) {
 	if f.Glass != "" {
 		add(f.Glass, `r.glass_id = $%d`)
 	}
-	// 标签取配方自身的 recipe_tags（不是按原料反推）
-	if f.Tag != "" {
-		add(f.Tag, `EXISTS(SELECT 1 FROM recipe_tags rt WHERE rt.recipe_id = r.id AND rt.tag_id = $%d)`)
+	// 标签取配方自身的 recipe_tags（不是按原料反推）；多选之间是 OR（命中任一）
+	if len(f.Tags) > 0 {
+		add(f.Tags, `EXISTS(SELECT 1 FROM recipe_tags rt WHERE rt.recipe_id = r.id AND rt.tag_id = ANY($%d))`)
 	}
 	// 来源：原创=source 列；权威=IBA 权威条目（is_canonical）
 	switch f.Origin {
