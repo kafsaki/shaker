@@ -89,18 +89,18 @@ async function onLogout(): Promise<void> {
           探索
         </NuxtLink>
         <NuxtLink
-          to="/ingredients"
-          class="rounded-md px-3 py-1.5 text-sm transition-colors hover:bg-accent hover:text-accent-foreground"
-          :class="activePrefix('/ingredients') ? 'font-medium text-foreground' : 'text-muted-foreground'"
-        >
-          原料百科
-        </NuxtLink>
-        <NuxtLink
           to="/classics"
           class="rounded-md px-3 py-1.5 text-sm transition-colors hover:bg-accent hover:text-accent-foreground"
           :class="activePrefix('/classics') ? 'font-medium text-foreground' : 'text-muted-foreground'"
         >
           经典
+        </NuxtLink>
+        <NuxtLink
+          to="/ingredients"
+          class="rounded-md px-3 py-1.5 text-sm transition-colors hover:bg-accent hover:text-accent-foreground"
+          :class="activePrefix('/ingredients') ? 'font-medium text-foreground' : 'text-muted-foreground'"
+        >
+          原料百科
         </NuxtLink>
       </nav>
 
