@@ -26,10 +26,34 @@ type Dist = components["schemas"]["DistributionOutputBody"];
 type VariantPage = components["schemas"]["RecipeListOutputBody"];
 
 const route = useRoute();
+const router = useRouter();
 const api = useApi();
 const vocab = useVocabStore();
 const key = computed(() => String(route.params.classicKey ?? ""));
 const tab = ref("variants");
+
+/** 显示模式：archive = 经典档案（hero + 变体/分布）；plain = 与 /r/{code} 同款。
+ * 经典配方的唯一地址是 /classics/{key}，模式存 URL ?view= 以便分享与刷新保持。 */
+const view = ref<"archive" | "plain">(
+  route.query.view === "plain" ? "plain" : "archive",
+);
+watch(view, (v) => {
+  const query = { ...route.query };
+  if (v === "plain") query.view = "plain";
+  else delete query.view;
+  void router.replace({ query });
+});
+// 前进/后退时以地址栏为准
+watch(
+  () => route.query.view,
+  (v) => {
+    view.value = v === "plain" ? "plain" : "archive";
+  },
+);
+
+function setView(v: string): void {
+  view.value = v === "plain" ? "plain" : "archive";
+}
 
 // 权威条目不带 viz，RecipeDetail 回退到全量词表编译动画
 onMounted(() => void vocab.ensure().catch(() => {}));
@@ -55,10 +79,10 @@ const { data: variants } = useQuery({
     if (error) throw error;
     return data;
   },
-  enabled: computed(() => tab.value === "variants"),
+  enabled: computed(() => view.value === "archive" && tab.value === "variants"),
 });
 
-// hero 摘要需要分布数据（变体数 / ABV 中位 / 迷你区间条），始终加载
+// hero 摘要需要分布数据（变体数 / ABV 中位 / 迷你区间条），仅档案模式加载
 const { data: dist } = useQuery({
   queryKey: computed(() => ["classic-dist", key.value] as const),
   queryFn: async (): Promise<Dist> => {
@@ -69,6 +93,7 @@ const { data: dist } = useQuery({
     if (error) throw error;
     return data;
   },
+  enabled: computed(() => view.value === "archive"),
 });
 
 useHead(() => ({ title: `${canonical.value?.title ?? key.value} · Shaker` }));
@@ -135,8 +160,22 @@ async function goDistribution(): Promise<void> {
   </Alert>
 
   <div v-else-if="canonical" class="flex flex-col gap-6">
+    <!-- 显示模式工具条：链接不变，只切换呈现（档案 / 简洁） -->
+    <div class="flex items-center justify-between gap-3">
+      <Tabs :model-value="view" @update:model-value="(v) => setView(String(v))">
+        <TabsList>
+          <TabsTrigger value="archive">档案</TabsTrigger>
+          <TabsTrigger value="plain">简洁</TabsTrigger>
+        </TabsList>
+      </Tabs>
+      <p class="hidden text-xs text-muted-foreground sm:block">
+        {{ view === "archive" ? "档案：经典档案 + 社区共识" : "简洁：只看配方本身" }}
+      </p>
+    </div>
+
     <!-- 经典档案 hero：像素酒馆招牌 —— 旋转烛光光束 + 招牌扫光 -->
     <section
+      v-if="view === 'archive'"
       class="relative overflow-hidden rounded-sm border-2 border-amber-500/40 bg-gradient-to-b from-amber-50 to-transparent p-6 pixel-shadow sm:p-8 dark:border-amber-400/30 dark:from-amber-950/40"
     >
       <!-- 放射状旋转光线（烛光轮盘，缓慢旋转） -->
@@ -226,11 +265,12 @@ async function goDistribution(): Promise<void> {
       </Button>
     </section>
 
-    <!-- 权威配方本体（动画 + 原料 + 步骤；标题与徽章由 hero 承载） -->
-    <RecipeDetail :recipe="canonical" hide-header />
+    <!-- 权威配方本体（动画 + 原料 + 步骤）；
+         档案模式由 hero 承载标题与徽章，简洁模式与 /r/{code} 完全同款 -->
+    <RecipeDetail :recipe="canonical" :hide-header="view === 'archive'" />
 
-    <!-- 变体 / 分布 -->
-    <div id="classic-tabs">
+    <!-- 变体 / 分布（仅档案模式） -->
+    <div v-if="view === 'archive'" id="classic-tabs">
       <Tabs v-model="tab">
         <TabsList>
           <TabsTrigger value="variants">
