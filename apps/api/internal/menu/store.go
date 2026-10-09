@@ -17,15 +17,16 @@ import (
 
 	"github.com/kafsaki/shaker/apps/api/internal/base58"
 	"github.com/kafsaki/shaker/apps/api/internal/cursor"
+	"github.com/kafsaki/shaker/apps/api/internal/recipe"
 )
 
 var (
-	ErrNotFound    = errors.New("酒单不存在")
-	ErrForbidden   = errors.New("只能操作自己的酒单")
-	ErrRecipeGone  = errors.New("配方不存在")
-	ErrNotInMenu   = errors.New("配方不在酒单里")
-	ErrBadCursor   = errors.New("分页游标无效")
-	ErrBadReorder  = errors.New("锚点配方不在酒单里")
+	ErrNotFound   = errors.New("酒单不存在")
+	ErrForbidden  = errors.New("只能操作自己的酒单")
+	ErrRecipeGone = errors.New("配方不存在")
+	ErrNotInMenu  = errors.New("配方不在酒单里")
+	ErrBadCursor  = errors.New("分页游标无效")
+	ErrBadReorder = errors.New("锚点配方不在酒单里")
 )
 
 // Menu 酒单本体。
@@ -53,18 +54,18 @@ type AuthorBrief struct {
 // RecipeCard 酒单条目里的配方卡片（比 Feed 卡片更瘦：列表场景够用即可）。
 // Deleted：配方已被作者软删——条目保留（历史/笔记），前端置灰不可点。
 type RecipeCard struct {
-	ID          uuid.UUID
-	ShortNo     int64 // 对外短号（base58 编码后即 /r/{code}）
-	Title       string
-	ClassicKey  *string
-	IsCanonical bool
-	Family      *string
-	CoverURL    *string
+	ID            uuid.UUID
+	ShortNo       int64 // 对外短号（base58 编码后即 /r/{code}）
+	Title         string
+	ClassicKey    *string
+	IsCanonical   bool
+	Family        *string
+	CoverURL      *string
 	CoverURLLight *string
-	LikeCount   int
-	CommentCount int
-	Deleted     bool
-	Author      *AuthorBrief
+	LikeCount     int
+	CommentCount  int
+	Deleted       bool
+	Author        *AuthorBrief
 }
 
 // Code 对外短号。
@@ -156,7 +157,13 @@ func (s *Store) Update(ctx context.Context, id, ownerID uuid.UUID, in UpdateInpu
 
 // Delete 软删除（幂等：别人的/已删的都报 403/404 由调用方区分）。
 func (s *Store) Delete(ctx context.Context, id, ownerID uuid.UUID) error {
-	tag, err := s.pool.Exec(ctx, `
+	tx, err := s.pool.Begin(ctx)
+	if err != nil {
+		return fmt.Errorf("开启事务: %w", err)
+	}
+	defer tx.Rollback(ctx) //nolint:errcheck
+
+	tag, err := tx.Exec(ctx, `
 		UPDATE menus SET deleted_at = now()
 		WHERE id = $1 AND owner_id = $2 AND deleted_at IS NULL`, id, ownerID)
 	if err != nil {
@@ -165,7 +172,7 @@ func (s *Store) Delete(ctx context.Context, id, ownerID uuid.UUID) error {
 	if tag.RowsAffected() == 0 {
 		// 区分不了「不存在」和「不是主人」——先查存在性再给准确错误
 		var exists bool
-		if err := s.pool.QueryRow(ctx,
+		if err := tx.QueryRow(ctx,
 			`SELECT EXISTS(SELECT 1 FROM menus WHERE id = $1 AND deleted_at IS NULL)`, id).Scan(&exists); err != nil {
 			return fmt.Errorf("查询酒单: %w", err)
 		}
@@ -174,7 +181,16 @@ func (s *Store) Delete(ctx context.Context, id, ownerID uuid.UUID) error {
 		}
 		return ErrForbidden
 	}
-	return nil
+
+	// 下架等于把名下配方从所有人的收藏里摘掉（收藏数只算未删除的酒单）
+	ids, err := menuRecipeIDs(ctx, tx, id)
+	if err != nil {
+		return err
+	}
+	if err := syncRecipeCollect(ctx, tx, ids); err != nil {
+		return err
+	}
+	return tx.Commit(ctx)
 }
 
 /* ────────────────────────── 条目 ────────────────────────── */
@@ -214,6 +230,9 @@ func (s *Store) AddItem(ctx context.Context, menuID, ownerID, recipeID uuid.UUID
 		menuID); err != nil {
 		return fmt.Errorf("更新计数: %w", err)
 	}
+	if err := syncRecipeCollect(ctx, tx, []uuid.UUID{recipeID}); err != nil {
+		return err
+	}
 	return tx.Commit(ctx)
 }
 
@@ -237,7 +256,54 @@ func (s *Store) RemoveItem(ctx context.Context, menuID, ownerID, recipeID uuid.U
 		menuID); err != nil {
 		return fmt.Errorf("更新计数: %w", err)
 	}
+	if err := syncRecipeCollect(ctx, tx, []uuid.UUID{recipeID}); err != nil {
+		return err
+	}
 	return tx.Commit(ctx)
+}
+
+// syncRecipeCollect 重算这些配方的收藏数（= 出现在多少个「未删除」的酒单里，
+// menu_items 主键保证一个酒单最多一条，所以直接 count 行数），并顺带刷新热门
+// 排序键——hot_score = like_count + collect_count + comment_count，收藏数变了
+// 不能等到下次点赞才更新。
+//
+// 按 DB 设计 §3.3：计数冗余与源表写入在同一事务里原子 UPDATE，不用触发器。
+func syncRecipeCollect(ctx context.Context, q recipe.DBTX, recipeIDs []uuid.UUID) error {
+	if len(recipeIDs) == 0 {
+		return nil
+	}
+	if _, err := q.Exec(ctx, `
+		UPDATE recipes r SET collect_count = (
+			SELECT count(*) FROM menu_items mi
+			JOIN menus m ON m.id = mi.menu_id
+			WHERE mi.recipe_id = r.id AND m.deleted_at IS NULL
+		) WHERE r.id = ANY($1)`, recipeIDs); err != nil {
+		return fmt.Errorf("重算收藏数: %w", err)
+	}
+	for _, id := range recipeIDs {
+		if err := recipe.TouchHot(ctx, q, id); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// menuRecipeIDs 取某酒单名下的配方 id（酒单下架时要重算它们的收藏数）。
+func menuRecipeIDs(ctx context.Context, q recipe.DBTX, menuID uuid.UUID) ([]uuid.UUID, error) {
+	rows, err := q.Query(ctx, `SELECT recipe_id FROM menu_items WHERE menu_id = $1`, menuID)
+	if err != nil {
+		return nil, fmt.Errorf("查询酒单条目: %w", err)
+	}
+	defer rows.Close()
+	var out []uuid.UUID
+	for rows.Next() {
+		var id uuid.UUID
+		if err := rows.Scan(&id); err != nil {
+			return nil, fmt.Errorf("扫描酒单条目: %w", err)
+		}
+		out = append(out, id)
+	}
+	return out, rows.Err()
 }
 
 // ReorderItem 重排：afterRecipeID 为 nil → 移到最前；否则插到锚点之后
