@@ -82,6 +82,16 @@ function toggleLike(): void {
 const menuOpen = ref(false);
 const newMenuTitle = ref("");
 
+/** 收藏数 = 出现在多少个酒单里（后端 collect_count，含别人公开/私有酒单）。 */
+const collectCount = ref(props.recipe.counts.collect);
+
+watch(
+  () => props.recipe,
+  (r) => {
+    collectCount.value = r.counts.collect;
+  },
+);
+
 const { data: myMenus } = useQuery({
   queryKey: computed(() => ["my-menus", props.recipe.id] as const),
   queryFn: async (): Promise<MyMenu[]> => {
@@ -112,6 +122,8 @@ const itemMutation = useMutation({
   },
   onSuccess: (added, m) => {
     m.containsRecipe = added;
+    // 加入/移出必然让 collect_count 变化 ±1（一个酒单里同一配方只有一条）
+    collectCount.value += added ? 1 : -1;
     void qc.invalidateQueries({ queryKey: ["my-menus"] });
     toast.success(added ? `已加入「${m.title}」` : `已从「${m.title}」移出`);
   },
@@ -133,6 +145,7 @@ const createMutation = useMutation({
   },
   onSuccess: (m) => {
     toast.success(`已创建「${m.title}」并加入本配方`);
+    collectCount.value += 1;
     newMenuTitle.value = "";
     void qc.invalidateQueries({ queryKey: ["my-menus"] });
   },
@@ -160,7 +173,7 @@ const createMutation = useMutation({
             class="size-4"
           />
           <Bookmark v-else class="size-4" />
-          收藏
+          收藏 {{ collectCount }}
         </Button>
       </DialogTrigger>
       <DialogContent class="sm:max-w-sm">
