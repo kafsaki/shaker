@@ -1,13 +1,13 @@
 <script setup lang="ts">
 /**
- * 搜索结果页（B 站式）：顶部搜索框 + 「配方 / 酒单 / 用户」Tab 切换。
+ * 搜索结果页（B 站式）：顶部搜索框 + 「配方 / 酒单 / 用户 / 原料」Tab 切换。
  * 各 Tab 独立游标分页（useInfiniteQuery），且只在激活时请求。
  * 配方 Tab 额外提供标签、家族、手法、杯型与排序筛选。
  */
 import { useInfiniteQuery } from "@tanstack/vue-query";
 import { Search, SlidersHorizontal, X } from "lucide-vue-next";
 import type { components } from "@shaker/api-client";
-import { FAMILY_ZH, METHOD_ZH } from "@/lib/labels";
+import { CATEGORY_ZH, FAMILY_ZH, METHOD_ZH } from "@/lib/labels";
 import InfiniteLoader from "@/components/InfiniteLoader.vue";
 import MenuCoverStack from "@/components/MenuCoverStack.vue";
 import RecipeCard from "@/components/RecipeCard.vue";
@@ -30,6 +30,7 @@ const TABS = [
   { key: "recipe", label: "配方" },
   { key: "menu", label: "酒单" },
   { key: "user", label: "用户" },
+  { key: "ingredient", label: "原料" },
 ] as const;
 type TabKey = (typeof TABS)[number]["key"];
 
@@ -200,6 +201,28 @@ const userQuery = useInfiniteQuery({
   enabled: computed(() => searched.value && tab.value === "user"),
 });
 
+const ingredientQuery = useInfiniteQuery({
+  queryKey: computed(() => ["search", "ingredient", submitted.value] as const),
+  queryFn: async ({ pageParam }): Promise<NonNullable<SearchOut["ingredients"]>> => {
+    const { data, error } = await api.GET("/api/v1/search", {
+      params: {
+        query: {
+          q: submitted.value || undefined,
+          type: "ingredient",
+          cursor: pageParam || undefined,
+          limit: 24,
+        },
+      },
+    });
+    if (error) throw error;
+    if (!data.ingredients) throw new Error("搜索结果为空");
+    return data.ingredients;
+  },
+  initialPageParam: "",
+  getNextPageParam: (last) => last.nextCursor ?? undefined,
+  enabled: computed(() => searched.value && tab.value === "ingredient"),
+});
+
 const recipes = computed(
   () => recipeQuery.data.value?.pages.flatMap((p) => p.items ?? []) ?? [],
 );
@@ -209,12 +232,16 @@ const menus = computed(
 const users = computed(
   () => userQuery.data.value?.pages.flatMap((p) => p.items ?? []) ?? [],
 );
+const ingredients = computed(
+  () => ingredientQuery.data.value?.pages.flatMap((p) => p.items ?? []) ?? [],
+);
 
 /** 当前 Tab 的查询结果，供模板统一取 loading / 分页状态。 */
 const activeQuery = computed(() => {
   if (tab.value === "recipe") return recipeQuery;
   if (tab.value === "menu") return menuQuery;
-  return userQuery;
+  if (tab.value === "user") return userQuery;
+  return ingredientQuery;
 });
 const isLoading = computed(() => activeQuery.value.isLoading.value);
 const isFetching = computed(() => activeQuery.value.isFetching.value);
@@ -224,8 +251,12 @@ const isError = computed(() => activeQuery.value.isError.value);
 const isEmpty = computed(() => {
   if (tab.value === "recipe") return recipes.value.length === 0;
   if (tab.value === "menu") return menus.value.length === 0;
-  return users.value.length === 0;
+  if (tab.value === "user") return users.value.length === 0;
+  return ingredients.value.length === 0;
 });
+
+/** 当前 Tab 的中文名（空态文案复用）。 */
+const tabLabel = computed(() => TABS.find((t) => t.key === tab.value)?.label ?? "");
 
 function loadMore(): void {
   void activeQuery.value.fetchNextPage();
@@ -247,7 +278,7 @@ useHead(() => ({
         <Search class="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
         <Input
           v-model="q"
-          placeholder="搜配方 / 酒单 / 用户…"
+          placeholder="搜配方 / 酒单 / 用户 / 原料…"
           class="pl-9"
           :autofocus="!submitted"
         />
@@ -402,7 +433,7 @@ useHead(() => ({
       </div>
 
       <!-- 用户 -->
-      <div v-else class="grid gap-3 sm:grid-cols-2">
+      <div v-else-if="tab === 'user'" class="grid gap-3 sm:grid-cols-2">
         <NuxtLink
           v-for="u in users"
           :key="u.id"
@@ -425,10 +456,27 @@ useHead(() => ({
         </NuxtLink>
       </div>
 
+      <!-- 原料 -->
+      <div v-else class="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+        <NuxtLink
+          v-for="g in ingredients"
+          :key="g.id"
+          :to="`/ingredients/${g.id}`"
+          class="flex flex-col gap-2 rounded-sm border-2 border-border bg-card p-3 transition-all pixel-shadow-sm hover:-translate-y-0.5 hover:border-primary/60"
+        >
+          <div class="flex items-baseline gap-2">
+            <span class="truncate font-medium">{{ g.nameZh }}</span>
+            <span class="truncate text-xs text-muted-foreground">{{ g.nameEn }}</span>
+          </div>
+          <div class="flex flex-wrap items-center gap-1.5">
+            <Badge variant="secondary">{{ CATEGORY_ZH[g.category] ?? g.category }}</Badge>
+            <span v-if="g.abv" class="text-xs text-muted-foreground">{{ g.abv }}% ABV</span>
+          </div>
+        </NuxtLink>
+      </div>
+
       <p v-if="isEmpty" class="py-12 text-center text-sm text-muted-foreground">
-        没有找到相关{{ tab === "recipe" ? "配方" : tab === "menu" ? "酒单" : "用户" }}{{
-          tab === "recipe" && hasFilters ? "，试试清除筛选" : ""
-        }}
+        没有找到相关{{ tabLabel }}{{ tab === "recipe" && hasFilters ? "，试试清除筛选" : "" }}
       </p>
 
       <InfiniteLoader

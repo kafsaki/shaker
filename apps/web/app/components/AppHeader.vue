@@ -111,7 +111,7 @@ async function onLogout(): Promise<void> {
         />
         <Input
           v-model="keyword"
-          placeholder="搜配方 / 酒单 / 用户…"
+          placeholder="搜配方 / 酒单 / 用户 / 原料…"
           class="h-9 rounded-sm border-2 pl-8"
         />
       </form>
