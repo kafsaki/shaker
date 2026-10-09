@@ -71,6 +71,20 @@ pwsh -NoProfile -File scripts/e2e-<域>.ps1   # auth/vocab/recipes/feed/users/me
 
 坑：注册端点按 IP 限流 5 次/小时，反复跑 e2e 撞 429 属预期——限流器在内存里，重启 API 进程即重置。
 
+## 本地起 API（建议构建到固定路径）
+
+`go run ./cmd/api` 每次都把二进制编译到新的 `%TEMP%\go-build<随机数>\b001\exe\api.exe`。
+Windows 防火墙按**程序路径**放行，路径每次都变 → 每次重启都会弹「是否允许此应用访问网络」。
+本地开发建议构建到固定路径再运行，防火墙规则只需放行一次，顺带省掉每次编译：
+
+```bash
+cd apps/api
+go build -o bin/api.exe ./cmd/api   # 改了 Go 代码才需要这一步
+./bin/api.exe                       # 只是重启：直接跑这个
+```
+
+`bin/` 已在 .gitignore 里，二进制不入库；CI 与一次性验证仍可用 `go run ./cmd/api`。
+
 ## 诚实汇报
 
 这个仓库里有一件**尚未真正验证**的东西，不要在报告里含糊过去：
