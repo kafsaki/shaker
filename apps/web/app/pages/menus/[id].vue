@@ -132,11 +132,13 @@ const deleteMenu = useMutation({
   onError: (e) => toast.error(apiErrorMessage(e)),
 });
 
-/* ── 编辑酒单：拖拽重排 + 移出（仅编辑态可拖） ── */
+/* ── 编辑酒单：拖拽重排 + 移出（仅编辑态可拖，拖动中实时预览落点） ── */
 const editMode = ref(false);
 const dragIndex = ref<number | null>(null);
-/** 插入位置（0..n）：插到第 dropIndex 张卡片之前；n 表示放到最后。 */
+const dragId = ref<string | null>(null);
+/** 插入位（0..n）：插到原列表第 dropIndex 张之前；n 表示放到最后。 */
 const dropIndex = ref<number | null>(null);
+const gridWrap = ref<HTMLElement | null>(null);
 
 function toggleEdit(): void {
   editMode.value = !editMode.value;
@@ -145,8 +147,24 @@ function toggleEdit(): void {
 
 function resetDrag(): void {
   dragIndex.value = null;
+  dragId.value = null;
   dropIndex.value = null;
 }
+
+/**
+ * 拖拽中的预览顺序：被拖卡片虚拟移到插入位（渲染成半透明幽灵），
+ * 其他卡片经 TransitionGroup 滑开让位 —— 落点是否生效拖动中即可见。
+ */
+const previewItems = computed(() => {
+  const arr = [...items.value];
+  const from = dragIndex.value;
+  const slot = dropIndex.value;
+  if (from === null || slot === null) return arr;
+  const [m] = arr.splice(from, 1);
+  if (!m) return arr;
+  arr.splice(slot > from ? slot - 1 : slot, 0, m);
+  return arr;
+});
 
 const removeItem = useMutation({
   mutationFn: async (recipeId: string) => {
@@ -178,7 +196,8 @@ const reorder = useMutation({
 
 function onDragStart(i: number, e: DragEvent): void {
   dragIndex.value = i;
-  dropIndex.value = null;
+  dragId.value = items.value[i]?.recipe.id ?? null;
+  dropIndex.value = i;
   if (e.dataTransfer) {
     e.dataTransfer.effectAllowed = "move";
     e.dataTransfer.setData("text/plain", items.value[i]?.recipe.id ?? "");
@@ -186,37 +205,47 @@ function onDragStart(i: number, e: DragEvent): void {
 }
 
 /**
- * 鼠标落在卡片左半边 → 插到它前面，右半边 → 插到它后面。
- * 用「前后半区」而非「第 N 张」判定：末位的「放到最后」落在最后一张的右半边，
- * 无需拖动到卡片之外的空白区（那里是禁区）。
+ * 按鼠标坐标对网格几何求插入槽位（列取最近的槽缝，行取所在行）。
+ * 不依赖「悬停在哪张卡片上」，因此预览重排导致卡片位移时判定依然稳定。
  */
-function onDragOver(i: number, e: DragEvent): void {
+function onGridDragOver(e: DragEvent): void {
   if (dragIndex.value === null) return;
-  const el = e.currentTarget as HTMLElement | null;
-  if (!el) return;
-  const rect = el.getBoundingClientRect();
-  dropIndex.value = e.clientX < rect.left + rect.width / 2 ? i : i + 1;
+  const grid = gridWrap.value?.firstElementChild as HTMLElement | null;
+  if (!grid) return;
+  const n = items.value.length;
+  const rect = grid.getBoundingClientRect();
+  const style = getComputedStyle(grid);
+  const cols = Math.max(1, style.gridTemplateColumns.split(" ").length);
+  const gapX = parseFloat(style.columnGap) || 0;
+  const gapY = parseFloat(style.rowGap) || 0;
+  const cellW = (rect.width - (cols - 1) * gapX) / cols;
+  const cellH = (grid.children[0] as HTMLElement | undefined)?.offsetHeight ?? 0;
+  if (cellW <= 0 || cellH <= 0) return;
+  const col = Math.min(
+    Math.max(Math.round((e.clientX - rect.left + gapX / 2) / (cellW + gapX)), 0),
+    cols,
+  );
+  const row = Math.min(
+    Math.max(Math.floor((e.clientY - rect.top + gapY / 2) / (cellH + gapY)), 0),
+    Math.ceil(n / cols) - 1,
+  );
+  dropIndex.value = Math.min(row * cols + col, n);
 }
 
 /** 落点换算成新顺序：afterRecipeId = 目标前一张（null → 移到最前）。 */
 function onDrop(): void {
   const from = dragIndex.value;
-  const ins = dropIndex.value;
+  const slot = dropIndex.value;
+  const id = dragId.value;
   resetDrag();
-  if (from === null || ins === null) return;
-  const target = ins > from ? ins - 1 : ins; // 摘除被拖项后，插入位要左移一格
+  if (from === null || slot === null || !id) return;
+  const target = slot > from ? slot - 1 : slot; // 摘除被拖项后，插入位要左移一格
   if (target === from) return;
   const ids = items.value.map((it) => it.recipe.id);
-  const moved = ids[from]!;
   ids.splice(from, 1);
-  ids.splice(target, 0, moved);
+  ids.splice(target, 0, id);
   const after = target > 0 ? ids[target - 1]! : null;
-  reorder.mutate({ recipeId: moved, afterRecipeId: after });
-}
-
-/** 拖到卡片之外的网格空白处（.self）：视为放到最后，避免出现「禁止」光标。 */
-function onGridDragOver(): void {
-  if (dragIndex.value !== null) dropIndex.value = items.value.length;
+  reorder.mutate({ recipeId: id, afterRecipeId: after });
 }
 
 useHead(() => ({ title: `${menu.value?.title ?? "酒单"} · Shaker` }));
@@ -294,58 +323,48 @@ useHead(() => ({ title: `${menu.value?.title ?? "酒单"} · Shaker` }));
       </div>
     </div>
 
-    <!-- 卡片排列（TransitionGroup：重排/移出时有 FLIP 位移动画） -->
-    <TransitionGroup
-      v-if="items.length"
-      tag="div"
-      name="menu"
-      class="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5"
-      @dragover.self.prevent="onGridDragOver()"
-      @drop.self.prevent="onDrop()"
-    >
-      <div
-        v-for="(it, i) in items"
-        :key="it.recipe.id"
-        class="relative transition-all duration-150"
-        :draggable="editMode"
-        :class="[
-          editMode && 'cursor-grab active:cursor-grabbing',
-          dragIndex === i && 'scale-95 opacity-40',
-        ]"
-        @dragstart="onDragStart(i, $event)"
-        @dragover.prevent="onDragOver(i, $event)"
-        @drop.prevent="onDrop()"
-        @dragend="resetDrag()"
+    <!-- 卡片排列（TransitionGroup：实时预览重排 + 移出动画）。
+         dragover/drop 挂包裹层：卡片位移后事件冒泡仍能稳定命中 -->
+    <div ref="gridWrap" @dragover.prevent="onGridDragOver" @drop.prevent="onDrop()">
+      <TransitionGroup
+        v-if="previewItems.length"
+        tag="div"
+        name="menu"
+        class="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5"
       >
-        <!-- 插入位指示：左缘 = 插到这张之前，右缘 = 插到这张之后（最后一张的右缘即「放到最后」） -->
-        <span
-          v-if="editMode && dropIndex === i"
-          class="pointer-events-none absolute inset-y-1 -left-2.5 z-10 w-1 origin-top animate-[drop-line_0.15s_ease-out] rounded-full bg-primary shadow-[0_0_10px_2px] shadow-primary/60"
-        />
-        <RecipeCard
-          :recipe="it.recipe"
-          :disabled="it.recipe.deleted"
-          :class="editMode && 'pointer-events-none'"
-        />
-        <span
-          v-if="editMode && dropIndex === i + 1"
-          class="pointer-events-none absolute inset-y-1 -right-2.5 z-10 w-1 origin-top animate-[drop-line_0.15s_ease-out] rounded-full bg-primary shadow-[0_0_10px_2px] shadow-primary/60"
-        />
-        <button
-          v-if="editMode"
-          type="button"
-          draggable="false"
-          class="pointer-events-auto absolute -right-2 -top-2 z-10 flex size-6 items-center justify-center rounded-full border border-border bg-background text-destructive shadow-sm transition-colors hover:bg-destructive hover:text-destructive-foreground"
-          title="移出酒单"
-          @click.stop="removeItem.mutate(it.recipe.id)"
+        <div
+          v-for="(it, i) in previewItems"
+          :key="it.recipe.id"
+          class="relative transition-all duration-150"
+          :draggable="editMode"
+          :class="[
+            editMode && 'cursor-grab active:cursor-grabbing',
+            dragId && dragId === it.recipe.id && 'pointer-events-none scale-95 opacity-40',
+          ]"
+          @dragstart="onDragStart(i, $event)"
+          @dragend="resetDrag()"
         >
+          <RecipeCard
+            :recipe="it.recipe"
+            :disabled="it.recipe.deleted"
+            :class="editMode && 'pointer-events-none'"
+          />
+          <button
+            v-if="editMode"
+            type="button"
+            draggable="false"
+            class="pointer-events-auto absolute -right-2 -top-2 z-10 flex size-6 items-center justify-center rounded-full border border-border bg-background text-destructive shadow-sm transition-colors hover:bg-destructive hover:text-destructive-foreground"
+            title="移出酒单"
+            @click.stop="removeItem.mutate(it.recipe.id)"
+          >
           <X class="size-3.5" />
         </button>
       </div>
-    </TransitionGroup>
-    <p v-else class="py-16 text-center text-sm text-muted-foreground">
-      这个酒单还是空的。去配方页点「收藏」加进来。
-    </p>
+      </TransitionGroup>
+      <p v-else class="py-16 text-center text-sm text-muted-foreground">
+        这个酒单还是空的。去配方页点「收藏」加进来。
+      </p>
+    </div>
 
     <!-- 编辑信息 -->
     <Dialog v-model:open="editOpen">
@@ -425,15 +444,5 @@ useHead(() => ({ title: `${menu.value?.title ?? "酒单"} · Shaker` }));
 }
 .menu-leave-active {
   position: absolute;
-}
-
-/* 插入位指示线：自上而下展开 */
-@keyframes drop-line {
-  from {
-    transform: scaleY(0);
-  }
-  to {
-    transform: scaleY(1);
-  }
 }
 </style>
