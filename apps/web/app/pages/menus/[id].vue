@@ -294,9 +294,11 @@ useHead(() => ({ title: `${menu.value?.title ?? "酒单"} · Shaker` }));
       </div>
     </div>
 
-    <!-- 卡片排列 -->
-    <div
+    <!-- 卡片排列（TransitionGroup：重排/移出时有 FLIP 位移动画） -->
+    <TransitionGroup
       v-if="items.length"
+      tag="div"
+      name="menu"
       class="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5"
       @dragover.self.prevent="onGridDragOver()"
       @drop.self.prevent="onDrop()"
@@ -304,11 +306,11 @@ useHead(() => ({ title: `${menu.value?.title ?? "酒单"} · Shaker` }));
       <div
         v-for="(it, i) in items"
         :key="it.recipe.id"
-        class="relative"
+        class="relative transition-all duration-150"
         :draggable="editMode"
         :class="[
           editMode && 'cursor-grab active:cursor-grabbing',
-          dragIndex === i && 'opacity-40',
+          dragIndex === i && 'scale-95 opacity-40',
         ]"
         @dragstart="onDragStart(i, $event)"
         @dragover.prevent="onDragOver(i, $event)"
@@ -318,7 +320,7 @@ useHead(() => ({ title: `${menu.value?.title ?? "酒单"} · Shaker` }));
         <!-- 插入位指示：左缘 = 插到这张之前，右缘 = 插到这张之后（最后一张的右缘即「放到最后」） -->
         <span
           v-if="editMode && dropIndex === i"
-          class="pointer-events-none absolute inset-y-0 -left-2 w-0.5 rounded-full bg-primary"
+          class="pointer-events-none absolute inset-y-1 -left-2.5 z-10 w-1 origin-top animate-[drop-line_0.15s_ease-out] rounded-full bg-primary shadow-[0_0_10px_2px] shadow-primary/60"
         />
         <RecipeCard
           :recipe="it.recipe"
@@ -327,7 +329,7 @@ useHead(() => ({ title: `${menu.value?.title ?? "酒单"} · Shaker` }));
         />
         <span
           v-if="editMode && dropIndex === i + 1"
-          class="pointer-events-none absolute inset-y-0 -right-2 w-0.5 rounded-full bg-primary"
+          class="pointer-events-none absolute inset-y-1 -right-2.5 z-10 w-1 origin-top animate-[drop-line_0.15s_ease-out] rounded-full bg-primary shadow-[0_0_10px_2px] shadow-primary/60"
         />
         <button
           v-if="editMode"
@@ -340,7 +342,7 @@ useHead(() => ({ title: `${menu.value?.title ?? "酒单"} · Shaker` }));
           <X class="size-3.5" />
         </button>
       </div>
-    </div>
+    </TransitionGroup>
     <p v-else class="py-16 text-center text-sm text-muted-foreground">
       这个酒单还是空的。去配方页点「收藏」加进来。
     </p>
@@ -408,3 +410,30 @@ useHead(() => ({ title: `${menu.value?.title ?? "酒单"} · Shaker` }));
     </Dialog>
   </div>
 </template>
+
+<style scoped>
+/* TransitionGroup：重排时平滑位移，移出时淡出并让位 */
+.menu-move,
+.menu-enter-active,
+.menu-leave-active {
+  transition: all 0.25s ease;
+}
+.menu-enter-from,
+.menu-leave-to {
+  opacity: 0;
+  transform: scale(0.9);
+}
+.menu-leave-active {
+  position: absolute;
+}
+
+/* 插入位指示线：自上而下展开 */
+@keyframes drop-line {
+  from {
+    transform: scaleY(0);
+  }
+  to {
+    transform: scaleY(1);
+  }
+}
+</style>
