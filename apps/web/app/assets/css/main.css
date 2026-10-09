@@ -1,51 +1,59 @@
 @import "tailwindcss";
 @import "tw-animate-css";
+@import "@fontsource/press-start-2p";
 
 @custom-variant dark (&:is(.dark *));
 
+/* ── 像素酒馆 · 羊皮纸（亮色） ─────────────────────────────
+   暖色调：奶油羊皮纸底、深棕木纹字、琥珀金点缀 */
 :root {
-  --background: oklch(0.985 0.002 75);
-  --foreground: oklch(0.22 0.01 75);
-  --card: oklch(1 0 0);
-  --card-foreground: oklch(0.22 0.01 75);
-  --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.22 0.01 75);
-  --primary: oklch(0.55 0.13 145);
-  --primary-foreground: oklch(0.985 0.002 75);
-  --secondary: oklch(0.94 0.01 75);
-  --secondary-foreground: oklch(0.3 0.01 75);
-  --muted: oklch(0.94 0.01 75);
-  --muted-foreground: oklch(0.5 0.01 75);
-  --accent: oklch(0.92 0.02 145);
-  --accent-foreground: oklch(0.3 0.01 75);
-  --destructive: oklch(0.55 0.2 25);
-  --destructive-foreground: oklch(0.985 0.002 75);
-  --border: oklch(0.88 0.01 75);
-  --input: oklch(0.88 0.01 75);
-  --ring: oklch(0.55 0.13 145);
-  --radius: 0.625rem;
+  --background: oklch(0.94 0.025 90);
+  --foreground: oklch(0.28 0.03 60);
+  --card: oklch(0.97 0.02 92);
+  --card-foreground: oklch(0.28 0.03 60);
+  --popover: oklch(0.97 0.02 92);
+  --popover-foreground: oklch(0.28 0.03 60);
+  --primary: oklch(0.6 0.13 70);
+  --primary-foreground: oklch(0.97 0.02 92);
+  --secondary: oklch(0.89 0.03 80);
+  --secondary-foreground: oklch(0.35 0.03 60);
+  --muted: oklch(0.89 0.03 80);
+  --muted-foreground: oklch(0.52 0.03 65);
+  --accent: oklch(0.86 0.05 78);
+  --accent-foreground: oklch(0.32 0.03 60);
+  --destructive: oklch(0.55 0.19 30);
+  --destructive-foreground: oklch(0.97 0.02 92);
+  --border: oklch(0.78 0.035 70);
+  --input: oklch(0.78 0.035 70);
+  --ring: oklch(0.6 0.13 70);
+  --radius: 0.125rem;
+  /* 像素硬阴影（酒馆木牌投影） */
+  --pixel-shadow: rgb(0 0 0 / 0.18);
 }
 
+/* ── 像素酒馆 · 夜晚（暗色，默认） ─────────────────────────
+   深棕木底、烛光琥珀金、奶油字 */
 .dark {
-  --background: oklch(0.17 0.008 75);
-  --foreground: oklch(0.93 0.004 75);
-  --card: oklch(0.21 0.008 75);
-  --card-foreground: oklch(0.93 0.004 75);
-  --popover: oklch(0.21 0.008 75);
-  --popover-foreground: oklch(0.93 0.004 75);
-  --primary: oklch(0.68 0.14 145);
-  --primary-foreground: oklch(0.15 0.01 75);
-  --secondary: oklch(0.27 0.01 75);
-  --secondary-foreground: oklch(0.93 0.004 75);
-  --muted: oklch(0.27 0.01 75);
-  --muted-foreground: oklch(0.65 0.01 75);
-  --accent: oklch(0.3 0.03 145);
-  --accent-foreground: oklch(0.93 0.004 75);
-  --destructive: oklch(0.65 0.2 25);
-  --destructive-foreground: oklch(0.15 0.01 75);
-  --border: oklch(0.3 0.01 75);
-  --input: oklch(0.3 0.01 75);
-  --ring: oklch(0.68 0.14 145);
+  --background: oklch(0.185 0.02 65);
+  --foreground: oklch(0.92 0.02 90);
+  --card: oklch(0.235 0.025 65);
+  --card-foreground: oklch(0.92 0.02 90);
+  --popover: oklch(0.235 0.025 65);
+  --popover-foreground: oklch(0.92 0.02 90);
+  --primary: oklch(0.79 0.15 80);
+  --primary-foreground: oklch(0.2 0.02 65);
+  --secondary: oklch(0.3 0.03 65);
+  --secondary-foreground: oklch(0.92 0.02 90);
+  --muted: oklch(0.3 0.03 65);
+  --muted-foreground: oklch(0.66 0.025 80);
+  --accent: oklch(0.34 0.045 72);
+  --accent-foreground: oklch(0.93 0.02 85);
+  --destructive: oklch(0.62 0.19 30);
+  --destructive-foreground: oklch(0.95 0.02 90);
+  --border: oklch(0.37 0.035 65);
+  --input: oklch(0.37 0.035 65);
+  --ring: oklch(0.79 0.15 80);
+  --pixel-shadow: rgb(0 0 0 / 0.45);
 }
 
 @theme inline {
@@ -72,6 +80,8 @@
   --radius-md: calc(var(--radius) - 2px);
   --radius-lg: var(--radius);
   --radius-xl: calc(var(--radius) + 4px);
+  /* 像素字体（拉丁/数字/符号），用于招牌、标题点缀、计数 */
+  --font-pixel: "Press Start 2P", ui-monospace, monospace;
   /* 经典档案页专用衬线栈（font-classic），区别于 UGC 页的无衬线 */
   --font-classic: "Noto Serif SC", "Source Han Serif SC", "Songti SC", STSong,
     SimSun, ui-serif, Georgia, serif;
@@ -90,4 +100,95 @@
   body {
     @apply bg-background text-foreground antialiased;
   }
+}
+
+/* ── 酒馆氛围层 ─────────────────────────────────────────── */
+
+/* CRT 扫描线：极淡的横向条纹叠在全站最上层，模拟老式游戏机屏幕 */
+body::after {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  pointer-events: none;
+  background: repeating-linear-gradient(
+    to bottom,
+    transparent 0,
+    transparent 2px,
+    rgb(0 0 0 / 0.05) 2px,
+    rgb(0 0 0 / 0.05) 4px
+  );
+}
+
+/* 像素硬阴影（木牌投影感），配合 active 位移做「按下去」的反馈 */
+@utility pixel-shadow {
+  box-shadow: 4px 4px 0 0 var(--pixel-shadow);
+}
+@utility pixel-shadow-sm {
+  box-shadow: 2px 2px 0 0 var(--pixel-shadow);
+}
+
+/* 招牌扫光：一道斜向高光周期性掠过（配合 overflow-hidden 的容器） */
+@keyframes sign-shine {
+  0% {
+    transform: translateX(-120%) skewX(-18deg);
+  }
+  55%,
+  100% {
+    transform: translateX(240%) skewX(-18deg);
+  }
+}
+
+/* 放射状旋转光线（酒馆招牌/经典档案 hero 背景） */
+@keyframes rays-spin {
+  to {
+    transform: rotate(1turn);
+  }
+}
+
+/* 像素星星闪烁（steps 跳变，不做平滑渐变，才是 8-bit 的味道） */
+@keyframes pixel-blink {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.15;
+  }
+}
+
+/* 光标式方块闪烁（标题后缀 ▌） */
+@keyframes cursor-blink {
+  0%,
+  49% {
+    opacity: 1;
+  }
+  50%,
+  100% {
+    opacity: 0;
+  }
+}
+
+@utility animate-sign-shine {
+  animation: sign-shine 4.5s ease-in-out infinite;
+}
+@utility animate-rays-spin {
+  animation: rays-spin 48s linear infinite;
+}
+@utility animate-pixel-blink {
+  animation: pixel-blink 1.6s steps(1) infinite;
+}
+@utility animate-cursor-blink {
+  animation: cursor-blink 1.1s steps(1) infinite;
+}
+
+/* 放射光线本体：conic 渐变轮盘，用 mask 收成柔和的光束 */
+@utility tavern-rays {
+  background: repeating-conic-gradient(
+    from 0deg,
+    var(--color-primary) 0deg 10deg,
+    transparent 10deg 24deg
+  );
+  mask-image: radial-gradient(circle, black 0%, transparent 68%);
+  -webkit-mask-image: radial-gradient(circle, black 0%, transparent 68%);
 }
