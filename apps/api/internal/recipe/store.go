@@ -934,17 +934,19 @@ func derivedValues(d irv.Derived) (abv, total any) {
 	return
 }
 
-// TouchHot 重算单条配方的时间衰减热度（DB 设计 §5 公式）：
+// TouchHot 重算单条配方的热门排序键——当前是互动总量：
 //
-//	hot = (like_count + 2·collect_count + 0.5·comment_count + 1) / (age_hours + 2)^1.6
+//	hot = like_count + collect_count + comment_count
+//
+// 原先的时间衰减加权公式（DB 设计 §5：(like + 2·collect + 0.5·comment + 1)
+// / (age_hours + 2)^1.6）暂时下线，先按纯计数排序看社区共识落点，加权与
+// 衰减后续再调。
 //
 // 正式设计里由 river worker 周期重算（ADR-006）；v1 单实例在互动与发布的
 // 同一事务内联刷新——新鲜度足够，多实例后换成异步任务。
 func TouchHot(ctx context.Context, q DBTX, id uuid.UUID) error {
 	if _, err := q.Exec(ctx, `
-		UPDATE recipes SET hot_score = (
-			like_count + 2 * collect_count + 0.5 * comment_count + 1
-		) / power(extract(epoch FROM (now() - published_at)) / 3600 + 2, 1.6)
+		UPDATE recipes SET hot_score = like_count + collect_count + comment_count
 		WHERE id = $1 AND published_at IS NOT NULL`, id); err != nil {
 		return fmt.Errorf("重算热度 %s: %w", id, err)
 	}
