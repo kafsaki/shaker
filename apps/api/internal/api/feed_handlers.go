@@ -67,6 +67,7 @@ type feedOutput struct {
 
 type feedQueryInput struct {
 	Window string `query:"window" enum:"24h,7d,30d,all" default:"7d"`
+	Q      string `query:"q" maxLength:"100"` // 标题关键词过滤（「探索」页页内搜索）
 	Cursor string `query:"cursor"`
 	Limit  int    `query:"limit" minimum:"1" maximum:"50"`
 }
@@ -81,7 +82,7 @@ func limitOf(n int) int {
 
 func (a *API) feedHotHandler(ctx context.Context, in *feedQueryInput) (*feedOutput, error) {
 	claims, _ := ctx.Value(ctxClaims).(*auth.Claims)
-	res, err := a.recipes.FeedHot(ctx, in.Window, in.Cursor, limitOf(in.Limit))
+	res, err := a.recipes.FeedHot(ctx, in.Window, in.Q, in.Cursor, limitOf(in.Limit))
 	if err != nil {
 		return nil, feedErr(err)
 	}
@@ -90,7 +91,7 @@ func (a *API) feedHotHandler(ctx context.Context, in *feedQueryInput) (*feedOutp
 
 func (a *API) feedNewHandler(ctx context.Context, in *feedQueryInput) (*feedOutput, error) {
 	claims, _ := ctx.Value(ctxClaims).(*auth.Claims)
-	res, err := a.recipes.FeedNew(ctx, in.Cursor, limitOf(in.Limit))
+	res, err := a.recipes.FeedNew(ctx, in.Q, in.Cursor, limitOf(in.Limit))
 	if err != nil {
 		return nil, feedErr(err)
 	}
@@ -102,7 +103,7 @@ func (a *API) feedFollowingHandler(ctx context.Context, in *feedQueryInput) (*fe
 	if herr != nil {
 		return nil, herr
 	}
-	res, err := a.recipes.FeedFollowing(ctx, claims.UserUUID(), in.Cursor, limitOf(in.Limit))
+	res, err := a.recipes.FeedFollowing(ctx, claims.UserUUID(), in.Q, in.Cursor, limitOf(in.Limit))
 	if err != nil {
 		return nil, feedErr(err)
 	}

@@ -46,7 +46,8 @@ type FeedResult struct {
 const feedScanLimit = 50
 
 // FeedHot 热门流。window ∈ {24h,7d,30d,all}。
-func (s *Store) FeedHot(ctx context.Context, window, cur string, limit int) (*FeedResult, error) {
+// q 非空时按标题模糊匹配过滤（谓词与 /search 一致），供「探索」页页内搜索复用同一套流。
+func (s *Store) FeedHot(ctx context.Context, window, q, cur string, limit int) (*FeedResult, error) {
 	var since string
 	switch window {
 	case "24h":
@@ -68,6 +69,12 @@ func (s *Store) FeedHot(ctx context.Context, window, cur string, limit int) (*Fe
 			return nil, ErrBadCursor
 		}
 		var args []any
+		qPred := ""
+		if q != "" {
+			args = append(args, q)
+			n := len(args)
+			qPred = fmt.Sprintf(` AND (r.title %% $%d OR r.title ILIKE '%%' || $%d || '%%')`, n, n)
+		}
 		pred := ""
 		if c != nil {
 			args = append(args, c.H, c.ID)
@@ -78,7 +85,7 @@ func (s *Store) FeedHot(ctx context.Context, window, cur string, limit int) (*Fe
 		return s.queryRecipes(ctx, `
 			SELECT `+recipeCols+authorCols+`
 			FROM recipes r LEFT JOIN users u ON u.id = r.author_id
-			WHERE r.status = 'published' AND r.deleted_at IS NULL`+since+pred+`
+			WHERE r.status = 'published' AND r.deleted_at IS NULL`+since+qPred+pred+`
 			ORDER BY r.hot_score DESC, r.id
 			LIMIT $`+fmt.Sprint(len(args)), args...)
 	}
@@ -88,20 +95,26 @@ func (s *Store) FeedHot(ctx context.Context, window, cur string, limit int) (*Fe
 	return s.scanFeed(ctx, fetch, cursorOf, cur, limit)
 }
 
-// FeedNew 最新流。
-func (s *Store) FeedNew(ctx context.Context, cur string, limit int) (*FeedResult, error) {
+// FeedNew 最新流。q 语义同 FeedHot。
+func (s *Store) FeedNew(ctx context.Context, q, cur string, limit int) (*FeedResult, error) {
 	if _, err := cursor.Decode[cursor.Time](cur); err != nil {
 		return nil, ErrBadCursor
+	}
+	base := `
+		SELECT ` + recipeCols + authorCols + `
+		FROM recipes r LEFT JOIN users u ON u.id = r.author_id
+		WHERE r.status = 'published' AND r.deleted_at IS NULL`
+	var extra []any
+	if q != "" {
+		base += ` AND (r.title % $1 OR r.title ILIKE '%' || $1 || '%')`
+		extra = append(extra, q)
 	}
 	fetch := func(cur string) ([]*Recipe, error) {
 		c, err := cursor.Decode[cursor.Time](cur)
 		if err != nil {
 			return nil, ErrBadCursor
 		}
-		return s.queryRecipesAfter(ctx, c, `
-			SELECT `+recipeCols+authorCols+`
-			FROM recipes r LEFT JOIN users u ON u.id = r.author_id
-			WHERE r.status = 'published' AND r.deleted_at IS NULL`, `r.published_at`)
+		return s.queryRecipesAfter(ctx, c, base, `r.published_at`, extra...)
 	}
 	cursorOf := func(r *Recipe) string {
 		return cursor.Encode(cursor.Time{T: r.PublishedAt.UnixNano(), ID: r.ID.String()})
@@ -109,21 +122,27 @@ func (s *Store) FeedNew(ctx context.Context, cur string, limit int) (*FeedResult
 	return s.scanFeed(ctx, fetch, cursorOf, cur, limit)
 }
 
-// FeedFollowing 关注的人的发布流。
-func (s *Store) FeedFollowing(ctx context.Context, userID uuid.UUID, cur string, limit int) (*FeedResult, error) {
+// FeedFollowing 关注的人的发布流。q 语义同 FeedHot。
+func (s *Store) FeedFollowing(ctx context.Context, userID uuid.UUID, q, cur string, limit int) (*FeedResult, error) {
 	if _, err := cursor.Decode[cursor.Time](cur); err != nil {
 		return nil, ErrBadCursor
+	}
+	base := `
+		SELECT ` + recipeCols + authorCols + `
+		FROM recipes r LEFT JOIN users u ON u.id = r.author_id
+		WHERE r.status = 'published' AND r.deleted_at IS NULL
+			AND r.author_id IN (SELECT followee_id FROM follows WHERE follower_id = $1)`
+	extra := []any{userID}
+	if q != "" {
+		base += ` AND (r.title % $2 OR r.title ILIKE '%' || $2 || '%')`
+		extra = append(extra, q)
 	}
 	fetch := func(cur string) ([]*Recipe, error) {
 		c, err := cursor.Decode[cursor.Time](cur)
 		if err != nil {
 			return nil, ErrBadCursor
 		}
-		return s.queryRecipesAfter(ctx, c, `
-			SELECT `+recipeCols+authorCols+`
-			FROM recipes r LEFT JOIN users u ON u.id = r.author_id
-			WHERE r.status = 'published' AND r.deleted_at IS NULL
-				AND r.author_id IN (SELECT followee_id FROM follows WHERE follower_id = $1)`, `r.published_at`, userID)
+		return s.queryRecipesAfter(ctx, c, base, `r.published_at`, extra...)
 	}
 	cursorOf := func(r *Recipe) string {
 		return cursor.Encode(cursor.Time{T: r.PublishedAt.UnixNano(), ID: r.ID.String()})

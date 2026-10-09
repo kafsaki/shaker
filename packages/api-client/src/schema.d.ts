@@ -2442,6 +2442,7 @@ export interface operations {
         parameters: {
             query?: {
                 window?: "24h" | "7d" | "30d" | "all";
+                q?: string;
                 cursor?: string;
                 limit?: number;
             };
@@ -2475,6 +2476,7 @@ export interface operations {
         parameters: {
             query?: {
                 window?: "24h" | "7d" | "30d" | "all";
+                q?: string;
                 cursor?: string;
                 limit?: number;
             };
@@ -2508,6 +2510,7 @@ export interface operations {
         parameters: {
             query?: {
                 window?: "24h" | "7d" | "30d" | "all";
+                q?: string;
                 cursor?: string;
                 limit?: number;
             };

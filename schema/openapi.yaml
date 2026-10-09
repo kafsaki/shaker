@@ -2734,6 +2734,12 @@ paths:
             type: string
         - explode: false
           in: query
+          name: q
+          schema:
+            maxLength: 100
+            type: string
+        - explode: false
+          in: query
           name: cursor
           schema:
             type: string
@@ -2779,6 +2785,12 @@ paths:
             type: string
         - explode: false
           in: query
+          name: q
+          schema:
+            maxLength: 100
+            type: string
+        - explode: false
+          in: query
           name: cursor
           schema:
             type: string
@@ -2819,6 +2831,12 @@ paths:
               - 7d
               - 30d
               - all
+            type: string
+        - explode: false
+          in: query
+          name: q
+          schema:
+            maxLength: 100
             type: string
         - explode: false
           in: query
