@@ -1,6 +1,9 @@
 <script setup lang="ts">
 import { useQuery } from "@tanstack/vue-query";
-import { Bell, BookOpen, LogOut, Martini, Moon, PencilLine, Search, Settings, Sun, User } from "lucide-vue-next";
+import { Bell, BookOpen, LogOut, Martini, Moon, PencilLine, Search, Settings, Sun } from "lucide-vue-next";
+// MenuAnchor（只提供弹出层的定位参考、不接管点击）未出现在 reka-ui 主入口的
+// 导出里，只能走它声明的 ./internal 子路径——这样头像可以保持成一个普通链接。
+import { MenuAnchor } from "reka-ui/internal";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import {
@@ -9,7 +12,6 @@ import {
   DropdownMenuItem,
   DropdownMenuLabel,
   DropdownMenuSeparator,
-  DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
 import { Separator } from "@/components/ui/separator";
@@ -62,6 +64,23 @@ async function onLogout(): Promise<void> {
   await auth.logout();
   await navigateTo("/");
 }
+
+/* 头像菜单：点击头像进个人主页，菜单只由悬浮触发。
+   关闭延迟一点点，否则鼠标从头像移向菜单途中会经过空隙先触发关闭。 */
+const profileMenuOpen = ref(false);
+let profileMenuTimer: ReturnType<typeof setTimeout> | undefined;
+
+function openProfileMenu(): void {
+  clearTimeout(profileMenuTimer);
+  profileMenuOpen.value = true;
+}
+
+function closeProfileMenuSoon(): void {
+  clearTimeout(profileMenuTimer);
+  profileMenuTimer = setTimeout(() => (profileMenuOpen.value = false), 150);
+}
+
+onBeforeUnmount(() => clearTimeout(profileMenuTimer));
 </script>
 
 <template>
@@ -153,11 +172,16 @@ async function onLogout(): Promise<void> {
               创作
             </NuxtLink>
           </Button>
-          <DropdownMenu>
-            <DropdownMenuTrigger as-child>
-              <button
+          <DropdownMenu v-model:open="profileMenuOpen">
+            <!-- MenuAnchor 只负责定位（不接管点击），所以头像仍是普通链接 -->
+            <MenuAnchor as-child>
+              <NuxtLink
+                :to="`/u/${auth.user?.handle}`"
                 class="ml-1 rounded-full outline-none ring-ring focus-visible:ring-2"
                 :title="auth.user?.displayName"
+                @mouseenter="openProfileMenu()"
+                @mouseleave="closeProfileMenuSoon()"
+                @click="profileMenuOpen = false"
               >
                 <Avatar class="size-8">
                   <AvatarImage
@@ -169,9 +193,14 @@ async function onLogout(): Promise<void> {
                     {{ auth.user?.displayName.slice(0, 1) }}
                   </AvatarFallback>
                 </Avatar>
-              </button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" class="w-44">
+              </NuxtLink>
+            </MenuAnchor>
+            <DropdownMenuContent
+              align="end"
+              class="w-44"
+              @mouseenter="openProfileMenu()"
+              @mouseleave="closeProfileMenuSoon()"
+            >
               <DropdownMenuLabel class="flex flex-col">
                 <span class="text-sm font-medium">{{ auth.user?.displayName }}</span>
                 <span class="text-xs font-normal text-muted-foreground">
@@ -180,18 +209,13 @@ async function onLogout(): Promise<void> {
               </DropdownMenuLabel>
               <DropdownMenuSeparator />
               <DropdownMenuItem as-child>
-                <NuxtLink :to="`/u/${auth.user?.handle}`" class="flex items-center gap-2">
-                  <User class="size-4" /> 我的主页
+                <NuxtLink :to="`/u/${auth.user?.handle}/menus`" class="flex items-center gap-2">
+                  <BookOpen class="size-4" /> 我的酒单
                 </NuxtLink>
               </DropdownMenuItem>
               <DropdownMenuItem as-child>
                 <NuxtLink :to="`/u/${auth.user?.handle}/settings`" class="flex items-center gap-2">
                   <Settings class="size-4" /> 设置
-                </NuxtLink>
-              </DropdownMenuItem>
-              <DropdownMenuItem as-child>
-                <NuxtLink :to="`/u/${auth.user?.handle}/menus`" class="flex items-center gap-2">
-                  <BookOpen class="size-4" /> 我的酒单
                 </NuxtLink>
               </DropdownMenuItem>
               <DropdownMenuSeparator />
