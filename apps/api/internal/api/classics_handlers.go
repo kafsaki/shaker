@@ -61,12 +61,13 @@ type classicsListInput struct {
 	// none = 筛「非 IBA 经典」（iba_category IS NULL）
 	IbaCategory string `query:"ibaCategory" enum:"unforgettable,contemporary,new_era,none"`
 	Family      string `query:"family" maxLength:"64"`
+	Q           string `query:"q" maxLength:"100"`
 	Cursor      string `query:"cursor"`
 	Limit       int    `query:"limit" minimum:"1" maximum:"50"`
 }
 
 func (a *API) classicsListHandler(ctx context.Context, in *classicsListInput) (*recipeListOutput, error) {
-	res, err := a.recipes.Classics(ctx, in.IbaCategory, in.Family, in.Cursor, limitOf(in.Limit))
+	res, err := a.recipes.Classics(ctx, in.IbaCategory, in.Family, in.Q, in.Cursor, limitOf(in.Limit))
 	if err != nil {
 		return nil, listErr(err)
 	}

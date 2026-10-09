@@ -2443,6 +2443,12 @@ paths:
             type: string
         - explode: false
           in: query
+          name: q
+          schema:
+            maxLength: 100
+            type: string
+        - explode: false
+          in: query
           name: cursor
           schema:
             type: string

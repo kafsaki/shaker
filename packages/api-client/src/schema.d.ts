@@ -2151,6 +2151,7 @@ export interface operations {
             query?: {
                 ibaCategory?: "unforgettable" | "contemporary" | "new_era" | "none";
                 family?: string;
+                q?: string;
                 cursor?: string;
                 limit?: number;
             };

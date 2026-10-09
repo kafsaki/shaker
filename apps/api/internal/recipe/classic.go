@@ -15,7 +15,8 @@ import (
 
 // Classics 经典列表（权威条目），按发布时间倒序。
 // ibaCategory 为 "none" 时筛「非 IBA 经典」（iba_category IS NULL）。
-func (s *Store) Classics(ctx context.Context, ibaCategory, family, cur string, limit int) (*ListResult, error) {
+// q 对标题做模糊匹配（与配方搜索同款谓词），供「经典」页页内搜索使用。
+func (s *Store) Classics(ctx context.Context, ibaCategory, family, q, cur string, limit int) (*ListResult, error) {
 	where := []string{"r.is_canonical", "r.status = 'published'", "r.deleted_at IS NULL"}
 	var args []any
 	if ibaCategory == "none" {
@@ -27,6 +28,11 @@ func (s *Store) Classics(ctx context.Context, ibaCategory, family, cur string, l
 	if family != "" {
 		args = append(args, family)
 		where = append(where, fmt.Sprintf("r.family = $%d", len(args)))
+	}
+	if q != "" {
+		args = append(args, q)
+		n := len(args)
+		where = append(where, fmt.Sprintf(`(r.title %% $%d OR r.title ILIKE '%%' || $%d || '%%')`, n, n))
 	}
 	return s.timeList(ctx, `
 		FROM recipes r LEFT JOIN users u ON u.id = r.author_id
