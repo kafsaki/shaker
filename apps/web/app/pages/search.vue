@@ -8,6 +8,14 @@ import { useInfiniteQuery } from "@tanstack/vue-query";
 import { Search } from "lucide-vue-next";
 import type { components } from "@shaker/api-client";
 import { CATEGORY_ZH } from "@/lib/labels";
+import {
+  filterFromQuery,
+  filterKey,
+  filterToParams,
+  filterToQuery,
+  isFilterActive,
+  type RecipeFilterState,
+} from "@/lib/recipe-filter";
 import InfiniteLoader from "@/components/InfiniteLoader.vue";
 import MenuCoverStack from "@/components/MenuCoverStack.vue";
 import RecipeCard from "@/components/RecipeCard.vue";
@@ -37,24 +45,11 @@ const q = ref((route.query.q as string) ?? "");
 const tab = ref<TabKey>(normalizeTab(route.query.type as string));
 const submitted = ref((route.query.q as string) ?? "");
 
-// reka-ui 的 SelectItem 不接受空字符串 value（空串保留给「清除选择」），统一用 all 哨兵
-const family = ref((route.query.family as string) || "all");
-const method = ref((route.query.method as string) || "all");
-const glass = ref((route.query.glass as string) || "all");
-const tag = ref((route.query.tag as string) || "");
-const sort = ref<"relevance" | "hot" | "new">(
-  route.query.sort === "hot" || route.query.sort === "new" ? route.query.sort : "relevance",
-);
+/** 筛选状态（家族/手法/杯型/标签/来源/区间/难度/排序），与「探索」页共用一套定义。 */
+const filter = ref<RecipeFilterState>(filterFromQuery(route.query));
 
 /** 是否有生效的筛选（决定空关键词是否出结果、空态文案）。 */
-const hasFilters = computed(
-  () =>
-    family.value !== "all" ||
-    method.value !== "all" ||
-    glass.value !== "all" ||
-    tag.value !== "" ||
-    sort.value !== "relevance",
-);
+const hasFilters = computed(() => isFilterActive(filter.value, true));
 
 // 空关键词也可搜索（返回全部），带着筛选直链进来同样直接出结果；
 // 只有完全裸访问 /search 才停留在「先输关键词」的空态。
@@ -70,11 +65,7 @@ function syncQuery(): void {
     query: {
       ...(submitted.value ? { q: submitted.value } : {}),
       ...(tab.value !== "recipe" ? { type: tab.value } : {}),
-      ...(family.value !== "all" ? { family: family.value } : {}),
-      ...(method.value !== "all" ? { method: method.value } : {}),
-      ...(glass.value !== "all" ? { glass: glass.value } : {}),
-      ...(tag.value ? { tag: tag.value } : {}),
-      ...(sort.value !== "relevance" ? { sort: sort.value } : {}),
+      ...filterToQuery(filter.value),
     },
   });
 }
@@ -92,27 +83,22 @@ function switchTab(next: TabKey): void {
   syncQuery();
 }
 
-// 筛选变化即时重查并写回地址栏（下拉/标签点了就走）；
+// 筛选变化即时重查并写回地址栏（下拉/标签/滑块点了就走）；
 // 未搜索状态下点筛选也直接出结果（等价于空关键词搜索）
-watch([family, method, glass, tag], () => {
-  if (hasFilters.value) searched.value = true;
-  if (searched.value) syncQuery();
-});
+watch(
+  filter,
+  () => {
+    if (hasFilters.value) searched.value = true;
+    if (searched.value) syncQuery();
+  },
+  { deep: true },
+);
 
 /** 各 Tab 独立的无限查询骨架：仅激活的 Tab 发请求。 */
 const recipeQuery = useInfiniteQuery({
   queryKey: computed(
     () =>
-      [
-        "search",
-        "recipe",
-        submitted.value,
-        family.value,
-        method.value,
-        glass.value,
-        tag.value,
-        sort.value,
-      ] as const,
+      ["search", "recipe", submitted.value, filterKey(filter.value, true)] as const,
   ),
   queryFn: async ({ pageParam }): Promise<NonNullable<SearchOut["recipes"]>> => {
     const { data, error } = await api.GET("/api/v1/search", {
@@ -122,11 +108,8 @@ const recipeQuery = useInfiniteQuery({
           type: "recipe",
           cursor: pageParam || undefined,
           limit: 24,
-          family: family.value !== "all" ? family.value : undefined,
-          method: method.value !== "all" ? method.value : undefined,
-          glass: glass.value !== "all" ? glass.value : undefined,
-          tag: tag.value || undefined,
-          sort: sort.value,
+          sort: filter.value.sort,
+          ...filterToParams(filter.value),
         },
       },
     });
@@ -283,15 +266,7 @@ useHead(() => ({
     </nav>
 
     <!-- 配方筛选（与「探索」页共用同一组件） -->
-    <RecipeFilterBar
-      v-if="tab === 'recipe'"
-      v-model:family="family"
-      v-model:method="method"
-      v-model:glass="glass"
-      v-model:tag="tag"
-      v-model:sort="sort"
-      show-sort
-    />
+    <RecipeFilterBar v-if="tab === 'recipe'" v-model="filter" show-sort />
 
     <!-- 结果 -->
     <div v-if="isLoading" class="flex flex-col gap-3">

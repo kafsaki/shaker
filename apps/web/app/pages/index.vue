@@ -16,6 +16,13 @@ import {
 } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import {
+  defaultFilter,
+  filterKey,
+  filterToParams,
+  isFilterActive,
+  type RecipeFilterState,
+} from "@/lib/recipe-filter";
 
 type FeedPage = components["schemas"]["FeedOutputBody"];
 
@@ -50,18 +57,10 @@ watch(q, (v) => {
 });
 const searching = computed(() => debouncedQ.value !== "");
 
-// 筛选：与搜索结果页同一套组件、同一套后端谓词（Feed 与 /search 共用 filterConds）
-const family = ref("all");
-const method = ref("all");
-const glass = ref("all");
-const tag = ref("");
-const hasFilters = computed(
-  () =>
-    family.value !== "all" ||
-    method.value !== "all" ||
-    glass.value !== "all" ||
-    tag.value !== "",
-);
+// 筛选：与搜索结果页同一套组件、同一套后端谓词（Feed 与 /search 共用 filterConds）。
+// 探索页用 Tab 表达热度/时间，所以这里的 sort 不参与请求。
+const filter = ref<RecipeFilterState>(defaultFilter());
+const hasFilters = computed(() => isFilterActive(filter.value));
 
 const feedEnabled = computed(
   () => tab.value !== "following" || auth.isAuthenticated,
@@ -75,10 +74,7 @@ const feedQuery = useInfiniteQuery({
         String(tab.value),
         hotWindow.value,
         debouncedQ.value,
-        family.value,
-        method.value,
-        glass.value,
-        tag.value,
+        filterKey(filter.value),
       ] as const,
   ),
   queryFn: async ({ pageParam }): Promise<FeedPage> => {
@@ -86,10 +82,7 @@ const feedQuery = useInfiniteQuery({
     const query = {
       cursor,
       q: debouncedQ.value || undefined,
-      family: family.value !== "all" ? family.value : undefined,
-      method: method.value !== "all" ? method.value : undefined,
-      glass: glass.value !== "all" ? glass.value : undefined,
-      tag: tag.value || undefined,
+      ...filterToParams(filter.value),
     };
     if (tab.value === "new") {
       const { data, error } = await api.GET("/api/v1/feed/new", { params: { query } });
@@ -192,12 +185,7 @@ function loadMore(): void {
     </div>
 
     <!-- 配方筛选（与搜索结果页共用同一组件） -->
-    <RecipeFilterBar
-      v-model:family="family"
-      v-model:method="method"
-      v-model:glass="glass"
-      v-model:tag="tag"
-    />
+    <RecipeFilterBar v-model="filter" />
 
     <p
       v-if="tab === 'following' && !auth.isAuthenticated"
