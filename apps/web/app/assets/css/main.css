@@ -182,6 +182,22 @@ body::after {
   animation: cursor-blink 1.1s steps(1) infinite;
 }
 
+/* 头像悬浮生长（仿 b 站）：从原头像的位置与尺寸，长到放大后的位置与尺寸。
+   位移 30px＝放大后中心(58) 减原中心(28)，缩放 0.5＝32px/64px；
+   位移要写在 scale 前面，否则位移会被 scale 一起缩短 */
+@keyframes avatar-bloom {
+  from {
+    transform: translateY(-1.875rem) scale(0.5);
+  }
+  to {
+    transform: translateY(0) scale(1);
+  }
+}
+
+@utility animate-avatar-bloom {
+  animation: avatar-bloom 0.2s ease-out;
+}
+
 /* 放射光线本体：conic 渐变轮盘，用 mask 收成柔和的光束 */
 @utility tavern-rays {
   background: repeating-conic-gradient(

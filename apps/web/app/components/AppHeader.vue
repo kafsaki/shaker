@@ -65,8 +65,12 @@ async function onLogout(): Promise<void> {
   await navigateTo("/");
 }
 
-/* 头像菜单：点击头像进个人主页，菜单只由悬浮触发。
-   关闭延迟一点点，否则鼠标从头像移向菜单途中会经过空隙先触发关闭。 */
+/* 头像菜单：点击头像进个人主页，菜单只由悬浮触发（仿 b 站）。
+   两处悬浮区（导航里的头像槽、面板本身）共用这一对开关：悬浮任一处保持
+   展开，离开后延迟一点收起——延迟既给鼠标从槽位移向面板留时间，也避开
+   面板出现/生长导致指针下元素换人时的 enter/leave 抖动。
+   这里刻意不用「进入计数」：面板一出现，指针下的元素就会换人，少一次
+   leave 计数就永远回不到零，菜单便再也关不上。 */
 const profileMenuOpen = ref(false);
 let profileMenuTimer: ReturnType<typeof setTimeout> | undefined;
 
@@ -77,16 +81,16 @@ function openProfileMenu(): void {
 
 function closeProfileMenuSoon(): void {
   clearTimeout(profileMenuTimer);
-  profileMenuTimer = setTimeout(() => (profileMenuOpen.value = false), 150);
+  profileMenuTimer = setTimeout(() => (profileMenuOpen.value = false), 180);
 }
 
 onBeforeUnmount(() => clearTimeout(profileMenuTimer));
 </script>
 
 <template>
-  <header
-    class="sticky top-0 z-40 border-b-2 border-border bg-background/95"
-  >
+  <!-- 收起态保持 z-40：面板（z-50）压在导航之上，放大头像才能从面板图层里
+       盖住导航下缘与面板顶边，不必去抬高整条导航 -->
+  <header class="sticky top-0 z-40 border-b-2 border-border bg-background/95">
     <div class="mx-auto flex h-14 w-full max-w-6xl items-center gap-4 px-4">
       <NuxtLink to="/" class="group flex items-center gap-2 text-base font-semibold">
         <span
@@ -142,66 +146,84 @@ onBeforeUnmount(() => clearTimeout(profileMenuTimer));
         <NuxtLink to="/search"><Search class="size-4" /></NuxtLink>
       </Button>
 
+      <!-- 右侧顺序：头像 | 通知 | 明暗切换 | 创作 -->
       <div class="ml-auto flex items-center gap-1.5">
-        <Button
-          variant="ghost"
-          size="icon"
-          :title="theme === 'dark' ? '切换到亮色' : '切换到暗色'"
-          @click="toggleTheme()"
-        >
-          <Sun v-if="theme === 'dark'" class="size-4" />
-          <Moon v-else class="size-4" />
-        </Button>
-
         <template v-if="auth.isAuthenticated">
-          <Button variant="ghost" size="icon" title="通知" as-child class="relative">
-            <NuxtLink to="/notifications">
-              <Bell class="size-4" />
-              <span
-                v-if="(unread ?? 0) > 0"
-                class="absolute right-1 top-1 grid size-4 place-items-center rounded-full bg-destructive text-[9px] font-bold text-destructive-foreground"
-              >
-                {{ (unread ?? 0) > 9 ? "9+" : unread }}
-              </span>
-            </NuxtLink>
-          </Button>
-          <Separator orientation="vertical" class="mx-1 !h-5" />
-          <Button size="sm" variant="outline" as-child>
-            <NuxtLink to="/editor/new" class="flex items-center gap-1.5">
-              <PencilLine class="size-3.5" />
-              创作
-            </NuxtLink>
-          </Button>
-          <DropdownMenu v-model:open="profileMenuOpen">
-            <!-- MenuAnchor 只负责定位（不接管点击），所以头像仍是普通链接 -->
+          <!-- 头像：点击进个人主页；悬浮时头像在原地长出放大版并展开菜单（仿 b 站）。
+               几何：导航行高 56px（加 2px 下边框，视觉下沿在 58px），头像 32px
+               居中 → 头像盒 12~44px、中心 28px。面板 sideOffset=14 → 面板顶边
+               正好接在导航视觉下沿（58px）；放大头像 64px、以面板顶边中点为中心
+               → 中心 28+30=58px，即放大后竖向中点落在导航下边缘，横竖都居中于面板上边缘。
+               modal=false 是必须的：reka 默认按模态处理，会锁页面滚动并在 body 上
+               禁用外部指针事件，整页失去命中、头像槽也不再是悬浮区。 -->
+          <DropdownMenu v-model:open="profileMenuOpen" :modal="false">
             <MenuAnchor as-child>
-              <NuxtLink
-                :to="`/u/${auth.user?.handle}`"
-                class="ml-1 rounded-full outline-none ring-ring focus-visible:ring-2"
-                :title="auth.user?.displayName"
-                @mouseenter="openProfileMenu()"
-                @mouseleave="closeProfileMenuSoon()"
-                @click="profileMenuOpen = false"
-              >
-                <Avatar class="size-8">
-                  <AvatarImage
-                    v-if="auth.user?.avatarUrl"
-                    :src="auth.user.avatarUrl"
-                    :alt="auth.user.displayName"
-                  />
-                  <AvatarFallback class="text-xs">
-                    {{ auth.user?.displayName.slice(0, 1) }}
-                  </AvatarFallback>
-                </Avatar>
-              </NuxtLink>
+              <!-- 本槽位永远不动（popper 量的就是它），悬浮区因此固定在原头像位置。
+                   ml/mr 是给放大头像留横向余量：它比槽位每边宽 16px，
+                   别压到左边的搜索框和右边的通知键 -->
+              <span class="ml-1 mr-4 inline-flex">
+                <NuxtLink
+                  :to="`/u/${auth.user?.handle}`"
+                  class="block rounded-full outline-none ring-ring focus-visible:ring-2"
+                  :title="auth.user?.displayName"
+                  @mouseenter="openProfileMenu()"
+                  @mouseleave="closeProfileMenuSoon()"
+                  @click="profileMenuOpen = false"
+                >
+                  <!-- 展开时本体隐去：放大版恰好从它的位置尺寸起步，看上去是同一个头像在长 -->
+                  <Avatar
+                    class="size-8 transition-opacity duration-100"
+                    :class="profileMenuOpen ? 'opacity-0' : 'opacity-100'"
+                  >
+                    <AvatarImage
+                      v-if="auth.user?.avatarUrl"
+                      :src="auth.user.avatarUrl"
+                      :alt="auth.user.displayName"
+                    />
+                    <AvatarFallback class="text-xs">
+                      {{ auth.user?.displayName.slice(0, 1) }}
+                    </AvatarFallback>
+                  </Avatar>
+                </NuxtLink>
+              </span>
             </MenuAnchor>
+            <!-- 放大头像画在面板图层里（面板 z-50 高于导航 z-40）：
+                 它在面板之上，所以压在导航下缘与面板顶边的那部分照样能点；
+                 命中盒是静止的 48px 方块，只有内层图形做生长动画，
+                 放大过程中指针既不会丢焦、光标也不会在箭头与手型之间跳。
+                 为此面板要放开 overflow，否则绝对定位的头像会被裁掉。 -->
             <DropdownMenuContent
-              align="end"
-              class="w-44"
+              align="center"
+              :side-offset="14"
+              class="w-48 overflow-x-visible overflow-y-visible"
               @mouseenter="openProfileMenu()"
               @mouseleave="closeProfileMenuSoon()"
             >
-              <DropdownMenuLabel class="flex flex-col">
+              <!-- 它已经是面板子树的一部分，悬浮/移开由面板那对 enter/leave 一并覆盖，
+                   这里不重复挂监听，省得两个悬浮区互相打架 -->
+              <NuxtLink
+                :to="`/u/${auth.user?.handle}`"
+                class="absolute -top-8 left-1/2 size-16 -translate-x-1/2 rounded-full outline-none ring-ring focus-visible:ring-2"
+                :title="auth.user?.displayName"
+                @click="profileMenuOpen = false"
+              >
+                <span class="animate-avatar-bloom block size-full">
+                  <Avatar class="size-16">
+                    <AvatarImage
+                      v-if="auth.user?.avatarUrl"
+                      :src="auth.user.avatarUrl"
+                      :alt="auth.user.displayName"
+                    />
+                    <AvatarFallback class="text-lg">
+                      {{ auth.user?.displayName.slice(0, 1) }}
+                    </AvatarFallback>
+                  </Avatar>
+                </span>
+              </NuxtLink>
+
+              <!-- 给放大头像让位：它从面板顶边压进来 32px -->
+              <div class="h-8" aria-hidden="true" />
+              <DropdownMenuLabel class="flex flex-col items-center">
                 <span class="text-sm font-medium">{{ auth.user?.displayName }}</span>
                 <span class="text-xs font-normal text-muted-foreground">
                   @{{ auth.user?.handle }}
@@ -227,9 +249,48 @@ onBeforeUnmount(() => clearTimeout(profileMenuTimer));
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
+
+          <Button variant="ghost" size="icon" title="通知" as-child class="relative">
+            <NuxtLink to="/notifications">
+              <Bell class="size-4" />
+              <span
+                v-if="(unread ?? 0) > 0"
+                class="absolute right-1 top-1 grid size-4 place-items-center rounded-full bg-destructive text-[9px] font-bold text-destructive-foreground"
+              >
+                {{ (unread ?? 0) > 9 ? "9+" : unread }}
+              </span>
+            </NuxtLink>
+          </Button>
+
+          <Button
+            variant="ghost"
+            size="icon"
+            :title="theme === 'dark' ? '切换到亮色' : '切换到暗色'"
+            @click="toggleTheme()"
+          >
+            <Sun v-if="theme === 'dark'" class="size-4" />
+            <Moon v-else class="size-4" />
+          </Button>
+
+          <Separator orientation="vertical" class="mx-1 !h-5" />
+          <Button size="sm" variant="outline" as-child>
+            <NuxtLink to="/editor/new" class="flex items-center gap-1.5">
+              <PencilLine class="size-3.5" />
+              创作
+            </NuxtLink>
+          </Button>
         </template>
 
         <template v-else>
+          <Button
+            variant="ghost"
+            size="icon"
+            :title="theme === 'dark' ? '切换到亮色' : '切换到暗色'"
+            @click="toggleTheme()"
+          >
+            <Sun v-if="theme === 'dark'" class="size-4" />
+            <Moon v-else class="size-4" />
+          </Button>
           <Button size="sm" as-child>
             <NuxtLink to="/login">登录 / 注册</NuxtLink>
           </Button>
