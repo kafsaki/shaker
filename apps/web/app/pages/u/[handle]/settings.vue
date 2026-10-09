@@ -1,13 +1,11 @@
 <script setup lang="ts">
 /**
- * 用户设置（由旧 /me 迁移而来）：资料 / 头像 / 单位偏好 / 改密 / 我的草稿 / 全设备退出。
+ * 用户设置：资料 / 头像 / 单位偏好 / 改密 / 全设备退出。
  * 仅本人可见可访问：他人（handle 不匹配）一律重定向回该用户主页。
  */
-import { useMutation, useQuery } from "@tanstack/vue-query";
+import { useMutation } from "@tanstack/vue-query";
 import { toast } from "vue-sonner";
-import type { components } from "@shaker/api-client";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -26,10 +24,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Separator } from "@/components/ui/separator";
-import { Skeleton } from "@/components/ui/skeleton";
 import { Textarea } from "@/components/ui/textarea";
-
-type DraftPage = components["schemas"]["RecipeListOutputBody"];
 
 definePageMeta({ middleware: "auth" });
 
@@ -203,16 +198,6 @@ function submitPassword(): void {
   changePassword.mutate();
 }
 
-/* ── 草稿 ── */
-const { data: drafts } = useQuery({
-  queryKey: ["my-drafts"],
-  queryFn: async (): Promise<DraftPage> => {
-    const { data, error } = await api.GET("/api/v1/me/drafts");
-    if (error) throw error;
-    return data;
-  },
-});
-
 async function logoutAll(): Promise<void> {
   await auth.logoutAll();
   toast.success("已在全部设备退出登录");
@@ -319,36 +304,6 @@ async function logoutAll(): Promise<void> {
           <Button size="sm" variant="outline" :disabled="changePassword.isPending.value" @click="submitPassword()">
             {{ changePassword.isPending.value ? "修改中…" : "修改密码" }}
           </Button>
-        </div>
-      </CardContent>
-    </Card>
-
-    <!-- 草稿 -->
-    <Card>
-      <CardHeader class="flex-row items-center justify-between">
-        <CardTitle class="text-base">我的草稿（{{ (drafts?.items ?? []).length }}）</CardTitle>
-        <Button size="sm" variant="outline" as-child>
-          <NuxtLink to="/editor/new">写新的</NuxtLink>
-        </Button>
-      </CardHeader>
-      <CardContent class="flex flex-col">
-        <template v-if="drafts">
-          <NuxtLink
-            v-for="d in drafts.items ?? []"
-            :key="d.id"
-            :to="`/editor/${d.id}`"
-            class="flex items-center justify-between gap-3 rounded-lg px-2 py-2.5 transition-colors hover:bg-accent"
-          >
-            <span class="min-w-0 truncate text-sm font-medium">{{ d.title }}</span>
-            <Badge variant="secondary" class="shrink-0 text-xs">草稿</Badge>
-          </NuxtLink>
-          <p v-if="(drafts.items ?? []).length === 0" class="py-6 text-center text-sm text-muted-foreground">
-            没有草稿
-          </p>
-        </template>
-        <div v-else class="flex flex-col gap-2">
-          <Skeleton class="h-9 w-full" />
-          <Skeleton class="h-9 w-full" />
         </div>
       </CardContent>
     </Card>

@@ -4,8 +4,8 @@
  * 草稿宽松（错误不阻止保存），发布严格（本地完整校验通过才允许）。
  * 发布流程：保存 → 封面截帧 → 预签名三步直传（ADR-015）→ PATCH coverUrl → publish。
  */
-import { useQuery } from "@tanstack/vue-query";
-import { Plus, Save, Send } from "lucide-vue-next";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/vue-query";
+import { FolderOpen, Plus, Save, Send, Trash2 } from "lucide-vue-next";
 import { toast } from "vue-sonner";
 import type { components } from "@shaker/api-client";
 import { validateRecipeIR, type RecipeIR } from "@shaker/recipe-ir";
@@ -23,6 +23,12 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
@@ -36,11 +42,14 @@ import { Separator } from "@/components/ui/separator";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Textarea } from "@/components/ui/textarea";
 
+type DraftPage = components["schemas"]["RecipeListOutputBody"];
+
 definePageMeta({ middleware: "auth" });
 
 const route = useRoute();
 const router = useRouter();
 const api = useApi();
+const qc = useQueryClient();
 const auth = useAuthStore();
 const vocab = useVocabStore();
 const player = ref<{ captureCover: () => Promise<{ dark: Blob; light: Blob } | null> } | null>(null);
@@ -122,12 +131,14 @@ const ir = ref<RecipeIR>({
   steps: [],
 });
 
-const loadedExisting = ref(false);
+// 已载入表单内容对应的配方 id（用于判断是否需要把服务器数据灌进表单，
+// 同时避免保存后 refetch 回包覆盖用户正在输入的内容）
+const loadedId = ref<string | null>(null);
 watch(
   existing,
   (r) => {
-    if (!r || loadedExisting.value) return;
-    loadedExisting.value = true;
+    if (!r || loadedId.value === r.id) return;
+    loadedId.value = r.id;
     title.value = r.title;
     subtitle.value = r.subtitle ?? "";
     descriptionMd.value = r.descriptionMd ?? "";
@@ -318,6 +329,7 @@ async function saveDraft(): Promise<{ id: string; version: number } | null> {
       return null;
     }
     savedVersion.value = data.recipe.irVersion;
+    void qc.invalidateQueries({ queryKey: ["my-drafts"] });
     return { id: data.recipe.id, version: data.recipe.irVersion };
   }
   const { data, error } = await api.POST("/api/v1/recipes", { body });
@@ -327,6 +339,8 @@ async function saveDraft(): Promise<{ id: string; version: number } | null> {
   }
   savedId.value = data.recipe.id;
   savedVersion.value = data.recipe.irVersion;
+  loadedId.value = data.recipe.id; // 表单内容即这份配方，防止 refetch 回包覆盖
+  void qc.invalidateQueries({ queryKey: ["my-drafts"] });
   if (isNew.value) {
     await router.replace({ params: { id: data.recipe.id } });
   }
@@ -422,6 +436,81 @@ async function onPublish(): Promise<void> {
   }
 }
 
+/* ── 读取草稿：列出我的草稿，可载入编辑器或删除 ── */
+const draftsOpen = ref(false);
+
+const { data: drafts, isLoading: draftsLoading } = useQuery({
+  queryKey: ["my-drafts"] as const,
+  queryFn: async (): Promise<DraftPage> => {
+    const { data, error } = await api.GET("/api/v1/me/drafts", {
+      params: { query: { limit: 50 } },
+    });
+    if (error) throw error;
+    return data;
+  },
+});
+
+/** 载入某份草稿：改路由参数，useQuery 重新取详情后由 loadedId 判断灌入表单。 */
+async function loadDraft(draftId: string): Promise<void> {
+  draftsOpen.value = false;
+  if (draftId === recipeId.value) return;
+  await router.push(`/editor/${draftId}`);
+}
+
+/** 清空表单（删除当前草稿后回到「写新酒」状态）。 */
+function resetForm(): void {
+  title.value = "";
+  subtitle.value = "";
+  descriptionMd.value = "";
+  family.value = "sour";
+  method.value = "shaken";
+  difficulty.value = 2;
+  taste.value = { sweet: 2, sour: 2, bitter: 0, strength: 3 };
+  glass.value = "coupe";
+  servings.value = 1;
+  classicKey.value = "";
+  derivedFrom.value = "";
+  ir.value = {
+    schemaVersion: 1,
+    glass: "coupe",
+    method: "shaken",
+    servings: 1,
+    ingredients: [],
+    steps: [],
+  };
+  loadedId.value = null;
+  savedId.value = null;
+  savedVersion.value = null;
+  snapshotPreview();
+}
+
+const deleteDraft = useMutation({
+  mutationFn: async (draftId: string) => {
+    const { error } = await api.DELETE("/api/v1/recipes/{id}", {
+      params: { path: { id: draftId } },
+    });
+    if (error) throw error;
+    return draftId;
+  },
+  onSuccess: async (draftId) => {
+    toast.success("草稿已删除");
+    await qc.invalidateQueries({ queryKey: ["my-drafts"] });
+    // 删的就是当前正在编辑的这份 → 清空表单回到新建
+    if (savedId.value === draftId) {
+      draftsOpen.value = false;
+      await router.replace("/editor/new");
+      resetForm();
+    }
+  },
+  onError: (e) => toast.error(apiErrorMessage(e)),
+});
+
+function formatDraftTime(iso: string): string {
+  const d = new Date(iso);
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+
 const tasteKeys: Array<{ key: keyof typeof taste.value; label: string }> = [
   { key: "sweet", label: "甜" },
   { key: "sour", label: "酸" },
@@ -444,6 +533,9 @@ const tasteKeys: Array<{ key: keyof typeof taste.value; label: string }> = [
       <div class="flex flex-wrap items-center justify-between gap-3">
         <h1 class="text-xl font-bold">{{ isNew ? "写一杯新酒" : "编辑配方" }}</h1>
         <div class="flex items-center gap-2">
+          <Button variant="outline" @click="draftsOpen = true">
+            <FolderOpen class="size-4" /> 读取草稿
+          </Button>
           <Button variant="outline" :disabled="saving" @click="onSave()">
             <Save class="size-4" /> {{ saving ? "保存中…" : "保存草稿" }}
           </Button>
@@ -636,5 +728,60 @@ const tasteKeys: Array<{ key: keyof typeof taste.value; label: string }> = [
         </CardContent>
       </Card>
     </div>
+
+    <!-- 读取草稿：草稿列表卡片，点卡片载入，右上角删除 -->
+    <Dialog v-model:open="draftsOpen">
+      <DialogContent class="sm:max-w-2xl">
+        <DialogHeader>
+          <DialogTitle>读取草稿</DialogTitle>
+        </DialogHeader>
+
+        <div v-if="draftsLoading" class="grid gap-3 sm:grid-cols-2">
+          <Skeleton v-for="i in 4" :key="i" class="h-20 w-full rounded-sm" />
+        </div>
+
+        <div
+          v-else-if="(drafts?.items ?? []).length"
+          class="grid max-h-[60vh] gap-3 overflow-y-auto pr-1 sm:grid-cols-2"
+        >
+          <div
+            v-for="d in drafts?.items ?? []"
+            :key="d.id"
+            class="relative rounded-sm border-2 border-border bg-card p-3 transition-all pixel-shadow-sm hover:-translate-y-0.5 hover:border-primary/60"
+          >
+            <button
+              type="button"
+              class="flex w-full flex-col gap-1 pr-7 text-left"
+              @click="loadDraft(d.id)"
+            >
+              <span class="truncate text-sm font-medium">{{ d.title }}</span>
+              <span class="text-xs text-muted-foreground">
+                更新于 {{ formatDraftTime(d.updatedAt) }}
+              </span>
+              <span
+                v-if="d.id === recipeId"
+                class="text-xs text-primary"
+              >
+                · 正在编辑
+              </span>
+            </button>
+            <Button
+              variant="ghost"
+              size="icon-xs"
+              class="absolute right-2 top-2 text-destructive hover:bg-destructive/10"
+              title="删除草稿"
+              :disabled="deleteDraft.isPending.value"
+              @click="deleteDraft.mutate(d.id)"
+            >
+              <Trash2 class="size-3.5" />
+            </Button>
+          </div>
+        </div>
+
+        <p v-else class="py-10 text-center text-sm text-muted-foreground">
+          还没有草稿。写好一杯酒后点「保存草稿」。
+        </p>
+      </DialogContent>
+    </Dialog>
   </div>
 </template>
