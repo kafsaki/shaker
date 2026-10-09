@@ -139,6 +139,8 @@ const dragId = ref<string | null>(null);
 /** 插入位（0..n）：插到原列表第 dropIndex 张之前；n 表示放到最后。 */
 const dropIndex = ref<number | null>(null);
 const gridWrap = ref<HTMLElement | null>(null);
+/** 松手后等待服务器回包期间的目标顺序：保持落点，避免卡片先动画跳回原位再跑到新位。 */
+const pendingIds = ref<string[] | null>(null);
 
 function toggleEdit(): void {
   editMode.value = !editMode.value;
@@ -154,16 +156,29 @@ function resetDrag(): void {
 /**
  * 拖拽中的预览顺序：被拖卡片虚拟移到插入位（渲染成半透明幽灵），
  * 其他卡片经 TransitionGroup 滑开让位 —— 落点是否生效拖动中即可见。
+ * 松手后若等待服务器回包，则按 pendingIds 保持落点顺序（幽灵态结束但位置不跳回）。
  */
 const previewItems = computed(() => {
   const arr = [...items.value];
   const from = dragIndex.value;
   const slot = dropIndex.value;
-  if (from === null || slot === null) return arr;
-  const [m] = arr.splice(from, 1);
-  if (!m) return arr;
-  arr.splice(slot > from ? slot - 1 : slot, 0, m);
+  if (from !== null && slot !== null) {
+    const [m] = arr.splice(from, 1);
+    if (!m) return arr;
+    arr.splice(slot > from ? slot - 1 : slot, 0, m);
+    return arr;
+  }
+  const pending = pendingIds.value;
+  if (pending && pending.length === arr.length) {
+    const byId = new Map(arr.map((it) => [it.recipe.id, it]));
+    return pending.map((id) => byId.get(id)!).filter(Boolean);
+  }
   return arr;
+});
+
+/* 服务器数据回来（或失败回退）后交出 pending 顺序 */
+watch(items, () => {
+  pendingIds.value = null;
 });
 
 const removeItem = useMutation({
@@ -191,7 +206,10 @@ const reorder = useMutation({
   onSuccess: () => {
     void qc.invalidateQueries({ queryKey: ["menu"] });
   },
-  onError: (e) => toast.error(apiErrorMessage(e)),
+  onError: (e) => {
+    pendingIds.value = null; // 回退落点预览，恢复服务器顺序
+    toast.error(apiErrorMessage(e));
+  },
 });
 
 function onDragStart(i: number, e: DragEvent): void {
@@ -247,6 +265,7 @@ function onDrop(e?: DragEvent): void {
   const ids = items.value.map((it) => it.recipe.id);
   ids.splice(from, 1);
   ids.splice(target, 0, id);
+  pendingIds.value = ids; // 保持落点顺序直到服务器回包
   const after = target > 0 ? ids[target - 1]! : null;
   reorder.mutate({ recipeId: id, afterRecipeId: after });
 }
