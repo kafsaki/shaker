@@ -122,6 +122,15 @@ const classicSel = computed({
   },
 });
 
+/** 标签（受控词表 tag_id，多选；对应后端 recipe_tags）。 */
+const tags = ref<string[]>([]);
+
+function toggleTag(id: string): void {
+  tags.value = tags.value.includes(id)
+    ? tags.value.filter((t) => t !== id)
+    : [...tags.value, id];
+}
+
 const ir = ref<RecipeIR>({
   schemaVersion: 1,
   glass: "coupe",
@@ -152,6 +161,7 @@ watch(
     servings.value = loaded.servings ?? 1;
     classicKey.value = r.classicKey ?? "";
     derivedFrom.value = r.derivedFrom ?? "";
+    tags.value = [...(r.tags ?? [])];
     ir.value = JSON.parse(JSON.stringify(loaded)) as RecipeIR;
   },
   { immediate: true },
@@ -306,6 +316,7 @@ function metaBody() {
     tasteProfile: { ...taste.value },
     classicKey: classicKey.value || undefined,
     derivedFrom: derivedFrom.value || undefined,
+    tags: tags.value,
   };
 }
 
@@ -470,6 +481,7 @@ function resetForm(): void {
   servings.value = 1;
   classicKey.value = "";
   derivedFrom.value = "";
+  tags.value = [];
   ir.value = {
     schemaVersion: 1,
     glass: "coupe",
@@ -598,6 +610,26 @@ const tasteKeys: Array<{ key: keyof typeof taste.value; label: string }> = [
           <div class="flex flex-col gap-1.5">
             <Label for="servings">份</Label>
             <Input id="servings" v-model.number="servings" type="number" min="1" max="50" class="tabular-nums" />
+          </div>
+          <div class="flex flex-col gap-1.5 sm:col-span-2">
+            <Label>标签（可多选，用于筛选与推荐）</Label>
+            <div v-if="vocab.tags.length" class="flex flex-wrap gap-1.5">
+              <button
+                v-for="t in vocab.tags"
+                :key="t.id"
+                type="button"
+                class="rounded-sm border px-2 py-1 text-xs transition-colors"
+                :class="
+                  tags.includes(t.id)
+                    ? 'border-primary bg-primary text-primary-foreground'
+                    : 'border-border text-muted-foreground hover:border-primary/50 hover:text-foreground'
+                "
+                @click="toggleTag(t.id)"
+              >
+                {{ t.nameZh }}
+              </button>
+            </div>
+            <p v-else class="text-xs text-muted-foreground">标签词表加载中…</p>
           </div>
           <div class="flex flex-col gap-1.5 sm:col-span-2">
             <Label>关联经典</Label>

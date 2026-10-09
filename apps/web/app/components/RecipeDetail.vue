@@ -145,6 +145,18 @@ const unitPref = ref<"ml" | "oz">(
   auth.user?.unitPreference === "oz" ? "oz" : "ml",
 );
 
+/** 配方标签（recipe_tags）展示名；词表未加载时回落原始 id。 */
+const recipeTags = computed(() =>
+  (props.recipe.tags ?? []).map((id) => ({
+    id,
+    label: vocabStore.tags.find((t) => t.id === id)?.nameZh ?? id,
+  })),
+);
+// 标签中文名取自词表（详情页其余部分靠 viz 载荷，不依赖词表，这里单独确保加载）
+onMounted(() => {
+  void vocabStore.ensure().catch(() => {});
+});
+
 const steps = computed(() => player.value?.timeline?.steps ?? []);
 const activeStep = ref(-1);
 
@@ -313,6 +325,20 @@ const deleteMutation = useMutation({
         <span v-if="recipe.difficulty" class="text-sm text-muted-foreground">
           难度 {{ "★".repeat(recipe.difficulty) }}
         </span>
+      </div>
+
+      <!-- 标签（受控词表，点击可跳搜索页按标签筛） -->
+      <div v-if="recipeTags.length" class="flex flex-wrap items-center gap-1.5">
+        <NuxtLink
+          v-for="t in recipeTags"
+          :key="t.id"
+          :to="`/search?type=recipe&tag=${t.id}`"
+          class="rounded focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+        >
+          <Badge variant="outline" class="hover:border-primary/60 hover:text-foreground">
+            #{{ t.label }}
+          </Badge>
+        </NuxtLink>
       </div>
 
       <!-- 口味 -->
