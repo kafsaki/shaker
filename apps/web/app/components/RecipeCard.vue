@@ -37,6 +37,7 @@ const cover = computed(() => pickCover(props.recipe.coverUrl, props.recipe.cover
 <template>
   <NuxtLink
     :to="target"
+    draggable="false"
     class="group flex flex-col overflow-hidden rounded-xl border border-border bg-card transition-colors"
     :class="disabled ? 'pointer-events-none opacity-60' : 'hover:border-primary/40'"
   >

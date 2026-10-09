@@ -132,13 +132,20 @@ const deleteMenu = useMutation({
   onError: (e) => toast.error(apiErrorMessage(e)),
 });
 
-/* ── 编辑酒单：拖拽重排 + 移出 ── */
+/* ── 编辑酒单：拖拽重排 + 移出（仅编辑态可拖） ── */
 const editMode = ref(false);
 const dragIndex = ref<number | null>(null);
+/** 插入位置（0..n）：插到第 dropIndex 张卡片之前；n 表示放到最后。 */
+const dropIndex = ref<number | null>(null);
 
 function toggleEdit(): void {
   editMode.value = !editMode.value;
   resetDrag();
+}
+
+function resetDrag(): void {
+  dragIndex.value = null;
+  dropIndex.value = null;
 }
 
 const removeItem = useMutation({
@@ -169,27 +176,47 @@ const reorder = useMutation({
   onError: (e) => toast.error(apiErrorMessage(e)),
 });
 
-function onDragStart(i: number): void {
+function onDragStart(i: number, e: DragEvent): void {
   dragIndex.value = i;
+  dropIndex.value = null;
+  if (e.dataTransfer) {
+    e.dataTransfer.effectAllowed = "move";
+    e.dataTransfer.setData("text/plain", items.value[i]?.recipe.id ?? "");
+  }
 }
 
-function resetDrag(): void {
-  dragIndex.value = null;
+/**
+ * 鼠标落在卡片左半边 → 插到它前面，右半边 → 插到它后面。
+ * 用「前后半区」而非「第 N 张」判定：末位的「放到最后」落在最后一张的右半边，
+ * 无需拖动到卡片之外的空白区（那里是禁区）。
+ */
+function onDragOver(i: number, e: DragEvent): void {
+  if (dragIndex.value === null) return;
+  const el = e.currentTarget as HTMLElement | null;
+  if (!el) return;
+  const rect = el.getBoundingClientRect();
+  dropIndex.value = e.clientX < rect.left + rect.width / 2 ? i : i + 1;
 }
 
-/** 拖到第 to 张卡片的位置：把被拖项移到该处，afterRecipeId = 前一张（null → 移到最前）。 */
-function onDrop(to: number): void {
+/** 落点换算成新顺序：afterRecipeId = 目标前一张（null → 移到最前）。 */
+function onDrop(): void {
   const from = dragIndex.value;
+  const ins = dropIndex.value;
   resetDrag();
-  if (from === null || from === to) return;
+  if (from === null || ins === null) return;
+  const target = ins > from ? ins - 1 : ins; // 摘除被拖项后，插入位要左移一格
+  if (target === from) return;
   const ids = items.value.map((it) => it.recipe.id);
   const moved = ids[from]!;
   ids.splice(from, 1);
-  const insertIdx = from < to ? to - 1 : to;
-  if (insertIdx === from) return; // 与相邻卡片互换等于原地不动
-  ids.splice(insertIdx, 0, moved);
-  const after = insertIdx > 0 ? ids[insertIdx - 1]! : null;
+  ids.splice(target, 0, moved);
+  const after = target > 0 ? ids[target - 1]! : null;
   reorder.mutate({ recipeId: moved, afterRecipeId: after });
+}
+
+/** 拖到卡片之外的网格空白处（.self）：视为放到最后，避免出现「禁止」光标。 */
+function onGridDragOver(): void {
+  if (dragIndex.value !== null) dropIndex.value = items.value.length;
 }
 
 useHead(() => ({ title: `${menu.value?.title ?? "酒单"} · Shaker` }));
@@ -271,22 +298,36 @@ useHead(() => ({ title: `${menu.value?.title ?? "酒单"} · Shaker` }));
     <div
       v-if="items.length"
       class="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5"
+      @dragover.self.prevent="onGridDragOver()"
+      @drop.self.prevent="onDrop()"
     >
       <div
         v-for="(it, i) in items"
         :key="it.recipe.id"
         class="relative"
         :draggable="editMode"
-        :class="[editMode && 'cursor-grab', dragIndex === i && 'opacity-40']"
-        @dragstart="onDragStart(i)"
-        @dragover.prevent
-        @drop.prevent="onDrop(i)"
+        :class="[
+          editMode && 'cursor-grab active:cursor-grabbing',
+          dragIndex === i && 'opacity-40',
+        ]"
+        @dragstart="onDragStart(i, $event)"
+        @dragover.prevent="onDragOver(i, $event)"
+        @drop.prevent="onDrop()"
         @dragend="resetDrag()"
       >
+        <!-- 插入位指示：左缘 = 插到这张之前，右缘 = 插到这张之后（最后一张的右缘即「放到最后」） -->
+        <span
+          v-if="editMode && dropIndex === i"
+          class="pointer-events-none absolute inset-y-0 -left-2 w-0.5 rounded-full bg-primary"
+        />
         <RecipeCard
           :recipe="it.recipe"
           :disabled="it.recipe.deleted"
           :class="editMode && 'pointer-events-none'"
+        />
+        <span
+          v-if="editMode && dropIndex === i + 1"
+          class="pointer-events-none absolute inset-y-0 -right-2 w-0.5 rounded-full bg-primary"
         />
         <button
           v-if="editMode"
