@@ -38,7 +38,7 @@ watch(tab, (t) => {
   router.replace({ query: t === "hot" ? {} : { tab: t } });
 });
 
-const hotWindow = ref("7d");
+const hotWindow = ref("all");
 const windows = [
   { value: "24h", label: "24 小时" },
   { value: "7d", label: "7 天" },
