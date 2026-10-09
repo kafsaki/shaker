@@ -78,8 +78,12 @@ function clearFilters(): void {
   filter.value = { ...defaultFilter(), sort: props.showSort ? "relevance" : keepSort };
 }
 
+/** 标签多选（OR 语义）：再点一次取消。 */
 function toggleTag(id: string): void {
-  patch({ tag: filter.value.tag === id ? "" : id });
+  const tags = filter.value.tags.includes(id)
+    ? filter.value.tags.filter((t) => t !== id)
+    : [...filter.value.tags, id];
+  patch({ tags });
 }
 </script>
 
@@ -149,7 +153,7 @@ function toggleTag(id: string): void {
         type="button"
         class="rounded-sm border px-2 py-1 text-xs transition-colors"
         :class="
-          filter.tag === t.id
+          filter.tags.includes(t.id)
             ? 'border-primary bg-primary text-primary-foreground'
             : 'border-border text-muted-foreground hover:border-primary/50 hover:text-foreground'
         "

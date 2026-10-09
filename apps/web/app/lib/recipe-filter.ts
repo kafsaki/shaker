@@ -19,7 +19,8 @@ export interface RecipeFilterState {
   family: string;
   method: string;
   glass: string;
-  tag: string;
+  /** 多选，OR 语义：命中任一标签（与后端 tag 参数一致） */
+  tags: string[];
   /** "" 不限 | original 原创 | canonical 权威（IBA 经典） */
   origin: OriginKey;
   /** relevance | hot | new（探索页用 Tab 表达热度/时间，不用这个） */
@@ -37,7 +38,7 @@ export function defaultFilter(): RecipeFilterState {
     family: "all",
     method: "all",
     glass: "all",
-    tag: "",
+    tags: [],
     origin: "",
     sort: "relevance",
     abvMin: 0,
@@ -57,6 +58,15 @@ function asStr(v: unknown, dflt: string): string {
   return typeof v === "string" && v ? v : dflt;
 }
 
+/** 重复的 tag 参数在地址栏里是数组，单个则是字符串，统一成非空字符串数组。 */
+function asTags(v: unknown): string[] {
+  if (typeof v === "string") return v ? [v] : [];
+  if (Array.isArray(v)) {
+    return v.filter((x): x is string => typeof x === "string" && x !== "");
+  }
+  return [];
+}
+
 /** 从地址栏还原（用于直链分享 / 刷新复现）。 */
 export function filterFromQuery(q: LocationQuery): RecipeFilterState {
   const d = defaultFilter();
@@ -65,7 +75,7 @@ export function filterFromQuery(q: LocationQuery): RecipeFilterState {
     family: asStr(q.family, d.family),
     method: asStr(q.method, d.method),
     glass: asStr(q.glass, d.glass),
-    tag: asStr(q.tag, d.tag),
+    tags: asTags(q.tag),
     origin: q.origin === "original" || q.origin === "canonical" ? (q.origin as OriginKey) : "",
     sort: sort === "hot" || sort === "new" ? sort : "relevance",
     abvMin: asNum(q.abvMin, d.abvMin),
@@ -82,7 +92,7 @@ export function isFilterActive(f: RecipeFilterState, withSort = false): boolean 
     f.family !== "all" ||
     f.method !== "all" ||
     f.glass !== "all" ||
-    f.tag !== "" ||
+    f.tags.length > 0 ||
     f.origin !== "" ||
     f.difficultyMax > 0 ||
     f.abvMin > 0 ||
@@ -93,13 +103,13 @@ export function isFilterActive(f: RecipeFilterState, withSort = false): boolean 
   );
 }
 
-/** 非默认项写回地址栏（值都是字符串，便于 URL 分享）。 */
-export function filterToQuery(f: RecipeFilterState): Record<string, string> {
+/** 非默认项写回地址栏（标量都是字符串、多选标签是重复参数，便于 URL 分享）。 */
+export function filterToQuery(f: RecipeFilterState): Record<string, string | string[]> {
   return {
     ...(f.family !== "all" ? { family: f.family } : {}),
     ...(f.method !== "all" ? { method: f.method } : {}),
     ...(f.glass !== "all" ? { glass: f.glass } : {}),
-    ...(f.tag ? { tag: f.tag } : {}),
+    ...(f.tags.length ? { tag: [...f.tags] } : {}),
     ...(f.origin ? { origin: f.origin } : {}),
     ...(f.sort !== "relevance" ? { sort: f.sort } : {}),
     ...(f.abvMin > 0 ? { abvMin: String(f.abvMin) } : {}),
@@ -115,7 +125,8 @@ export interface RecipeFilterParams {
   family?: string;
   method?: string;
   glass?: string;
-  tag?: string;
+  /** 重复传参，OR 语义 */
+  tag?: string[];
   origin?: "original" | "canonical";
   abvMin?: number;
   abvMax?: number;
@@ -129,7 +140,7 @@ export function filterToParams(f: RecipeFilterState): RecipeFilterParams {
     ...(f.family !== "all" ? { family: f.family } : {}),
     ...(f.method !== "all" ? { method: f.method } : {}),
     ...(f.glass !== "all" ? { glass: f.glass } : {}),
-    ...(f.tag ? { tag: f.tag } : {}),
+    ...(f.tags.length ? { tag: [...f.tags] } : {}),
     ...(f.origin ? { origin: f.origin } : {}),
     ...(f.abvMin > 0 ? { abvMin: f.abvMin } : {}),
     ...(f.abvMax < ABV_MAX ? { abvMax: f.abvMax } : {}),
@@ -145,7 +156,8 @@ export function filterKey(f: RecipeFilterState, withSort = false): string {
     f.family,
     f.method,
     f.glass,
-    f.tag,
+    // 排序后再拼，避免勾选顺序不同造成同一个结果集命中不同缓存
+    [...f.tags].sort().join(","),
     f.origin,
     f.abvMin,
     f.abvMax,
