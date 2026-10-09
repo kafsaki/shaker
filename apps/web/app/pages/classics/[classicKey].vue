@@ -135,17 +135,29 @@ async function goDistribution(): Promise<void> {
   </Alert>
 
   <div v-else-if="canonical" class="flex flex-col gap-6">
-    <!-- 经典档案 hero：琥珀金 + 衬线大字，首屏即传达「这是一杯有社区共识的经典」 -->
+    <!-- 经典档案 hero：像素酒馆招牌 —— 旋转烛光光束 + 招牌扫光 -->
     <section
-      class="relative overflow-hidden rounded-2xl border border-amber-500/25 bg-gradient-to-b from-amber-50 to-transparent p-6 sm:p-8 dark:border-amber-400/20 dark:from-amber-950/40"
+      class="relative overflow-hidden rounded-sm border-2 border-amber-500/40 bg-gradient-to-b from-amber-50 to-transparent p-6 pixel-shadow sm:p-8 dark:border-amber-400/30 dark:from-amber-950/40"
     >
+      <!-- 放射状旋转光线（烛光轮盘，缓慢旋转） -->
+      <div
+        class="tavern-rays animate-rays-spin pointer-events-none absolute -right-24 -top-24 size-[480px] opacity-[0.07] dark:opacity-[0.12]"
+        aria-hidden="true"
+      />
       <p
-        class="text-xs font-medium uppercase tracking-[0.35em] text-amber-700 dark:text-amber-400"
+        class="font-pixel text-[10px] uppercase tracking-widest text-amber-700 dark:text-amber-400"
       >
-        Shaker 经典档案
+        ★ Classic Archive ★
       </p>
-      <h1 class="mt-3 font-classic text-4xl font-bold leading-tight sm:text-5xl">
+      <h1
+        class="relative mt-3 w-fit overflow-hidden font-classic text-4xl font-bold leading-tight sm:text-5xl"
+      >
         {{ canonical.title }}
+        <!-- 招牌扫光：斜向高光周期性掠过标题 -->
+        <span
+          class="animate-sign-shine pointer-events-none absolute inset-y-0 w-1/3 bg-gradient-to-r from-transparent via-white/50 to-transparent dark:via-amber-100/30"
+          aria-hidden="true"
+        />
       </h1>
       <p v-if="canonical.subtitle" class="mt-2 text-sm text-muted-foreground">
         {{ canonical.subtitle }}

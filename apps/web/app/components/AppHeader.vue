@@ -43,16 +43,18 @@ async function onLogout(): Promise<void> {
 
 <template>
   <header
-    class="sticky top-0 z-40 border-b border-border bg-background/80 backdrop-blur"
+    class="sticky top-0 z-40 border-b-2 border-border bg-background/95"
   >
     <div class="mx-auto flex h-14 w-full max-w-6xl items-center gap-4 px-4">
-      <NuxtLink to="/" class="flex items-center gap-2 text-base font-semibold">
+      <NuxtLink to="/" class="group flex items-center gap-2 text-base font-semibold">
         <span
-          class="grid size-7 place-items-center rounded-md bg-primary text-primary-foreground"
+          class="grid size-7 place-items-center rounded-sm border-2 border-primary bg-primary text-primary-foreground transition-transform group-hover:scale-110 pixel-shadow-sm"
         >
           <Martini class="size-4" />
         </span>
-        Shaker
+        <span class="font-pixel text-sm tracking-wider text-primary">
+          SHAKER
+        </span>
       </NuxtLink>
 
       <nav class="hidden items-center gap-1 md:flex">

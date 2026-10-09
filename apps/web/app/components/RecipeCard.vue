@@ -38,8 +38,8 @@ const cover = computed(() => pickCover(props.recipe.coverUrl, props.recipe.cover
   <NuxtLink
     :to="target"
     draggable="false"
-    class="group flex flex-col overflow-hidden rounded-xl border border-border bg-card transition-colors"
-    :class="disabled ? 'pointer-events-none opacity-60' : 'hover:border-primary/40'"
+    class="group flex flex-col overflow-hidden rounded-sm border-2 border-border bg-card transition-all"
+    :class="disabled ? 'pointer-events-none opacity-60' : 'pixel-shadow hover:-translate-x-0.5 hover:-translate-y-0.5 hover:border-primary/60 hover:shadow-[6px_6px_0_0_var(--pixel-shadow)]'"
   >
     <div
       class="relative aspect-[400/520] overflow-hidden bg-gradient-to-b from-secondary to-background"

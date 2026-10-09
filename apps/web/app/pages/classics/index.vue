@@ -50,7 +50,9 @@ const items = computed(() => data.value?.pages.flatMap((p) => p.items ?? []) ?? 
 <template>
   <div class="flex flex-col gap-5">
     <div class="flex flex-wrap items-center gap-3">
-      <h1 class="text-xl font-bold">经典配方</h1>
+      <h1 class="flex items-center gap-2 text-xl font-bold">
+        <span class="animate-pixel-blink text-primary">★</span>经典配方
+      </h1>
       <Select v-model="iba">
         <SelectTrigger class="h-9 w-40"><SelectValue placeholder="IBA 分档" /></SelectTrigger>
         <SelectContent>

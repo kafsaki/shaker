@@ -4,6 +4,7 @@ import { Flame, Sparkles, Users } from "lucide-vue-next";
 import type { components } from "@shaker/api-client";
 import InfiniteLoader from "@/components/InfiniteLoader.vue";
 import RecipeCard from "@/components/RecipeCard.vue";
+import { Button } from "@/components/ui/button";
 import {
   Select,
   SelectContent,
@@ -75,6 +76,35 @@ const items = computed(() => data.value?.pages.flatMap((p) => p.items ?? []) ?? 
 
 <template>
   <div class="flex flex-col gap-5">
+    <!-- 酒馆招牌（未登录访客可见）：旋转光束 + 像素标题 + 闪烁光标 -->
+    <section
+      v-if="!auth.isAuthenticated"
+      class="relative overflow-hidden rounded-sm border-2 border-border bg-card p-6 pixel-shadow sm:p-8"
+    >
+      <div
+        class="tavern-rays animate-rays-spin pointer-events-none absolute -left-20 -top-20 size-[400px] opacity-[0.06] dark:opacity-[0.1]"
+        aria-hidden="true"
+      />
+      <p class="font-pixel text-[10px] uppercase tracking-widest text-primary">
+        ★ Welcome to Shaker ★
+      </p>
+      <h1 class="mt-3 text-2xl font-bold sm:text-3xl">
+        像素酒馆营业中<span class="animate-cursor-blink text-primary">▌</span>
+      </h1>
+      <p class="mt-2 max-w-xl text-sm text-muted-foreground">
+        收录 IBA 经典配方与社区创作，每一杯都有可播放的调酒动画。
+        看一杯酒的社区共识落点，或者写下你自己的版本。
+      </p>
+      <div class="mt-4 flex gap-2">
+        <Button as-child size="sm">
+          <NuxtLink to="/register">进店看看</NuxtLink>
+        </Button>
+        <Button as-child size="sm" variant="outline">
+          <NuxtLink to="/classics">翻经典酒谱</NuxtLink>
+        </Button>
+      </div>
+    </section>
+
     <div class="flex flex-wrap items-center gap-3">
       <Tabs :model-value="tab" @update:model-value="tab = String($event)">
         <TabsList>
