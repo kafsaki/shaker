@@ -36,7 +36,6 @@ const { pickCovers } = useCover();
 const q = ref((route.query.q as string) ?? "");
 const tab = ref<TabKey>(normalizeTab(route.query.type as string));
 const submitted = ref((route.query.q as string) ?? "");
-const searched = ref(Boolean(submitted.value));
 
 // reka-ui 的 SelectItem 不接受空字符串 value（空串保留给「清除选择」），统一用 all 哨兵
 const family = ref((route.query.family as string) || "all");
@@ -46,6 +45,20 @@ const tag = ref((route.query.tag as string) || "");
 const sort = ref<"relevance" | "hot" | "new">(
   route.query.sort === "hot" || route.query.sort === "new" ? route.query.sort : "relevance",
 );
+
+/** 是否有生效的筛选（决定空关键词是否出结果、空态文案）。 */
+const hasFilters = computed(
+  () =>
+    family.value !== "all" ||
+    method.value !== "all" ||
+    glass.value !== "all" ||
+    tag.value !== "" ||
+    sort.value !== "relevance",
+);
+
+// 空关键词也可搜索（返回全部），带着筛选直链进来同样直接出结果；
+// 只有完全裸访问 /search 才停留在「先输关键词」的空态。
+const searched = ref(Boolean(submitted.value) || hasFilters.value);
 
 function normalizeTab(v: string | undefined): TabKey {
   return TABS.some((t) => t.key === v) ? (v as TabKey) : "recipe";
@@ -66,10 +79,9 @@ function syncQuery(): void {
   });
 }
 
+// 空关键词 = 只按筛选条件查全量（如 ?tag=after-dinner）；导航栏那个搜索框仍要求非空
 function submit(): void {
-  const v = q.value.trim();
-  if (!v) return; // 空关键词不触发搜索（本页下面的搜索框同样不允许空值）
-  submitted.value = v;
+  submitted.value = q.value.trim();
   searched.value = true;
   syncQuery();
 }
@@ -80,8 +92,12 @@ function switchTab(next: TabKey): void {
   syncQuery();
 }
 
-// 筛选变化即时重查并写回地址栏（下拉/标签点了就走）
-watch([family, method, glass, tag], () => searched.value && syncQuery());
+// 筛选变化即时重查并写回地址栏（下拉/标签点了就走）；
+// 未搜索状态下点筛选也直接出结果（等价于空关键词搜索）
+watch([family, method, glass, tag], () => {
+  if (hasFilters.value) searched.value = true;
+  if (searched.value) syncQuery();
+});
 
 /** 各 Tab 独立的无限查询骨架：仅激活的 Tab 发请求。 */
 const recipeQuery = useInfiniteQuery({
@@ -223,16 +239,6 @@ const isEmpty = computed(() => {
 
 /** 当前 Tab 的中文名（空态文案复用）。 */
 const tabLabel = computed(() => TABS.find((t) => t.key === tab.value)?.label ?? "");
-
-/** 是否有生效的筛选（空态文案用）。 */
-const hasFilters = computed(
-  () =>
-    family.value !== "all" ||
-    method.value !== "all" ||
-    glass.value !== "all" ||
-    tag.value !== "" ||
-    sort.value !== "relevance",
-);
 
 function loadMore(): void {
   void activeQuery.value.fetchNextPage();
