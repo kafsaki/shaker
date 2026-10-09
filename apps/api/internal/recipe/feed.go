@@ -46,8 +46,8 @@ type FeedResult struct {
 const feedScanLimit = 50
 
 // FeedHot 热门流。window ∈ {24h,7d,30d,all}。
-// q 非空时按标题模糊匹配过滤（谓词与 /search 一致），供「探索」页页内搜索复用同一套流。
-func (s *Store) FeedHot(ctx context.Context, window, q, cur string, limit int) (*FeedResult, error) {
+// f 的筛选语义与 /search 一致（filterConds），供「探索」页页内搜索与筛选复用同一条流。
+func (s *Store) FeedHot(ctx context.Context, window string, f RecipeFilter, cur string, limit int) (*FeedResult, error) {
 	var since string
 	switch window {
 	case "24h":
@@ -63,18 +63,14 @@ func (s *Store) FeedHot(ctx context.Context, window, q, cur string, limit int) (
 	if _, err := cursor.Decode[cursor.Hot](cur); err != nil {
 		return nil, ErrBadCursor
 	}
+	conds, fargs := filterConds(f, 1)
 	fetch := func(cur string) ([]*Recipe, error) {
 		c, err := cursor.Decode[cursor.Hot](cur)
 		if err != nil {
 			return nil, ErrBadCursor
 		}
-		var args []any
-		qPred := ""
-		if q != "" {
-			args = append(args, q)
-			n := len(args)
-			qPred = fmt.Sprintf(` AND (r.title %% $%d OR r.title ILIKE '%%' || $%d || '%%')`, n, n)
-		}
+		// 每次调用都从同一份筛选参数起算，避免游标参数累积
+		args := append([]any{}, fargs...)
 		pred := ""
 		if c != nil {
 			args = append(args, c.H, c.ID)
@@ -85,7 +81,7 @@ func (s *Store) FeedHot(ctx context.Context, window, q, cur string, limit int) (
 		return s.queryRecipes(ctx, `
 			SELECT `+recipeCols+authorCols+`
 			FROM recipes r LEFT JOIN users u ON u.id = r.author_id
-			WHERE r.status = 'published' AND r.deleted_at IS NULL`+since+qPred+pred+`
+			WHERE r.status = 'published' AND r.deleted_at IS NULL`+since+andConds(conds)+pred+`
 			ORDER BY r.hot_score DESC, r.id
 			LIMIT $`+fmt.Sprint(len(args)), args...)
 	}
@@ -95,26 +91,22 @@ func (s *Store) FeedHot(ctx context.Context, window, q, cur string, limit int) (
 	return s.scanFeed(ctx, fetch, cursorOf, cur, limit)
 }
 
-// FeedNew 最新流。q 语义同 FeedHot。
-func (s *Store) FeedNew(ctx context.Context, q, cur string, limit int) (*FeedResult, error) {
+// FeedNew 最新流。筛选语义同 FeedHot。
+func (s *Store) FeedNew(ctx context.Context, f RecipeFilter, cur string, limit int) (*FeedResult, error) {
 	if _, err := cursor.Decode[cursor.Time](cur); err != nil {
 		return nil, ErrBadCursor
 	}
+	conds, args := filterConds(f, 1)
 	base := `
 		SELECT ` + recipeCols + authorCols + `
 		FROM recipes r LEFT JOIN users u ON u.id = r.author_id
-		WHERE r.status = 'published' AND r.deleted_at IS NULL`
-	var extra []any
-	if q != "" {
-		base += ` AND (r.title % $1 OR r.title ILIKE '%' || $1 || '%')`
-		extra = append(extra, q)
-	}
+		WHERE r.status = 'published' AND r.deleted_at IS NULL` + andConds(conds)
 	fetch := func(cur string) ([]*Recipe, error) {
 		c, err := cursor.Decode[cursor.Time](cur)
 		if err != nil {
 			return nil, ErrBadCursor
 		}
-		return s.queryRecipesAfter(ctx, c, base, `r.published_at`, extra...)
+		return s.queryRecipesAfter(ctx, c, base, `r.published_at`, args...)
 	}
 	cursorOf := func(r *Recipe) string {
 		return cursor.Encode(cursor.Time{T: r.PublishedAt.UnixNano(), ID: r.ID.String()})
@@ -122,27 +114,25 @@ func (s *Store) FeedNew(ctx context.Context, q, cur string, limit int) (*FeedRes
 	return s.scanFeed(ctx, fetch, cursorOf, cur, limit)
 }
 
-// FeedFollowing 关注的人的发布流。q 语义同 FeedHot。
-func (s *Store) FeedFollowing(ctx context.Context, userID uuid.UUID, q, cur string, limit int) (*FeedResult, error) {
+// FeedFollowing 关注的人的发布流。筛选语义同 FeedHot。
+func (s *Store) FeedFollowing(ctx context.Context, userID uuid.UUID, f RecipeFilter, cur string, limit int) (*FeedResult, error) {
 	if _, err := cursor.Decode[cursor.Time](cur); err != nil {
 		return nil, ErrBadCursor
 	}
+	// $1 留给 follower，筛选参数从 $2 起编号
+	conds, fargs := filterConds(f, 2)
+	args := append([]any{userID}, fargs...)
 	base := `
 		SELECT ` + recipeCols + authorCols + `
 		FROM recipes r LEFT JOIN users u ON u.id = r.author_id
 		WHERE r.status = 'published' AND r.deleted_at IS NULL
-			AND r.author_id IN (SELECT followee_id FROM follows WHERE follower_id = $1)`
-	extra := []any{userID}
-	if q != "" {
-		base += ` AND (r.title % $2 OR r.title ILIKE '%' || $2 || '%')`
-		extra = append(extra, q)
-	}
+			AND r.author_id IN (SELECT followee_id FROM follows WHERE follower_id = $1)` + andConds(conds)
 	fetch := func(cur string) ([]*Recipe, error) {
 		c, err := cursor.Decode[cursor.Time](cur)
 		if err != nil {
 			return nil, ErrBadCursor
 		}
-		return s.queryRecipesAfter(ctx, c, base, `r.published_at`, extra...)
+		return s.queryRecipesAfter(ctx, c, base, `r.published_at`, args...)
 	}
 	cursorOf := func(r *Recipe) string {
 		return cursor.Encode(cursor.Time{T: r.PublishedAt.UnixNano(), ID: r.ID.String()})

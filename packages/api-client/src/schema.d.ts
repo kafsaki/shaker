@@ -2443,6 +2443,13 @@ export interface operations {
             query?: {
                 window?: "24h" | "7d" | "30d" | "all";
                 q?: string;
+                family?: string;
+                method?: string;
+                glass?: string;
+                tag?: string;
+                abvMin?: number;
+                abvMax?: number;
+                difficultyMax?: number;
                 cursor?: string;
                 limit?: number;
             };
@@ -2477,6 +2484,13 @@ export interface operations {
             query?: {
                 window?: "24h" | "7d" | "30d" | "all";
                 q?: string;
+                family?: string;
+                method?: string;
+                glass?: string;
+                tag?: string;
+                abvMin?: number;
+                abvMax?: number;
+                difficultyMax?: number;
                 cursor?: string;
                 limit?: number;
             };
@@ -2511,6 +2525,13 @@ export interface operations {
             query?: {
                 window?: "24h" | "7d" | "30d" | "all";
                 q?: string;
+                family?: string;
+                method?: string;
+                glass?: string;
+                tag?: string;
+                abvMin?: number;
+                abvMax?: number;
+                difficultyMax?: number;
                 cursor?: string;
                 limit?: number;
             };

@@ -2740,6 +2740,54 @@ paths:
             type: string
         - explode: false
           in: query
+          name: family
+          schema:
+            maxLength: 64
+            type: string
+        - explode: false
+          in: query
+          name: method
+          schema:
+            maxLength: 32
+            type: string
+        - explode: false
+          in: query
+          name: glass
+          schema:
+            maxLength: 64
+            type: string
+        - explode: false
+          in: query
+          name: tag
+          schema:
+            maxLength: 64
+            type: string
+        - explode: false
+          in: query
+          name: abvMin
+          schema:
+            format: double
+            maximum: 100
+            minimum: 0
+            type: number
+        - explode: false
+          in: query
+          name: abvMax
+          schema:
+            format: double
+            maximum: 100
+            minimum: 0
+            type: number
+        - explode: false
+          in: query
+          name: difficultyMax
+          schema:
+            format: int64
+            maximum: 5
+            minimum: 1
+            type: integer
+        - explode: false
+          in: query
           name: cursor
           schema:
             type: string
@@ -2791,6 +2839,54 @@ paths:
             type: string
         - explode: false
           in: query
+          name: family
+          schema:
+            maxLength: 64
+            type: string
+        - explode: false
+          in: query
+          name: method
+          schema:
+            maxLength: 32
+            type: string
+        - explode: false
+          in: query
+          name: glass
+          schema:
+            maxLength: 64
+            type: string
+        - explode: false
+          in: query
+          name: tag
+          schema:
+            maxLength: 64
+            type: string
+        - explode: false
+          in: query
+          name: abvMin
+          schema:
+            format: double
+            maximum: 100
+            minimum: 0
+            type: number
+        - explode: false
+          in: query
+          name: abvMax
+          schema:
+            format: double
+            maximum: 100
+            minimum: 0
+            type: number
+        - explode: false
+          in: query
+          name: difficultyMax
+          schema:
+            format: int64
+            maximum: 5
+            minimum: 1
+            type: integer
+        - explode: false
+          in: query
           name: cursor
           schema:
             type: string
@@ -2838,6 +2934,54 @@ paths:
           schema:
             maxLength: 100
             type: string
+        - explode: false
+          in: query
+          name: family
+          schema:
+            maxLength: 64
+            type: string
+        - explode: false
+          in: query
+          name: method
+          schema:
+            maxLength: 32
+            type: string
+        - explode: false
+          in: query
+          name: glass
+          schema:
+            maxLength: 64
+            type: string
+        - explode: false
+          in: query
+          name: tag
+          schema:
+            maxLength: 64
+            type: string
+        - explode: false
+          in: query
+          name: abvMin
+          schema:
+            format: double
+            maximum: 100
+            minimum: 0
+            type: number
+        - explode: false
+          in: query
+          name: abvMax
+          schema:
+            format: double
+            maximum: 100
+            minimum: 0
+            type: number
+        - explode: false
+          in: query
+          name: difficultyMax
+          schema:
+            format: int64
+            maximum: 5
+            minimum: 1
+            type: integer
         - explode: false
           in: query
           name: cursor

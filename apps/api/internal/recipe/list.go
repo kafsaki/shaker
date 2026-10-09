@@ -245,20 +245,81 @@ func (s *Store) Search(ctx context.Context, p SearchParams, cur string, limit in
 
 /* ────────────────────────── 内部辅助 ────────────────────────── */
 
+// RecipeFilter 列表与 Feed 共用的筛选子集（Feed 不支持 ingredient/排序，
+// 语义与 /search 完全一致，见 filterConds）。
+type RecipeFilter struct {
+	Q             string
+	Family        string
+	Method        string
+	Glass         string
+	Tag           string
+	AbvMin        *float64
+	AbvMax        *float64
+	DifficultyMax *int
+}
+
+// Filter 摘出共用筛选子集供 Feed 复用。
+func (p SearchParams) Filter() RecipeFilter {
+	return RecipeFilter{
+		Q: p.Q, Family: p.Family, Method: p.Method, Glass: p.Glass, Tag: p.Tag,
+		AbvMin: p.AbvMin, AbvMax: p.AbvMax, DifficultyMax: p.DifficultyMax,
+	}
+}
+
+// filterConds 生成筛选谓词，占位符从 $start 起编号，返回的 args 与编号一一对应。
+// 与 searchWhere 共用，保证 Feed 与 /search 的筛选语义不漂移。
+func filterConds(f RecipeFilter, start int) ([]string, []any) {
+	conds := []string{}
+	var args []any
+	add := func(v any, cond string) {
+		args = append(args, v)
+		conds = append(conds, fmt.Sprintf(cond, start+len(args)-1))
+	}
+
+	// 标题匹配：trgm 相似（走 GIN 索引）优先，LIKE 兜底短词
+	if f.Q != "" {
+		args = append(args, f.Q)
+		n := start + len(args) - 1
+		conds = append(conds, fmt.Sprintf(`(r.title %% $%d OR r.title ILIKE '%%' || $%d || '%%')`, n, n))
+	}
+	if f.Family != "" {
+		add(f.Family, `r.family = $%d`)
+	}
+	if f.Method != "" {
+		add(f.Method, `r.method = $%d`)
+	}
+	if f.Glass != "" {
+		add(f.Glass, `r.glass_id = $%d`)
+	}
+	// 标签取配方自身的 recipe_tags（不是按原料反推）
+	if f.Tag != "" {
+		add(f.Tag, `EXISTS(SELECT 1 FROM recipe_tags rt WHERE rt.recipe_id = r.id AND rt.tag_id = $%d)`)
+	}
+	if f.AbvMin != nil {
+		add(*f.AbvMin, `r.abv_est >= $%d`)
+	}
+	if f.AbvMax != nil {
+		add(*f.AbvMax, `r.abv_est <= $%d`)
+	}
+	if f.DifficultyMax != nil {
+		add(*f.DifficultyMax, `(r.difficulty IS NULL OR r.difficulty <= $%d)`)
+	}
+	return conds, args
+}
+
+// andConds 把谓词拼成 WHERE 追加片段（空切片返回空串）。
+func andConds(conds []string) string {
+	if len(conds) == 0 {
+		return ""
+	}
+	return " AND " + strings.Join(conds, " AND ")
+}
+
 // searchWhere Search 与 SearchCount 共用的 WHERE 构建。
 func searchWhere(p SearchParams) ([]string, []any) {
 	where := []string{"r.status = 'published'", "r.deleted_at IS NULL"}
 	var args []any
-	add := func(v any, cond string) {
-		args = append(args, v)
-		where = append(where, fmt.Sprintf(cond, len(args)))
-	}
 
-	if p.Q != "" {
-		args = append(args, p.Q)
-		n := len(args)
-		where = append(where, fmt.Sprintf(`(r.title %% $%d OR r.title ILIKE '%%' || $%d || '%%')`, n, n))
-	}
 	for _, ing := range p.Ingredients {
 		args = append(args, ing)
 		n := len(args)
@@ -272,28 +333,8 @@ func searchWhere(p SearchParams) ([]string, []any) {
 		}
 		where = append(where, sub)
 	}
-	if p.Family != "" {
-		add(p.Family, `r.family = $%d`)
-	}
-	if p.Method != "" {
-		add(p.Method, `r.method = $%d`)
-	}
-	if p.Glass != "" {
-		add(p.Glass, `r.glass_id = $%d`)
-	}
-	if p.Tag != "" {
-		add(p.Tag, `EXISTS(SELECT 1 FROM recipe_tags rt WHERE rt.recipe_id = r.id AND rt.tag_id = $%d)`)
-	}
-	if p.AbvMin != nil {
-		add(*p.AbvMin, `r.abv_est >= $%d`)
-	}
-	if p.AbvMax != nil {
-		add(*p.AbvMax, `r.abv_est <= $%d`)
-	}
-	if p.DifficultyMax != nil {
-		add(*p.DifficultyMax, `(r.difficulty IS NULL OR r.difficulty <= $%d)`)
-	}
-	return where, args
+	conds, fargs := filterConds(p.Filter(), len(args)+1)
+	return append(where, conds...), append(args, fargs...)
 }
 
 // SearchCount 与 Search 同条件的总数（type=all 分组里的 total）。

@@ -67,9 +67,34 @@ type feedOutput struct {
 
 type feedQueryInput struct {
 	Window string `query:"window" enum:"24h,7d,30d,all" default:"7d"`
-	Q      string `query:"q" maxLength:"100"` // 标题关键词过滤（「探索」页页内搜索）
-	Cursor string `query:"cursor"`
-	Limit  int    `query:"limit" minimum:"1" maximum:"50"`
+	Q      string `query:"q" maxLength:"100"` // 标题关键词（「探索」页页内搜索）
+	// 以下筛选与 /search 同名同义（0 / 空表示未传）
+	Family        string  `query:"family" maxLength:"64"`
+	Method        string  `query:"method" maxLength:"32"`
+	Glass         string  `query:"glass" maxLength:"64"`
+	Tag           string  `query:"tag" maxLength:"64"`
+	AbvMin        float64 `query:"abvMin" minimum:"0" maximum:"100"`
+	AbvMax        float64 `query:"abvMax" minimum:"0" maximum:"100"`
+	DifficultyMax int     `query:"difficultyMax" minimum:"1" maximum:"5"`
+	Cursor        string  `query:"cursor"`
+	Limit         int     `query:"limit" minimum:"1" maximum:"50"`
+}
+
+// filter 查询参数 → store 筛选（0 表示未传，与 /search 一致）。
+func (in *feedQueryInput) filter() recipe.RecipeFilter {
+	f := recipe.RecipeFilter{
+		Q: in.Q, Family: in.Family, Method: in.Method, Glass: in.Glass, Tag: in.Tag,
+	}
+	if in.AbvMin > 0 {
+		f.AbvMin = &in.AbvMin
+	}
+	if in.AbvMax > 0 {
+		f.AbvMax = &in.AbvMax
+	}
+	if in.DifficultyMax > 0 {
+		f.DifficultyMax = &in.DifficultyMax
+	}
+	return f
 }
 
 // limitOf huma 的 default 只进 OpenAPI 文档不进运行时，这里兜底。
@@ -82,7 +107,7 @@ func limitOf(n int) int {
 
 func (a *API) feedHotHandler(ctx context.Context, in *feedQueryInput) (*feedOutput, error) {
 	claims, _ := ctx.Value(ctxClaims).(*auth.Claims)
-	res, err := a.recipes.FeedHot(ctx, in.Window, in.Q, in.Cursor, limitOf(in.Limit))
+	res, err := a.recipes.FeedHot(ctx, in.Window, in.filter(), in.Cursor, limitOf(in.Limit))
 	if err != nil {
 		return nil, feedErr(err)
 	}
@@ -91,7 +116,7 @@ func (a *API) feedHotHandler(ctx context.Context, in *feedQueryInput) (*feedOutp
 
 func (a *API) feedNewHandler(ctx context.Context, in *feedQueryInput) (*feedOutput, error) {
 	claims, _ := ctx.Value(ctxClaims).(*auth.Claims)
-	res, err := a.recipes.FeedNew(ctx, in.Q, in.Cursor, limitOf(in.Limit))
+	res, err := a.recipes.FeedNew(ctx, in.filter(), in.Cursor, limitOf(in.Limit))
 	if err != nil {
 		return nil, feedErr(err)
 	}
@@ -103,7 +128,7 @@ func (a *API) feedFollowingHandler(ctx context.Context, in *feedQueryInput) (*fe
 	if herr != nil {
 		return nil, herr
 	}
-	res, err := a.recipes.FeedFollowing(ctx, claims.UserUUID(), in.Q, in.Cursor, limitOf(in.Limit))
+	res, err := a.recipes.FeedFollowing(ctx, claims.UserUUID(), in.filter(), in.Cursor, limitOf(in.Limit))
 	if err != nil {
 		return nil, feedErr(err)
 	}
