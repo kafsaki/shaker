@@ -378,20 +378,22 @@ const deleteMutation = useMutation({
         </CardHeader>
         <CardContent>
           <ul class="divide-y divide-border">
-            <li
-              v-for="r in rows"
-              :key="r.slot"
-              class="flex items-baseline justify-between gap-4 py-2"
-            >
-              <div class="min-w-0">
-                <div class="truncate text-sm font-medium">{{ r.nameZh }}</div>
-                <div v-if="r.nameEn" class="truncate text-xs text-muted-foreground">
-                  {{ r.nameEn }}
+            <li v-for="r in rows" :key="r.slot">
+              <!-- 点击原料跳「原料百科」详情页（/ingredients/{id}） -->
+              <NuxtLink
+                :to="`/ingredients/${r.id}`"
+                class="flex items-baseline justify-between gap-4 py-2 transition-colors hover:text-primary"
+              >
+                <div class="min-w-0">
+                  <div class="truncate text-sm font-medium">{{ r.nameZh }}</div>
+                  <div v-if="r.nameEn" class="truncate text-xs text-muted-foreground">
+                    {{ r.nameEn }}
+                  </div>
                 </div>
-              </div>
-              <div class="shrink-0 text-sm tabular-nums text-muted-foreground">
-                {{ r.approximate ? "≈ " : "" }}{{ r.amount }}
-              </div>
+                <div class="shrink-0 text-sm tabular-nums text-muted-foreground">
+                  {{ r.approximate ? "≈ " : "" }}{{ r.amount }}
+                </div>
+              </NuxtLink>
             </li>
           </ul>
         </CardContent>
