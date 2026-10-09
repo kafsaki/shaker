@@ -64,6 +64,7 @@ type RecipeCard struct {
 	CoverURLLight *string
 	LikeCount     int
 	CommentCount  int
+	CollectCount  int
 	Deleted       bool
 	Author        *AuthorBrief
 }
@@ -366,7 +367,7 @@ func (s *Store) ReorderItem(ctx context.Context, menuID, ownerID, recipeID uuid.
 // recipeCardCols/recipeCardJoin 是配方卡片的公共列与连接：items 与列表预览共用。
 // 作者可能已注销（LEFT JOIN → NULL），扫描时按可空处理。
 const recipeCardCols = `r.short_no, r.title, r.classic_key, r.is_canonical, r.family,
-	r.cover_url, r.cover_url_light, r.like_count, r.comment_count, r.deleted_at IS NOT NULL,
+	r.cover_url, r.cover_url_light, r.like_count, r.comment_count, r.collect_count, r.deleted_at IS NOT NULL,
 	u.id, u.handle, u.display_name, u.avatar_url, u.is_official`
 const recipeCardJoin = ` JOIN recipes r ON r.id = mi.recipe_id LEFT JOIN users u ON u.id = r.author_id`
 
@@ -406,7 +407,7 @@ func (s *Store) Items(ctx context.Context, menuID uuid.UUID) ([]Item, error) {
 		var authorOfficial *bool
 		if err := rows.Scan(&it.Recipe.ID, &it.Note, &it.AddedAt,
 			&it.Recipe.ShortNo, &it.Recipe.Title, &it.Recipe.ClassicKey, &it.Recipe.IsCanonical, &it.Recipe.Family,
-			&it.Recipe.CoverURL, &it.Recipe.CoverURLLight, &it.Recipe.LikeCount, &it.Recipe.CommentCount, &it.Recipe.Deleted,
+			&it.Recipe.CoverURL, &it.Recipe.CoverURLLight, &it.Recipe.LikeCount, &it.Recipe.CommentCount, &it.Recipe.CollectCount, &it.Recipe.Deleted,
 			&authorID, &authorHandle, &authorName, &authorAvatar, &authorOfficial); err != nil {
 			return nil, fmt.Errorf("扫描条目: %w", err)
 		}
@@ -579,7 +580,7 @@ func (s *Store) Previews(ctx context.Context, menuIDs []uuid.UUID, limit int) (m
 		var authorID, authorHandle, authorName, authorAvatar *string
 		var authorOfficial *bool
 		if err := rows.Scan(&menuID, &c.ID, &c.ShortNo, &c.Title, &c.ClassicKey, &c.IsCanonical, &c.Family,
-			&c.CoverURL, &c.CoverURLLight, &c.LikeCount, &c.CommentCount, &c.Deleted,
+			&c.CoverURL, &c.CoverURLLight, &c.LikeCount, &c.CommentCount, &c.CollectCount, &c.Deleted,
 			&authorID, &authorHandle, &authorName, &authorAvatar, &authorOfficial); err != nil {
 			return nil, fmt.Errorf("扫描酒单预览: %w", err)
 		}

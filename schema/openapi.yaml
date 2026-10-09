@@ -973,6 +973,9 @@ components:
             - "null"
         code:
           type: string
+        collectCount:
+          format: int64
+          type: integer
         commentCount:
           format: int64
           type: integer
@@ -1010,6 +1013,7 @@ components:
         - coverUrlLight
         - likeCount
         - commentCount
+        - collectCount
         - deleted
         - author
       type: object

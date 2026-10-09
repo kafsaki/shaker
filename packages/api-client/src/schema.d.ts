@@ -1446,6 +1446,8 @@ export interface components {
             classicKey: string | null;
             code: string;
             /** Format: int64 */
+            collectCount: number;
+            /** Format: int64 */
             commentCount: number;
             coverUrl: string | null;
             coverUrlLight: string | null;

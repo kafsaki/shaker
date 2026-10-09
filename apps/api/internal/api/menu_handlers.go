@@ -104,34 +104,35 @@ type menuOwnerBody struct {
 }
 
 type menuBody struct {
-	ID          uuid.UUID  `json:"id"`
-	Title       string     `json:"title"`
-	Description *string    `json:"description"`
-	CoverURL    *string    `json:"coverUrl"`
-	Visibility  string     `json:"visibility"`
-	ItemCount   int        `json:"itemCount"`
-	CoverURLs   []string   `json:"coverUrls"` // position 前 3 条目的配方暗色封面（展示投影，可为空数组）
-	CoverURLsLight []string `json:"coverUrlsLight"` // 同上，亮色封面（缺失的版本不补，前端回落）
-	ViewerIsOwner bool     `json:"viewerIsOwner"` // 当前请求者是否为酒单主人（前端以此判定属主 UI）
-	Owner       *menuOwnerBody        `json:"owner,omitempty"`      // 酒单主人（列表/详情展示）
-	RecipeCards []menuRecipeCardBody  `json:"recipeCards"`          // position 前 N 张配方卡片（列表行预览，可为空数组）
-	CreatedAt   string     `json:"createdAt" format:"date-time"`
-	UpdatedAt   string     `json:"updatedAt" format:"date-time"`
+	ID             uuid.UUID            `json:"id"`
+	Title          string               `json:"title"`
+	Description    *string              `json:"description"`
+	CoverURL       *string              `json:"coverUrl"`
+	Visibility     string               `json:"visibility"`
+	ItemCount      int                  `json:"itemCount"`
+	CoverURLs      []string             `json:"coverUrls"`       // position 前 3 条目的配方暗色封面（展示投影，可为空数组）
+	CoverURLsLight []string             `json:"coverUrlsLight"`  // 同上，亮色封面（缺失的版本不补，前端回落）
+	ViewerIsOwner  bool                 `json:"viewerIsOwner"`   // 当前请求者是否为酒单主人（前端以此判定属主 UI）
+	Owner          *menuOwnerBody       `json:"owner,omitempty"` // 酒单主人（列表/详情展示）
+	RecipeCards    []menuRecipeCardBody `json:"recipeCards"`     // position 前 N 张配方卡片（列表行预览，可为空数组）
+	CreatedAt      string               `json:"createdAt" format:"date-time"`
+	UpdatedAt      string               `json:"updatedAt" format:"date-time"`
 }
 
 type menuRecipeCardBody struct {
-	ID           uuid.UUID `json:"id"`
-	Code         string    `json:"code"`
-	Title        string    `json:"title"`
-	ClassicKey   *string   `json:"classicKey"`
-	IsCanonical  bool      `json:"isCanonical"`
-	Family       *string   `json:"family"`
-	CoverURL     *string   `json:"coverUrl"`
-	CoverURLLight *string  `json:"coverUrlLight"`
-	LikeCount    int       `json:"likeCount"`
-	CommentCount int       `json:"commentCount"`
-	Deleted      bool      `json:"deleted"`
-	Author       *recipeAuthorBody `json:"author"`
+	ID            uuid.UUID         `json:"id"`
+	Code          string            `json:"code"`
+	Title         string            `json:"title"`
+	ClassicKey    *string           `json:"classicKey"`
+	IsCanonical   bool              `json:"isCanonical"`
+	Family        *string           `json:"family"`
+	CoverURL      *string           `json:"coverUrl"`
+	CoverURLLight *string           `json:"coverUrlLight"`
+	LikeCount     int               `json:"likeCount"`
+	CommentCount  int               `json:"commentCount"`
+	CollectCount  int               `json:"collectCount"`
+	Deleted       bool              `json:"deleted"`
+	Author        *recipeAuthorBody `json:"author"`
 }
 
 type menuItemBody struct {
@@ -142,7 +143,7 @@ type menuItemBody struct {
 
 type menuDetailOutput struct {
 	Body struct {
-		Menu  menuBody      `json:"menu"`
+		Menu  menuBody       `json:"menu"`
 		Items []menuItemBody `json:"items"`
 	}
 }
@@ -156,7 +157,7 @@ type menuListOutput struct {
 
 // MenuBody 是 menuBody 的导出别名：huma 只合并「已导出」的匿名嵌入字段，
 // 小写类型名会被当作未导出字段跳过，导致 OpenAPI 里 MyMenuBody 丢了全部菜单字段
-//（encoding/json 不区分大小写，运行时响应一直是完整的）。
+// （encoding/json 不区分大小写，运行时响应一直是完整的）。
 type MenuBody = menuBody
 
 type myMenuBody struct {
@@ -195,7 +196,7 @@ func menuCardBody(c menu.RecipeCard) menuRecipeCardBody {
 		ID: c.ID, Code: c.Code(), Title: c.Title,
 		ClassicKey: c.ClassicKey, IsCanonical: c.IsCanonical, Family: c.Family,
 		CoverURL: c.CoverURL, CoverURLLight: c.CoverURLLight,
-		LikeCount: c.LikeCount, CommentCount: c.CommentCount, Deleted: c.Deleted,
+		LikeCount: c.LikeCount, CommentCount: c.CommentCount, CollectCount: c.CollectCount, Deleted: c.Deleted,
 	}
 	if c.Author != nil {
 		b.Author = &recipeAuthorBody{
@@ -320,8 +321,8 @@ type menuItemInput struct {
 }
 
 type menuUpdateInput struct {
-	ID     uuid.UUID `path:"id" format:"uuid"`
-	Body   struct {
+	ID   uuid.UUID `path:"id" format:"uuid"`
+	Body struct {
 		Title       *string         `json:"title" minLength:"1" maxLength:"120" required:"false"`
 		Description *string         `json:"description" maxLength:"2000" required:"false"`
 		Visibility  *menuVisibility `json:"visibility" enum:"private,public" required:"false"`
@@ -351,9 +352,9 @@ type menuCreateOutput struct {
 
 func (a *API) createMenuHandler(ctx context.Context, in *struct {
 	Body struct {
-		Title       string          `json:"title" minLength:"1" maxLength:"120"`
-		Description *string         `json:"description" maxLength:"2000" required:"false"`
-		Visibility  menuVisibility  `json:"visibility" enum:"private,public" default:"private" required:"false"`
+		Title       string         `json:"title" minLength:"1" maxLength:"120"`
+		Description *string        `json:"description" maxLength:"2000" required:"false"`
+		Visibility  menuVisibility `json:"visibility" enum:"private,public" default:"private" required:"false"`
 	}
 }) (*menuCreateOutput, error) {
 	claims, herr := requireClaims(ctx)
