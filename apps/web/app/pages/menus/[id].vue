@@ -195,6 +195,7 @@ const reorder = useMutation({
 });
 
 function onDragStart(i: number, e: DragEvent): void {
+  if (!editMode.value) return; // 仅「编辑酒单」态可拖
   dragIndex.value = i;
   dragId.value = items.value[i]?.recipe.id ?? null;
   dropIndex.value = i;
@@ -209,7 +210,8 @@ function onDragStart(i: number, e: DragEvent): void {
  * 不依赖「悬停在哪张卡片上」，因此预览重排导致卡片位移时判定依然稳定。
  */
 function onGridDragOver(e: DragEvent): void {
-  if (dragIndex.value === null) return;
+  if (!editMode.value || dragIndex.value === null) return;
+  e.preventDefault(); // 仅编辑态允许放置，否则浏览器显示「禁止」光标
   const grid = gridWrap.value?.firstElementChild as HTMLElement | null;
   if (!grid) return;
   const n = items.value.length;
@@ -233,11 +235,12 @@ function onGridDragOver(e: DragEvent): void {
 }
 
 /** 落点换算成新顺序：afterRecipeId = 目标前一张（null → 移到最前）。 */
-function onDrop(): void {
+function onDrop(e?: DragEvent): void {
   const from = dragIndex.value;
   const slot = dropIndex.value;
   const id = dragId.value;
   resetDrag();
+  if (e && editMode.value) e.preventDefault();
   if (from === null || slot === null || !id) return;
   const target = slot > from ? slot - 1 : slot; // 摘除被拖项后，插入位要左移一格
   if (target === from) return;
@@ -325,7 +328,7 @@ useHead(() => ({ title: `${menu.value?.title ?? "酒单"} · Shaker` }));
 
     <!-- 卡片排列（TransitionGroup：实时预览重排 + 移出动画）。
          dragover/drop 挂包裹层：卡片位移后事件冒泡仍能稳定命中 -->
-    <div ref="gridWrap" @dragover.prevent="onGridDragOver" @drop.prevent="onDrop()">
+    <div ref="gridWrap" @dragover="onGridDragOver" @drop="onDrop($event)">
       <TransitionGroup
         v-if="previewItems.length"
         tag="div"

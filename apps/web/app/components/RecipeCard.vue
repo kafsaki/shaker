@@ -48,6 +48,7 @@ const cover = computed(() => pickCover(props.recipe.coverUrl, props.recipe.cover
         v-if="cover"
         :src="cover"
         :alt="recipe.title"
+        draggable="false"
         class="size-full object-cover transition-transform group-hover:scale-105"
         loading="lazy"
       />
