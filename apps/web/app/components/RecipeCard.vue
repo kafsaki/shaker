@@ -1,10 +1,10 @@
 <script setup lang="ts">
-import { Heart, Martini, MessageCircle } from "lucide-vue-next";
+import { Bookmark, Heart, Martini, MessageCircle } from "lucide-vue-next";
 import { FAMILY_ZH } from "@/lib/labels";
 import { Badge } from "@/components/ui/badge";
 
 // 放宽为最小结构：FeedCard 可直接赋值，酒单卡片（MenuRecipeCardBody）也能传。
-// 互动数两种来源：feed 用 counts，酒单卡片用扁平的 likeCount/commentCount。
+// 互动数两种来源：feed 用 counts，酒单卡片用扁平的 likeCount/commentCount/collectCount。
 interface RecipeCardData {
   code: string;
   classicKey?: string | null;
@@ -14,9 +14,10 @@ interface RecipeCardData {
   family?: string | null;
   isCanonical?: boolean;
   author?: { displayName: string } | null;
-  counts?: { like: number; comment: number } | null;
+  counts?: { like: number; comment: number; collect?: number } | null;
   likeCount?: number;
   commentCount?: number;
+  collectCount?: number;
   collapsedVariants?: { count: number } | null;
 }
 
@@ -38,6 +39,7 @@ const target = computed(() => {
 });
 const like = computed(() => props.recipe.counts?.like ?? props.recipe.likeCount ?? 0);
 const comment = computed(() => props.recipe.counts?.comment ?? props.recipe.commentCount ?? 0);
+const collect = computed(() => props.recipe.counts?.collect ?? props.recipe.collectCount ?? 0);
 const { pickCover } = useCover();
 const cover = computed(() => pickCover(props.recipe.coverUrl, props.recipe.coverUrlLight));
 </script>
@@ -96,6 +98,9 @@ const cover = computed(() => pickCover(props.recipe.coverUrl, props.recipe.cover
         <span class="flex shrink-0 items-center gap-2 text-xs text-muted-foreground">
           <span class="flex items-center gap-0.5">
             <Heart class="size-3" />{{ like }}
+          </span>
+          <span class="flex items-center gap-0.5">
+            <Bookmark class="size-3" />{{ collect }}
           </span>
           <span class="flex items-center gap-0.5">
             <MessageCircle class="size-3" />{{ comment }}
