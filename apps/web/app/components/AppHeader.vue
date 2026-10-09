@@ -55,6 +55,9 @@ function activePrefix(prefix: string): boolean {
   return route.path.startsWith(prefix);
 }
 
+// 搜索结果页自带搜索框，导航条的搜索入口在该页无意义，隐藏
+const showSearch = computed(() => route.path !== "/search");
+
 async function onLogout(): Promise<void> {
   await auth.logout();
   await navigateTo("/");
@@ -103,6 +106,7 @@ async function onLogout(): Promise<void> {
 
       <!-- 全局搜索栏：回车跳搜索结果页；小屏收成图标入口 -->
       <form
+        v-if="showSearch"
         class="relative hidden min-w-0 max-w-xs flex-1 md:block"
         @submit.prevent="submitSearch()"
       >
@@ -115,7 +119,7 @@ async function onLogout(): Promise<void> {
           class="h-9 rounded-sm border-2 pl-8"
         />
       </form>
-      <Button variant="ghost" size="icon" class="md:hidden" title="搜索" as-child>
+      <Button v-if="showSearch" variant="ghost" size="icon" class="md:hidden" title="搜索" as-child>
         <NuxtLink to="/search"><Search class="size-4" /></NuxtLink>
       </Button>
 

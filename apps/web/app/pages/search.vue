@@ -80,7 +80,9 @@ function syncQuery(): void {
 }
 
 function submit(): void {
-  submitted.value = q.value.trim();
+  const v = q.value.trim();
+  if (!v) return; // 空关键词不触发搜索（本页下面的搜索框同样不允许空值）
+  submitted.value = v;
   searched.value = true;
   syncQuery();
 }
