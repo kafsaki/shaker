@@ -21,7 +21,7 @@ interface RecipeCardData {
 
 // to：覆盖默认的 /r/:code 跳转（经典列表要进 /classics/:key，
 // 而不是再嵌一层 <a> —— 嵌套链接内层优先生效，外层会被吃掉）
-// disabled：配方已删/编辑态——灰显且不可点（渲染成 div，不导航）
+// disabled：配方已删/编辑态——灰显且不可点（pointer-events-none 使其彻底失效）
 const props = defineProps<{
   recipe: RecipeCardData;
   to?: string;
@@ -35,12 +35,10 @@ const cover = computed(() => pickCover(props.recipe.coverUrl, props.recipe.cover
 </script>
 
 <template>
-  <component
-    :is="disabled ? 'div' : 'NuxtLink'"
-    v-bind="disabled ? {} : { to: target }"
-    draggable="false"
+  <NuxtLink
+    :to="target"
     class="group flex flex-col overflow-hidden rounded-xl border border-border bg-card transition-colors"
-    :class="disabled ? 'opacity-60' : 'hover:border-primary/40'"
+    :class="disabled ? 'pointer-events-none opacity-60' : 'hover:border-primary/40'"
   >
     <div
       class="relative aspect-[400/520] overflow-hidden bg-gradient-to-b from-secondary to-background"
@@ -101,5 +99,5 @@ const cover = computed(() => pickCover(props.recipe.coverUrl, props.recipe.cover
         另有 {{ recipe.collapsedVariants.count }} 个变体已折叠
       </p>
     </div>
-  </component>
+  </NuxtLink>
 </template>
