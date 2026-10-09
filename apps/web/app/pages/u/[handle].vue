@@ -1,29 +1,28 @@
 <script setup lang="ts">
-/** 用户主页：资料 + 配方/酒单/关注/粉丝。 */
+/**
+ * 用户主页骨架：资料头 + 分栏导航 + 子路由出口。
+ * 分栏（配方/酒单/粉丝/关注）是真实子路由，路径 `/u/{handle}/recipes|menus|followers|following`。
+ * `/u/{handle}/settings` 是本人专属页，不挂资料头与分栏导航（bare 分支）。
+ */
 import { useQuery } from "@tanstack/vue-query";
 import { toast } from "vue-sonner";
+import { Settings as SettingsIcon } from "lucide-vue-next";
 import type { components } from "@shaker/api-client";
-import RecipeCard from "@/components/RecipeCard.vue";
-import MenuCoverStack from "@/components/MenuCoverStack.vue";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 type PubUser = components["schemas"]["PublicUserBody"];
-type RecipePage = components["schemas"]["RecipeListOutputBody"];
-type MenuPage = components["schemas"]["MenuListOutputBody"];
-type UserPage = components["schemas"]["UserListOutputBody"];
 
 const route = useRoute();
 const api = useApi();
 const auth = useAuthStore();
-const { pickCovers } = useCover();
 const handle = computed(() => String(route.params.handle ?? ""));
-const tab = ref((route.query.tab as string) || "recipes");
+
+// 设置页独立成页：精确比对路径，避免 handle 恰为 "settings" 时误判
+const bare = computed(() => route.path === `/u/${handle.value}/settings`);
 
 const { data: user, error, isLoading } = useQuery({
   queryKey: computed(() => ["user", handle.value] as const),
@@ -34,58 +33,18 @@ const { data: user, error, isLoading } = useQuery({
     if (error) throw error;
     return data;
   },
-});
-
-const { data: recipes } = useQuery({
-  queryKey: computed(() => ["user-recipes", handle.value] as const),
-  queryFn: async (): Promise<RecipePage> => {
-    const { data, error } = await api.GET("/api/v1/users/{handle}/recipes", {
-      params: { path: { handle: handle.value } },
-    });
-    if (error) throw error;
-    return data;
-  },
-});
-
-const { data: menus } = useQuery({
-  queryKey: computed(() => ["user-menus", handle.value] as const),
-  queryFn: async (): Promise<MenuPage> => {
-    const { data, error } = await api.GET("/api/v1/users/{handle}/menus", {
-      params: { path: { handle: handle.value } },
-    });
-    if (error) throw error;
-    return data;
-  },
-});
-
-const followersTab = computed(() => tab.value === "followers");
-const followingTab = computed(() => tab.value === "following");
-
-const { data: followers } = useQuery({
-  queryKey: computed(() => ["user-followers", handle.value] as const),
-  queryFn: async (): Promise<UserPage> => {
-    const { data, error } = await api.GET("/api/v1/users/{handle}/followers", {
-      params: { path: { handle: handle.value } },
-    });
-    if (error) throw error;
-    return data;
-  },
-  enabled: followersTab,
-});
-
-const { data: following } = useQuery({
-  queryKey: computed(() => ["user-following", handle.value] as const),
-  queryFn: async (): Promise<UserPage> => {
-    const { data, error } = await api.GET("/api/v1/users/{handle}/following", {
-      params: { path: { handle: handle.value } },
-    });
-    if (error) throw error;
-    return data;
-  },
-  enabled: followingTab,
+  enabled: computed(() => !bare.value),
 });
 
 const isSelf = computed(() => auth.user?.handle === handle.value);
+
+const tabs = computed(() => [
+  { to: `/u/${handle.value}/recipes`, label: "配方" },
+  { to: `/u/${handle.value}/menus`, label: "酒单" },
+  { to: `/u/${handle.value}/followers`, label: "粉丝" },
+  { to: `/u/${handle.value}/following`, label: "关注" },
+]);
+
 const followingNow = ref(false);
 watch(
   user,
@@ -123,17 +82,18 @@ async function toggleFollow(): Promise<void> {
   }
 }
 
-useHead(() => ({ title: `${user.value?.displayName ?? handle.value} · Shaker` }));
-
-const menuVis: Record<string, string> = {
-  public: "公开",
-  unlisted: "不列出",
-  private: "私密",
-};
+useHead(() => ({
+  title: bare.value
+    ? "设置 · Shaker"
+    : `${user.value?.displayName ?? handle.value} · Shaker`,
+}));
 </script>
 
 <template>
-  <div v-if="isLoading" class="flex flex-col gap-4">
+  <!-- 设置页：全屏，无资料头/分栏 -->
+  <NuxtPage v-if="bare" />
+
+  <div v-else-if="isLoading" class="flex flex-col gap-4">
     <Skeleton class="h-28 w-full" />
     <Skeleton class="h-64 w-full" />
   </div>
@@ -162,8 +122,14 @@ const menuVis: Record<string, string> = {
           <span>{{ user.counts.following }} 关注</span>
         </p>
       </div>
+      <!-- 本人：设置入口（对他人不可见）；他人：关注按钮 -->
+      <Button v-if="isSelf" variant="outline" size="sm" as-child>
+        <NuxtLink :to="`/u/${handle}/settings`">
+          <SettingsIcon class="size-4" /> 设置
+        </NuxtLink>
+      </Button>
       <Button
-        v-if="!isSelf"
+        v-else
         :variant="followingNow ? 'outline' : 'default'"
         :disabled="followPending"
         @click="toggleFollow()"
@@ -172,84 +138,21 @@ const menuVis: Record<string, string> = {
       </Button>
     </div>
 
-    <Tabs v-model="tab">
-      <TabsList>
-        <TabsTrigger value="recipes">配方</TabsTrigger>
-        <TabsTrigger value="menus">酒单</TabsTrigger>
-        <TabsTrigger value="followers">粉丝</TabsTrigger>
-        <TabsTrigger value="following">关注</TabsTrigger>
-      </TabsList>
+    <!-- 分栏导航（真实路由） -->
+    <nav class="inline-flex h-9 w-fit items-center justify-center rounded-lg bg-muted p-0.75 text-muted-foreground">
+      <NuxtLink
+        v-for="t in tabs"
+        :key="t.to"
+        :to="t.to"
+        class="inline-flex h-[calc(100%-1px)] items-center justify-center rounded-md border border-transparent px-2.5 py-1 text-sm font-medium whitespace-nowrap transition-[color,box-shadow]"
+        :class="route.path.startsWith(t.to)
+          ? 'bg-background text-foreground shadow-sm'
+          : 'text-muted-foreground hover:text-foreground'"
+      >
+        {{ t.label }}
+      </NuxtLink>
+    </nav>
 
-      <TabsContent value="recipes" class="mt-4">
-        <div v-if="(recipes?.items ?? []).length" class="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          <RecipeCard v-for="r in recipes?.items ?? []" :key="r.id" :recipe="r" />
-        </div>
-        <p v-else class="py-10 text-center text-sm text-muted-foreground">还没有发布配方</p>
-      </TabsContent>
-
-      <TabsContent value="menus" class="mt-4">
-        <div v-if="(menus?.items ?? []).length" class="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          <NuxtLink
-            v-for="m in menus?.items ?? []"
-            :key="m.id"
-            :to="m.visibility === 'unlisted' && m.shareToken ? `/menus/shared/${m.shareToken}` : `/menus/${m.id}`"
-            class="flex items-center gap-4 rounded-xl border border-border bg-card p-4 transition-colors hover:border-primary/40"
-          >
-            <MenuCoverStack :covers="pickCovers(m.coverUrls, m.coverUrlsLight)" class="w-20 shrink-0" />
-            <div class="flex min-w-0 flex-1 flex-col gap-1">
-              <span class="truncate font-medium">{{ m.title }}</span>
-              <span class="text-xs text-muted-foreground">
-                {{ m.itemCount }} 杯 · {{ menuVis[m.visibility] ?? m.visibility }}
-              </span>
-            </div>
-          </NuxtLink>
-        </div>
-        <p v-else class="py-10 text-center text-sm text-muted-foreground">
-          {{ isSelf ? "还没有酒单" : "没有公开酒单" }}
-        </p>
-      </TabsContent>
-
-      <TabsContent value="followers" class="mt-4">
-        <Card><CardContent class="flex flex-col divide-y divide-border">
-          <NuxtLink
-            v-for="u in followers?.items ?? []"
-            :key="u.id"
-            :to="`/u/${u.handle}`"
-            class="flex items-center gap-3 py-2.5 transition-colors hover:bg-accent/50"
-          >
-            <Avatar class="size-9">
-              <AvatarImage v-if="u.avatarUrl" :src="u.avatarUrl" />
-              <AvatarFallback>{{ u.displayName.slice(0, 1) }}</AvatarFallback>
-            </Avatar>
-            <div class="font-medium">{{ u.displayName }}</div>
-            <div class="text-xs text-muted-foreground">@{{ u.handle }}</div>
-          </NuxtLink>
-          <p v-if="(followers?.items ?? []).length === 0" class="py-8 text-center text-sm text-muted-foreground">
-            还没有粉丝
-          </p>
-        </CardContent></Card>
-      </TabsContent>
-
-      <TabsContent value="following" class="mt-4">
-        <Card><CardContent class="flex flex-col divide-y divide-border">
-          <NuxtLink
-            v-for="u in following?.items ?? []"
-            :key="u.id"
-            :to="`/u/${u.handle}`"
-            class="flex items-center gap-3 py-2.5 transition-colors hover:bg-accent/50"
-          >
-            <Avatar class="size-9">
-              <AvatarImage v-if="u.avatarUrl" :src="u.avatarUrl" />
-              <AvatarFallback>{{ u.displayName.slice(0, 1) }}</AvatarFallback>
-            </Avatar>
-            <div class="font-medium">{{ u.displayName }}</div>
-            <div class="text-xs text-muted-foreground">@{{ u.handle }}</div>
-          </NuxtLink>
-          <p v-if="(following?.items ?? []).length === 0" class="py-8 text-center text-sm text-muted-foreground">
-            还没有关注任何人
-          </p>
-        </CardContent></Card>
-      </TabsContent>
-    </Tabs>
+    <NuxtPage />
   </div>
 </template>

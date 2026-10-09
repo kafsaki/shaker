@@ -1,6 +1,9 @@
 <script setup lang="ts">
-/** 设置：资料 / 单位偏好 / 改密 / 我的草稿。 */
-import { useMutation, useQuery, useQueryClient } from "@tanstack/vue-query";
+/**
+ * 用户设置（由旧 /me 迁移而来）：资料 / 头像 / 单位偏好 / 改密 / 我的草稿 / 全设备退出。
+ * 仅本人可见可访问：他人（handle 不匹配）一律重定向回该用户主页。
+ */
+import { useMutation, useQuery } from "@tanstack/vue-query";
 import { toast } from "vue-sonner";
 import type { components } from "@shaker/api-client";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -29,11 +32,20 @@ import { Textarea } from "@/components/ui/textarea";
 type DraftPage = components["schemas"]["RecipeListOutputBody"];
 
 definePageMeta({ middleware: "auth" });
-useHead({ title: "设置 · Shaker" });
 
+const route = useRoute();
 const api = useApi();
 const auth = useAuthStore();
-const qc = useQueryClient();
+const handle = computed(() => String(route.params.handle ?? ""));
+
+// 权限：设置仅本人。middleware 已保证登录，这里仅拦「登录了但不是本人」。
+watch(
+  () => auth.user?.handle,
+  (h) => {
+    if (h && h !== handle.value) void navigateTo(`/u/${handle.value}`);
+  },
+  { immediate: true },
+);
 
 /* ── 资料 ── */
 const displayName = ref("");

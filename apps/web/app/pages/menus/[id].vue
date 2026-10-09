@@ -36,6 +36,7 @@ type MenuDetail = components["schemas"]["MenuDetailOutputBody"];
 
 const route = useRoute();
 const api = useApi();
+const auth = useAuthStore();
 const qc = useQueryClient();
 const { pickCover } = useCover();
 const id = computed(() => String(route.params.id ?? ""));
@@ -174,7 +175,7 @@ const deleteMenu = useMutation({
   },
   onSuccess: async () => {
     toast.success("酒单已删除");
-    await navigateTo("/me/menus");
+    await navigateTo(`/u/${auth.user?.handle}/menus`);
   },
   onError: (e) => toast.error(apiErrorMessage(e)),
 });

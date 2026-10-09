@@ -1,5 +1,9 @@
 <script setup lang="ts">
-/** 我的酒单管理：B 站收藏夹式双栏——左栏酒单列表，右栏选中酒单的配方卡片。 */
+/**
+ * 用户主页 · 酒单分栏（由旧 /me/menus 迁移而来）。
+ * 本人：管理视图——收藏夹式双栏（左酒单列表，右选中酒单的条目），可新建/重排/移出。
+ * 他人：只读——服务端仅返回公开酒单，点进 /menus/{id} 查看。
+ */
 import { useMutation, useQuery, useQueryClient } from "@tanstack/vue-query";
 import { ArrowDown, ArrowUp, Plus, Settings, Trash2 } from "lucide-vue-next";
 import { toast } from "vue-sonner";
@@ -7,10 +11,7 @@ import type { components } from "@shaker/api-client";
 import MenuCoverStack from "@/components/MenuCoverStack.vue";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import {
-  Card,
-  CardContent,
-} from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import {
   Dialog,
   DialogContent,
@@ -32,27 +33,50 @@ import { Skeleton } from "@/components/ui/skeleton";
 
 type MyMenu = components["schemas"]["MyMenuBody"];
 type MenuDetail = components["schemas"]["MenuDetailOutputBody"];
+type MenuList = components["schemas"]["MenuListOutputBody"];
 
-definePageMeta({ middleware: "auth" });
-useHead({ title: "我的酒单 · Shaker" });
-
+const route = useRoute();
 const api = useApi();
+const auth = useAuthStore();
 const qc = useQueryClient();
 const { pickCover, pickCovers } = useCover();
+const handle = computed(() => String(route.params.handle ?? ""));
+const isSelf = computed(() => auth.user?.handle === handle.value);
 
-const { data: menus, isLoading } = useQuery({
+const VIS_ZH: Record<string, string> = {
+  public: "公开",
+  unlisted: "不列出",
+  private: "私密",
+};
+
+/* ── 本人：全部酒单（含私密），管理用 ── */
+const { data: mine, isLoading: mineLoading } = useQuery({
   queryKey: ["my-menus", "list"],
   queryFn: async (): Promise<MyMenu[]> => {
     const { data, error } = await api.GET("/api/v1/me/menus");
     if (error) throw error;
     return data.items ?? [];
   },
+  enabled: isSelf,
 });
 
-/* ── 选中酒单 ── */
+/* ── 他人：仅公开酒单，只读 ── */
+const { data: pub, isLoading: pubLoading } = useQuery({
+  queryKey: computed(() => ["user-menus", handle.value] as const),
+  queryFn: async (): Promise<MenuList> => {
+    const { data, error } = await api.GET("/api/v1/users/{handle}/menus", {
+      params: { path: { handle: handle.value } },
+    });
+    if (error) throw error;
+    return data;
+  },
+  enabled: computed(() => !isSelf.value),
+});
+
+/* ── 选中酒单（仅本人管理视图用）── */
 const selectedId = ref<string | null>(null);
 
-watch(menus, (list) => {
+watch(mine, (list) => {
   if (list?.length && !(selectedId.value && list.some((m) => m.id === selectedId.value))) {
     selectedId.value = list[0]!.id;
   }
@@ -60,7 +84,7 @@ watch(menus, (list) => {
 
 const { data: detail, isLoading: detailLoading } = useQuery({
   queryKey: computed(() => ["menu", selectedId.value] as const),
-  enabled: computed(() => !!selectedId.value),
+  enabled: computed(() => isSelf.value && !!selectedId.value),
   queryFn: async (): Promise<MenuDetail> => {
     const { data, error } = await api.GET("/api/v1/menus/{id}", {
       params: { path: { id: selectedId.value! } },
@@ -146,18 +170,13 @@ const create = useMutation({
   },
   onError: (e) => toast.error(apiErrorMessage(e)),
 });
-
-const VIS_ZH: Record<string, string> = {
-  public: "公开",
-  unlisted: "不列出",
-  private: "私密",
-};
 </script>
 
 <template>
-  <div class="flex flex-col gap-5">
+  <!-- ── 本人：管理视图 ── -->
+  <div v-if="isSelf" class="flex flex-col gap-5">
     <div class="flex items-center justify-between">
-      <h1 class="text-xl font-bold">我的酒单</h1>
+      <h2 class="text-lg font-bold">我的酒单</h2>
       <Dialog v-model:open="open">
         <DialogTrigger as-child>
           <Button><Plus class="size-4" /> 新建酒单</Button>
@@ -194,12 +213,12 @@ const VIS_ZH: Record<string, string> = {
       </Dialog>
     </div>
 
-    <div v-if="isLoading" class="grid gap-5 lg:grid-cols-[300px_1fr]">
+    <div v-if="mineLoading" class="grid gap-5 lg:grid-cols-[300px_1fr]">
       <div class="flex flex-col gap-2"><Skeleton v-for="i in 4" :key="i" class="h-20 rounded-xl" /></div>
       <Skeleton class="h-64 rounded-xl" />
     </div>
 
-    <p v-else-if="(menus ?? []).length === 0" class="py-16 text-center text-sm text-muted-foreground">
+    <p v-else-if="(mine ?? []).length === 0" class="py-16 text-center text-sm text-muted-foreground">
       还没有酒单。也可以在配方页点「收藏」直接加入。
     </p>
 
@@ -207,7 +226,7 @@ const VIS_ZH: Record<string, string> = {
       <!-- 左栏：酒单列表 -->
       <nav class="flex flex-col gap-2">
         <button
-          v-for="m in menus ?? []"
+          v-for="m in mine ?? []"
           :key="m.id"
           type="button"
           class="flex items-center gap-3 rounded-xl border p-2.5 text-left transition-colors"
@@ -236,10 +255,10 @@ const VIS_ZH: Record<string, string> = {
         <template v-else-if="menu">
           <div class="flex flex-wrap items-center justify-between gap-3">
             <div class="min-w-0">
-              <h2 class="flex flex-wrap items-center gap-2 font-bold">
+              <h3 class="flex flex-wrap items-center gap-2 font-bold">
                 {{ menu.title }}
                 <Badge variant="secondary">{{ VIS_ZH[menu.visibility] ?? menu.visibility }}</Badge>
-              </h2>
+              </h3>
               <p v-if="menu.description" class="mt-1 text-sm text-muted-foreground">{{ menu.description }}</p>
             </div>
             <Button variant="outline" size="sm" as-child>
@@ -305,5 +324,31 @@ const VIS_ZH: Record<string, string> = {
         <p v-else class="py-16 text-center text-sm text-muted-foreground">选择左侧的酒单查看内容</p>
       </div>
     </div>
+  </div>
+
+  <!-- ── 他人：只读公开酒单 ── -->
+  <div v-else class="flex flex-col gap-4">
+    <div v-if="pubLoading" class="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+      <Skeleton v-for="i in 3" :key="i" class="h-28 rounded-xl" />
+    </div>
+
+    <div v-else-if="(pub?.items ?? []).length" class="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+      <NuxtLink
+        v-for="m in pub?.items ?? []"
+        :key="m.id"
+        :to="`/menus/${m.id}`"
+        class="flex items-center gap-4 rounded-xl border border-border bg-card p-4 transition-colors hover:border-primary/40"
+      >
+        <MenuCoverStack :covers="pickCovers(m.coverUrls, m.coverUrlsLight)" class="w-20 shrink-0" />
+        <div class="flex min-w-0 flex-1 flex-col gap-1">
+          <span class="truncate font-medium">{{ m.title }}</span>
+          <span class="text-xs text-muted-foreground">
+            {{ m.itemCount }} 杯 · {{ VIS_ZH[m.visibility] ?? m.visibility }}
+          </span>
+        </div>
+      </NuxtLink>
+    </div>
+
+    <p v-else class="py-10 text-center text-sm text-muted-foreground">没有公开酒单</p>
   </div>
 </template>

@@ -141,12 +141,12 @@ async function onLogout(): Promise<void> {
                 </NuxtLink>
               </DropdownMenuItem>
               <DropdownMenuItem as-child>
-                <NuxtLink to="/me" class="flex items-center gap-2">
+                <NuxtLink :to="`/u/${auth.user?.handle}/settings`" class="flex items-center gap-2">
                   <Settings class="size-4" /> 设置
                 </NuxtLink>
               </DropdownMenuItem>
               <DropdownMenuItem as-child>
-                <NuxtLink to="/me/menus" class="flex items-center gap-2">
+                <NuxtLink :to="`/u/${auth.user?.handle}/menus`" class="flex items-center gap-2">
                   <BookOpen class="size-4" /> 我的酒单
                 </NuxtLink>
               </DropdownMenuItem>
