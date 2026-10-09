@@ -35,8 +35,11 @@ type searchInput struct {
 	Method         string   `query:"method" maxLength:"32"`
 	Glass          string   `query:"glass" maxLength:"64"`
 	Tag            string   `query:"tag" maxLength:"64"`
+	Origin         string   `query:"origin" enum:"original,canonical"`
 	AbvMin         float64  `query:"abvMin" minimum:"0" maximum:"100"`
 	AbvMax         float64  `query:"abvMax" minimum:"0" maximum:"100"`
+	VolumeMin      float64  `query:"volumeMin" minimum:"0" maximum:"5000"`
+	VolumeMax      float64  `query:"volumeMax" minimum:"0" maximum:"5000"`
 	DifficultyMax  int      `query:"difficultyMax" minimum:"1" maximum:"5"`
 	Sort           string   `query:"sort" enum:"relevance,hot,new" default:"relevance"`
 	Cursor         string   `query:"cursor"`
@@ -279,13 +282,20 @@ func (a *API) searchParams(in *searchInput) recipe.SearchParams {
 	p := recipe.SearchParams{
 		Q: in.Q, Ingredients: in.Ingredient, IngredientRole: in.IngredientRole,
 		Family: in.Family, Method: in.Method, Glass: in.Glass, Tag: in.Tag,
-		Sort: in.Sort,
+		Origin: in.Origin,
+		Sort:   in.Sort,
 	}
 	if in.AbvMin > 0 {
 		p.AbvMin = &in.AbvMin
 	}
 	if in.AbvMax > 0 {
 		p.AbvMax = &in.AbvMax
+	}
+	if in.VolumeMin > 0 {
+		p.VolumeMin = &in.VolumeMin
+	}
+	if in.VolumeMax > 0 {
+		p.VolumeMax = &in.VolumeMax
 	}
 	if in.DifficultyMax > 0 {
 		p.DifficultyMax = &in.DifficultyMax

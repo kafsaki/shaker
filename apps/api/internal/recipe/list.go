@@ -154,8 +154,11 @@ type SearchParams struct {
 	Method         string
 	Glass          string
 	Tag            string
+	Origin         string   // original=用户原创（source）| canonical=权威条目（is_canonical）
 	AbvMin         *float64
 	AbvMax         *float64
+	VolumeMin      *float64
+	VolumeMax      *float64
 	DifficultyMax  *int
 	Sort           string // relevance | hot | new
 }
@@ -253,8 +256,11 @@ type RecipeFilter struct {
 	Method        string
 	Glass         string
 	Tag           string
+	Origin        string
 	AbvMin        *float64
 	AbvMax        *float64
+	VolumeMin     *float64
+	VolumeMax     *float64
 	DifficultyMax *int
 }
 
@@ -262,7 +268,10 @@ type RecipeFilter struct {
 func (p SearchParams) Filter() RecipeFilter {
 	return RecipeFilter{
 		Q: p.Q, Family: p.Family, Method: p.Method, Glass: p.Glass, Tag: p.Tag,
-		AbvMin: p.AbvMin, AbvMax: p.AbvMax, DifficultyMax: p.DifficultyMax,
+		Origin: p.Origin,
+		AbvMin: p.AbvMin, AbvMax: p.AbvMax,
+		VolumeMin: p.VolumeMin, VolumeMax: p.VolumeMax,
+		DifficultyMax: p.DifficultyMax,
 	}
 }
 
@@ -295,12 +304,27 @@ func filterConds(f RecipeFilter, start int) ([]string, []any) {
 	if f.Tag != "" {
 		add(f.Tag, `EXISTS(SELECT 1 FROM recipe_tags rt WHERE rt.recipe_id = r.id AND rt.tag_id = $%d)`)
 	}
+	// 来源：原创=source 列；权威=IBA 权威条目（is_canonical）
+	switch f.Origin {
+	case "original":
+		conds = append(conds, `r.source = 'original'`)
+	case "canonical":
+		conds = append(conds, `r.is_canonical`)
+	}
 	if f.AbvMin != nil {
 		add(*f.AbvMin, `r.abv_est >= $%d`)
 	}
 	if f.AbvMax != nil {
 		add(*f.AbvMax, `r.abv_est <= $%d`)
 	}
+	// 容量：未填 total_volume_ml 的配方不参与区间筛选（NULL 比较恒为 NULL）
+	if f.VolumeMin != nil {
+		add(*f.VolumeMin, `r.total_volume_ml >= $%d`)
+	}
+	if f.VolumeMax != nil {
+		add(*f.VolumeMax, `r.total_volume_ml <= $%d`)
+	}
+	// 难度上限：未评级的也算「不高于」，与前端星级选择器语义一致
 	if f.DifficultyMax != nil {
 		add(*f.DifficultyMax, `(r.difficulty IS NULL OR r.difficulty <= $%d)`)
 	}

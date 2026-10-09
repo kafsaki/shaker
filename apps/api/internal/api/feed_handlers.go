@@ -73,8 +73,11 @@ type feedQueryInput struct {
 	Method        string  `query:"method" maxLength:"32"`
 	Glass         string  `query:"glass" maxLength:"64"`
 	Tag           string  `query:"tag" maxLength:"64"`
+	Origin        string  `query:"origin" enum:"original,canonical"`
 	AbvMin        float64 `query:"abvMin" minimum:"0" maximum:"100"`
 	AbvMax        float64 `query:"abvMax" minimum:"0" maximum:"100"`
+	VolumeMin     float64 `query:"volumeMin" minimum:"0" maximum:"5000"`
+	VolumeMax     float64 `query:"volumeMax" minimum:"0" maximum:"5000"`
 	DifficultyMax int     `query:"difficultyMax" minimum:"1" maximum:"5"`
 	Cursor        string  `query:"cursor"`
 	Limit         int     `query:"limit" minimum:"1" maximum:"50"`
@@ -83,13 +86,20 @@ type feedQueryInput struct {
 // filter 查询参数 → store 筛选（0 表示未传，与 /search 一致）。
 func (in *feedQueryInput) filter() recipe.RecipeFilter {
 	f := recipe.RecipeFilter{
-		Q: in.Q, Family: in.Family, Method: in.Method, Glass: in.Glass, Tag: in.Tag,
+		Q: in.Q, Family: in.Family, Method: in.Method, Glass: in.Glass,
+		Tag: in.Tag, Origin: in.Origin,
 	}
 	if in.AbvMin > 0 {
 		f.AbvMin = &in.AbvMin
 	}
 	if in.AbvMax > 0 {
 		f.AbvMax = &in.AbvMax
+	}
+	if in.VolumeMin > 0 {
+		f.VolumeMin = &in.VolumeMin
+	}
+	if in.VolumeMax > 0 {
+		f.VolumeMax = &in.VolumeMax
 	}
 	if in.DifficultyMax > 0 {
 		f.DifficultyMax = &in.DifficultyMax

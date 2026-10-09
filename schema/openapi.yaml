@@ -2764,6 +2764,14 @@ paths:
             type: string
         - explode: false
           in: query
+          name: origin
+          schema:
+            enum:
+              - original
+              - canonical
+            type: string
+        - explode: false
+          in: query
           name: abvMin
           schema:
             format: double
@@ -2776,6 +2784,22 @@ paths:
           schema:
             format: double
             maximum: 100
+            minimum: 0
+            type: number
+        - explode: false
+          in: query
+          name: volumeMin
+          schema:
+            format: double
+            maximum: 5000
+            minimum: 0
+            type: number
+        - explode: false
+          in: query
+          name: volumeMax
+          schema:
+            format: double
+            maximum: 5000
             minimum: 0
             type: number
         - explode: false
@@ -2863,6 +2887,14 @@ paths:
             type: string
         - explode: false
           in: query
+          name: origin
+          schema:
+            enum:
+              - original
+              - canonical
+            type: string
+        - explode: false
+          in: query
           name: abvMin
           schema:
             format: double
@@ -2875,6 +2907,22 @@ paths:
           schema:
             format: double
             maximum: 100
+            minimum: 0
+            type: number
+        - explode: false
+          in: query
+          name: volumeMin
+          schema:
+            format: double
+            maximum: 5000
+            minimum: 0
+            type: number
+        - explode: false
+          in: query
+          name: volumeMax
+          schema:
+            format: double
+            maximum: 5000
             minimum: 0
             type: number
         - explode: false
@@ -2960,6 +3008,14 @@ paths:
             type: string
         - explode: false
           in: query
+          name: origin
+          schema:
+            enum:
+              - original
+              - canonical
+            type: string
+        - explode: false
+          in: query
           name: abvMin
           schema:
             format: double
@@ -2972,6 +3028,22 @@ paths:
           schema:
             format: double
             maximum: 100
+            minimum: 0
+            type: number
+        - explode: false
+          in: query
+          name: volumeMin
+          schema:
+            format: double
+            maximum: 5000
+            minimum: 0
+            type: number
+        - explode: false
+          in: query
+          name: volumeMax
+          schema:
+            format: double
+            maximum: 5000
             minimum: 0
             type: number
         - explode: false
@@ -4105,6 +4177,14 @@ paths:
             type: string
         - explode: false
           in: query
+          name: origin
+          schema:
+            enum:
+              - original
+              - canonical
+            type: string
+        - explode: false
+          in: query
           name: abvMin
           schema:
             format: double
@@ -4117,6 +4197,22 @@ paths:
           schema:
             format: double
             maximum: 100
+            minimum: 0
+            type: number
+        - explode: false
+          in: query
+          name: volumeMin
+          schema:
+            format: double
+            maximum: 5000
+            minimum: 0
+            type: number
+        - explode: false
+          in: query
+          name: volumeMax
+          schema:
+            format: double
+            maximum: 5000
             minimum: 0
             type: number
         - explode: false

@@ -2447,8 +2447,11 @@ export interface operations {
                 method?: string;
                 glass?: string;
                 tag?: string;
+                origin?: "original" | "canonical";
                 abvMin?: number;
                 abvMax?: number;
+                volumeMin?: number;
+                volumeMax?: number;
                 difficultyMax?: number;
                 cursor?: string;
                 limit?: number;
@@ -2488,8 +2491,11 @@ export interface operations {
                 method?: string;
                 glass?: string;
                 tag?: string;
+                origin?: "original" | "canonical";
                 abvMin?: number;
                 abvMax?: number;
+                volumeMin?: number;
+                volumeMax?: number;
                 difficultyMax?: number;
                 cursor?: string;
                 limit?: number;
@@ -2529,8 +2535,11 @@ export interface operations {
                 method?: string;
                 glass?: string;
                 tag?: string;
+                origin?: "original" | "canonical";
                 abvMin?: number;
                 abvMax?: number;
+                volumeMin?: number;
+                volumeMax?: number;
                 difficultyMax?: number;
                 cursor?: string;
                 limit?: number;
@@ -3726,8 +3735,11 @@ export interface operations {
                 method?: string;
                 glass?: string;
                 tag?: string;
+                origin?: "original" | "canonical";
                 abvMin?: number;
                 abvMax?: number;
+                volumeMin?: number;
+                volumeMax?: number;
                 difficultyMax?: number;
                 sort?: "relevance" | "hot" | "new";
                 cursor?: string;
