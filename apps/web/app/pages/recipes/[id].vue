@@ -19,11 +19,23 @@ const { data, error, isLoading } = useQuery({
   },
 });
 
+/** 经典配方的唯一地址是 /classics/{key}，这里只做收敛（通知等按 id 的入口兜底）。 */
+const canonicalKey = computed(() =>
+  data.value?.isCanonical && data.value.classicKey ? data.value.classicKey : null,
+);
+watch(
+  canonicalKey,
+  (k) => {
+    if (k) void navigateTo(`/classics/${k}`, { replace: true });
+  },
+  { immediate: true },
+);
+
 useHead(() => ({ title: `${data.value?.title ?? "配方"} · Shaker` }));
 </script>
 
 <template>
-  <div v-if="isLoading" class="grid gap-8 lg:grid-cols-[400px_minmax(0,1fr)]">
+  <div v-if="isLoading || canonicalKey" class="grid gap-8 lg:grid-cols-[400px_minmax(0,1fr)]">
     <Skeleton class="aspect-[400/520] rounded-xl" />
     <div class="flex flex-col gap-4">
       <Skeleton class="h-8 w-2/3" />

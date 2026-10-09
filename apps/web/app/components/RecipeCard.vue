@@ -7,6 +7,7 @@ import { Badge } from "@/components/ui/badge";
 // 互动数两种来源：feed 用 counts，酒单卡片用扁平的 likeCount/commentCount。
 interface RecipeCardData {
   code: string;
+  classicKey?: string | null;
   title: string;
   coverUrl?: string | null;
   coverUrlLight?: string | null;
@@ -19,15 +20,22 @@ interface RecipeCardData {
   collapsedVariants?: { count: number } | null;
 }
 
-// to：覆盖默认的 /r/:code 跳转（经典列表要进 /classics/:key，
+// to：覆盖默认跳转（经典列表要进 /classics/:key，
 // 而不是再嵌一层 <a> —— 嵌套链接内层优先生效，外层会被吃掉）
+// 默认：经典配方走 /classics/:key（唯一地址），其余走 /r/:code
 // disabled：配方已删/编辑态——灰显且不可点（pointer-events-none 使其彻底失效）
 const props = defineProps<{
   recipe: RecipeCardData;
   to?: string;
   disabled?: boolean;
 }>();
-const target = computed(() => props.to ?? `/r/${props.recipe.code}`);
+const target = computed(() => {
+  if (props.to) return props.to;
+  if (props.recipe.isCanonical && props.recipe.classicKey) {
+    return `/classics/${props.recipe.classicKey}`;
+  }
+  return `/r/${props.recipe.code}`;
+});
 const like = computed(() => props.recipe.counts?.like ?? props.recipe.likeCount ?? 0);
 const comment = computed(() => props.recipe.counts?.comment ?? props.recipe.commentCount ?? 0);
 const { pickCover } = useCover();
