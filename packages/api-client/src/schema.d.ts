@@ -2447,6 +2447,7 @@ export interface operations {
                 method?: string;
                 glass?: string;
                 tag?: string[] | null;
+                tagMode?: "or" | "and";
                 origin?: "original" | "canonical";
                 abvMin?: number;
                 abvMax?: number;
@@ -2491,6 +2492,7 @@ export interface operations {
                 method?: string;
                 glass?: string;
                 tag?: string[] | null;
+                tagMode?: "or" | "and";
                 origin?: "original" | "canonical";
                 abvMin?: number;
                 abvMax?: number;
@@ -2535,6 +2537,7 @@ export interface operations {
                 method?: string;
                 glass?: string;
                 tag?: string[] | null;
+                tagMode?: "or" | "and";
                 origin?: "original" | "canonical";
                 abvMin?: number;
                 abvMax?: number;
@@ -3735,6 +3738,7 @@ export interface operations {
                 method?: string;
                 glass?: string;
                 tag?: string[] | null;
+                tagMode?: "or" | "and";
                 origin?: "original" | "canonical";
                 abvMin?: number;
                 abvMax?: number;

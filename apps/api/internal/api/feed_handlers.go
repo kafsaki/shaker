@@ -43,7 +43,7 @@ func (a *API) registerFeed(api huma.API) {
 
 // RecipeCardBody 是 recipeBody 的导出别名：huma 只合并「已导出」的匿名嵌入字段，
 // 小写类型名会被当作未导出字段跳过，导致 OpenAPI 里 FeedCard 丢了全部配方字段
-//（encoding/json 不区分大小写，运行时响应一直是完整的）。
+// （encoding/json 不区分大小写，运行时响应一直是完整的）。
 type RecipeCardBody = recipeBody
 
 // feedCard 嵌入完整配方体（动画是产品核心，Feed 卡片直接可渲染）
@@ -72,22 +72,23 @@ type feedQueryInput struct {
 	Family        string   `query:"family" maxLength:"64"`
 	Method        string   `query:"method" maxLength:"32"`
 	Glass         string   `query:"glass" maxLength:"64"`
-	Tag           []string `query:"tag,explode" maxItems:"10"` // 可重复传，OR 语义（命中任一标签）
+	Tag           []string `query:"tag,explode" maxItems:"10"`          // 可重复传参
+	TagMode       string   `query:"tagMode" enum:"or,and" default:"or"` // 多标签之间的组合方式
 	Origin        string   `query:"origin" enum:"original,canonical"`
-	AbvMin        float64 `query:"abvMin" minimum:"0" maximum:"100"`
-	AbvMax        float64 `query:"abvMax" minimum:"0" maximum:"100"`
-	VolumeMin     float64 `query:"volumeMin" minimum:"0" maximum:"5000"`
-	VolumeMax     float64 `query:"volumeMax" minimum:"0" maximum:"5000"`
-	DifficultyMax int     `query:"difficultyMax" minimum:"1" maximum:"5"`
-	Cursor        string  `query:"cursor"`
-	Limit         int     `query:"limit" minimum:"1" maximum:"50"`
+	AbvMin        float64  `query:"abvMin" minimum:"0" maximum:"100"`
+	AbvMax        float64  `query:"abvMax" minimum:"0" maximum:"100"`
+	VolumeMin     float64  `query:"volumeMin" minimum:"0" maximum:"5000"`
+	VolumeMax     float64  `query:"volumeMax" minimum:"0" maximum:"5000"`
+	DifficultyMax int      `query:"difficultyMax" minimum:"1" maximum:"5"`
+	Cursor        string   `query:"cursor"`
+	Limit         int      `query:"limit" minimum:"1" maximum:"50"`
 }
 
 // filter 查询参数 → store 筛选（0 表示未传，与 /search 一致）。
 func (in *feedQueryInput) filter() recipe.RecipeFilter {
 	f := recipe.RecipeFilter{
 		Q: in.Q, Family: in.Family, Method: in.Method, Glass: in.Glass,
-		Tags: in.Tag, Origin: in.Origin,
+		Tags: in.Tag, TagMode: in.TagMode, Origin: in.Origin,
 	}
 	if in.AbvMin > 0 {
 		f.AbvMin = &in.AbvMin

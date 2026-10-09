@@ -2768,6 +2768,15 @@ paths:
               - "null"
         - explode: false
           in: query
+          name: tagMode
+          schema:
+            default: or
+            enum:
+              - or
+              - and
+            type: string
+        - explode: false
+          in: query
           name: origin
           schema:
             enum:
@@ -2895,6 +2904,15 @@ paths:
               - "null"
         - explode: false
           in: query
+          name: tagMode
+          schema:
+            default: or
+            enum:
+              - or
+              - and
+            type: string
+        - explode: false
+          in: query
           name: origin
           schema:
             enum:
@@ -3018,6 +3036,15 @@ paths:
             type:
               - array
               - "null"
+        - explode: false
+          in: query
+          name: tagMode
+          schema:
+            default: or
+            enum:
+              - or
+              - and
+            type: string
         - explode: false
           in: query
           name: origin
@@ -4191,6 +4218,15 @@ paths:
             type:
               - array
               - "null"
+        - explode: false
+          in: query
+          name: tagMode
+          schema:
+            default: or
+            enum:
+              - or
+              - and
+            type: string
         - explode: false
           in: query
           name: origin

@@ -270,7 +270,8 @@ GET /search?q=&type=recipe|user|ingredient|menu|all
 
 `ingredient` 可重复传（`&ingredient=a&ingredient=b` = 同时含 a 和 b）。
 
-`tag` 可重复传，语义为 **OR**（`&tag=refreshing&tag=sour` = 命中任一标签）。
+`tag` 可重复传，`tagMode` 决定多标签之间的组合方式：`or`（默认）命中任一，
+`and` 必须全部命中（`&tag=refreshing&tag=sour&tagMode=and`）。
 标签取配方自身的 `recipe_tags`，不是按原料反推；`/feed/*` 三个端点同名同义。
 
 ### 2.8 用户与关注
