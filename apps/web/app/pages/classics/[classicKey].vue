@@ -120,7 +120,7 @@ async function goDistribution(): Promise<void> {
 
 <template>
   <div v-if="isLoading" class="flex flex-col gap-6">
-    <Skeleton class="h-44 w-full rounded-2xl" />
+    <Skeleton class="h-44 w-full rounded-sm" />
     <div class="grid items-start gap-8 lg:grid-cols-[400px_minmax(0,1fr)]">
       <Skeleton class="aspect-[400/520] w-full rounded-xl" />
       <div class="flex flex-col gap-4">

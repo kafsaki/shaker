@@ -182,7 +182,8 @@ const rows = computed<Row[]>(() => {
   const vizIngs =
     (props.recipe.viz?.ingredients as Record<string, VizIngredient> | undefined) ?? {};
   return ir.value.ingredients.map((r) => {
-    const meta = vizIngs[r.ingredientId];
+    // 经典条目接口不带 viz，回退全量词表取中英名（否则只剩 ingredientId 裸值）
+    const meta = vizIngs[r.ingredientId] ?? vocabStore.ingMap.get(r.ingredientId);
     const d = displayAmount(r, unitPref.value);
     return {
       slot: r.slot,
