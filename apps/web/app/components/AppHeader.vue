@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { useQuery } from "@tanstack/vue-query";
-import { Bell, BookOpen, LogOut, Martini, Moon, PencilLine, Settings, Sun, User } from "lucide-vue-next";
+import { Bell, BookOpen, LogOut, Martini, Moon, PencilLine, Search, Settings, Sun, User } from "lucide-vue-next";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import {
@@ -11,11 +11,31 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { Input } from "@/components/ui/input";
 import { Separator } from "@/components/ui/separator";
 
 const auth = useAuthStore();
 const { theme, toggleTheme } = useTheme();
 const route = useRoute();
+const router = useRouter();
+
+/* 全局搜索：回车跳到搜索结果页 */
+const keyword = ref((route.query.q as string) ?? "");
+
+// 只在搜索结果页同步输入框（进入/前进后退/分享链接），避免离开搜索页时清掉未提交的关键词
+watch(
+  () => route.query.q,
+  (v) => {
+    if (route.path === "/search") keyword.value = (v as string) ?? "";
+  },
+  { immediate: true },
+);
+
+function submitSearch(): void {
+  const q = keyword.value.trim();
+  if (!q) return;
+  void router.push({ path: "/search", query: { q } });
+}
 
 // 未读红点：轻量轮询（登录后才有意义）
 const { data: unread } = useQuery({
@@ -80,6 +100,24 @@ async function onLogout(): Promise<void> {
           经典
         </NuxtLink>
       </nav>
+
+      <!-- 全局搜索栏：回车跳搜索结果页；小屏收成图标入口 -->
+      <form
+        class="relative hidden min-w-0 max-w-xs flex-1 md:block"
+        @submit.prevent="submitSearch()"
+      >
+        <Search
+          class="pointer-events-none absolute left-2.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground"
+        />
+        <Input
+          v-model="keyword"
+          placeholder="搜配方 / 酒单 / 用户…"
+          class="h-9 rounded-sm border-2 pl-8"
+        />
+      </form>
+      <Button variant="ghost" size="icon" class="md:hidden" title="搜索" as-child>
+        <NuxtLink to="/search"><Search class="size-4" /></NuxtLink>
+      </Button>
 
       <div class="ml-auto flex items-center gap-1.5">
         <Button

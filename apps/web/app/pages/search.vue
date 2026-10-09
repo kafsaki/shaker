@@ -1,9 +1,15 @@
 <script setup lang="ts">
-/** 搜索：分组结果（配方/用户/原料）+ 多维筛选。 */
-import { useQuery } from "@tanstack/vue-query";
-import { Search } from "lucide-vue-next";
+/**
+ * 搜索结果页（B 站式）：顶部搜索框 + 「配方 / 酒单 / 用户」Tab 切换。
+ * 各 Tab 独立游标分页（useInfiniteQuery），且只在激活时请求。
+ * 配方 Tab 额外提供标签、家族、手法、杯型与排序筛选。
+ */
+import { useInfiniteQuery } from "@tanstack/vue-query";
+import { Search, SlidersHorizontal, X } from "lucide-vue-next";
 import type { components } from "@shaker/api-client";
 import { FAMILY_ZH, METHOD_ZH } from "@/lib/labels";
+import InfiniteLoader from "@/components/InfiniteLoader.vue";
+import MenuCoverStack from "@/components/MenuCoverStack.vue";
 import RecipeCard from "@/components/RecipeCard.vue";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
@@ -20,166 +26,423 @@ import { Skeleton } from "@/components/ui/skeleton";
 
 type SearchOut = components["schemas"]["SearchOutputBody"];
 
+const TABS = [
+  { key: "recipe", label: "配方" },
+  { key: "menu", label: "酒单" },
+  { key: "user", label: "用户" },
+] as const;
+type TabKey = (typeof TABS)[number]["key"];
+
+const SORTS = [
+  { key: "relevance", label: "相关度" },
+  { key: "hot", label: "最热" },
+  { key: "new", label: "最新" },
+] as const;
+
 const route = useRoute();
 const router = useRouter();
 const api = useApi();
 const vocab = useVocabStore();
+const { pickCovers } = useCover();
 
-useHead({ title: "搜索 · Shaker" });
+const q = ref((route.query.q as string) ?? "");
+const tab = ref<TabKey>(normalizeTab(route.query.type as string));
+const submitted = ref((route.query.q as string) ?? "");
+const searched = ref(Boolean(submitted.value));
 
-const q = ref((route.query.q as string) || "");
-// reka-ui 禁止 SelectItem 用空字符串 value（空串是"清除选择"的保留值），用 all 哨兵
+// reka-ui 的 SelectItem 不接受空字符串 value（空串保留给「清除选择」），统一用 all 哨兵
 const family = ref((route.query.family as string) || "all");
 const method = ref((route.query.method as string) || "all");
 const glass = ref((route.query.glass as string) || "all");
-const submitted = ref((route.query.q as string) || "");
-const searched = ref(Boolean(submitted.value));
+const tag = ref((route.query.tag as string) || "");
+const sort = ref<"relevance" | "hot" | "new">(
+  route.query.sort === "hot" || route.query.sort === "new" ? route.query.sort : "relevance",
+);
 
-function submit(): void {
-  submitted.value = q.value.trim();
-  searched.value = true;
+function normalizeTab(v: string | undefined): TabKey {
+  return TABS.some((t) => t.key === v) ? (v as TabKey) : "recipe";
+}
+
+/** 把当前状态写回地址栏，保证刷新/分享后结果可复现。 */
+function syncQuery(): void {
   router.replace({
     query: {
       ...(submitted.value ? { q: submitted.value } : {}),
+      ...(tab.value !== "recipe" ? { type: tab.value } : {}),
       ...(family.value !== "all" ? { family: family.value } : {}),
       ...(method.value !== "all" ? { method: method.value } : {}),
       ...(glass.value !== "all" ? { glass: glass.value } : {}),
+      ...(tag.value ? { tag: tag.value } : {}),
+      ...(sort.value !== "relevance" ? { sort: sort.value } : {}),
     },
   });
 }
 
-watch([family, method, glass], () => searched.value && submit());
+function submit(): void {
+  submitted.value = q.value.trim();
+  searched.value = true;
+  syncQuery();
+}
 
-const { data, isLoading, isFetching } = useQuery({
+function switchTab(next: TabKey): void {
+  if (next === tab.value) return;
+  tab.value = next;
+  syncQuery();
+}
+
+function toggleTag(id: string): void {
+  tag.value = tag.value === id ? "" : id;
+  syncQuery();
+}
+
+function clearFilters(): void {
+  family.value = "all";
+  method.value = "all";
+  glass.value = "all";
+  tag.value = "";
+  sort.value = "relevance";
+  syncQuery();
+}
+
+const hasFilters = computed(
+  () =>
+    family.value !== "all" ||
+    method.value !== "all" ||
+    glass.value !== "all" ||
+    tag.value !== "" ||
+    sort.value !== "relevance",
+);
+
+// 筛选变化即时重查（下拉/标签点了就走）
+watch([family, method, glass], () => searched.value && syncQuery());
+
+/** 各 Tab 独立的无限查询骨架：仅激活的 Tab 发请求。 */
+const recipeQuery = useInfiniteQuery({
   queryKey: computed(
     () =>
-      ["search", submitted.value, family.value, method.value, glass.value] as const,
+      [
+        "search",
+        "recipe",
+        submitted.value,
+        family.value,
+        method.value,
+        glass.value,
+        tag.value,
+        sort.value,
+      ] as const,
   ),
-  queryFn: async (): Promise<SearchOut> => {
+  queryFn: async ({ pageParam }): Promise<NonNullable<SearchOut["recipes"]>> => {
     const { data, error } = await api.GET("/api/v1/search", {
       params: {
         query: {
           q: submitted.value || undefined,
-          type: "all",
+          type: "recipe",
+          cursor: pageParam || undefined,
+          limit: 24,
           family: family.value !== "all" ? family.value : undefined,
           method: method.value !== "all" ? method.value : undefined,
           glass: glass.value !== "all" ? glass.value : undefined,
+          tag: tag.value || undefined,
+          sort: sort.value,
         },
       },
     });
     if (error) throw error;
-    return data;
+    if (!data.recipes) throw new Error("搜索结果为空");
+    return data.recipes;
   },
-  enabled: searched,
+  initialPageParam: "",
+  getNextPageParam: (last) => last.nextCursor ?? undefined,
+  enabled: computed(() => searched.value && tab.value === "recipe"),
 });
+
+const menuQuery = useInfiniteQuery({
+  queryKey: computed(() => ["search", "menu", submitted.value] as const),
+  queryFn: async ({ pageParam }): Promise<NonNullable<SearchOut["menus"]>> => {
+    const { data, error } = await api.GET("/api/v1/search", {
+      params: {
+        query: {
+          q: submitted.value || undefined,
+          type: "menu",
+          cursor: pageParam || undefined,
+          limit: 24,
+        },
+      },
+    });
+    if (error) throw error;
+    if (!data.menus) throw new Error("搜索结果为空");
+    return data.menus;
+  },
+  initialPageParam: "",
+  getNextPageParam: (last) => last.nextCursor ?? undefined,
+  enabled: computed(() => searched.value && tab.value === "menu"),
+});
+
+const userQuery = useInfiniteQuery({
+  queryKey: computed(() => ["search", "user", submitted.value] as const),
+  queryFn: async ({ pageParam }): Promise<NonNullable<SearchOut["users"]>> => {
+    const { data, error } = await api.GET("/api/v1/search", {
+      params: {
+        query: {
+          q: submitted.value || undefined,
+          type: "user",
+          cursor: pageParam || undefined,
+          limit: 24,
+        },
+      },
+    });
+    if (error) throw error;
+    if (!data.users) throw new Error("搜索结果为空");
+    return data.users;
+  },
+  initialPageParam: "",
+  getNextPageParam: (last) => last.nextCursor ?? undefined,
+  enabled: computed(() => searched.value && tab.value === "user"),
+});
+
+const recipes = computed(
+  () => recipeQuery.data.value?.pages.flatMap((p) => p.items ?? []) ?? [],
+);
+const menus = computed(
+  () => menuQuery.data.value?.pages.flatMap((p) => p.items ?? []) ?? [],
+);
+const users = computed(
+  () => userQuery.data.value?.pages.flatMap((p) => p.items ?? []) ?? [],
+);
+
+/** 当前 Tab 的查询结果，供模板统一取 loading / 分页状态。 */
+const activeQuery = computed(() => {
+  if (tab.value === "recipe") return recipeQuery;
+  if (tab.value === "menu") return menuQuery;
+  return userQuery;
+});
+const isLoading = computed(() => activeQuery.value.isLoading.value);
+const isFetching = computed(() => activeQuery.value.isFetching.value);
+const hasNextPage = computed(() => activeQuery.value.hasNextPage.value);
+const isFetchingNextPage = computed(() => activeQuery.value.isFetchingNextPage.value);
+const isError = computed(() => activeQuery.value.isError.value);
+const isEmpty = computed(() => {
+  if (tab.value === "recipe") return recipes.value.length === 0;
+  if (tab.value === "menu") return menus.value.length === 0;
+  return users.value.length === 0;
+});
+
+function loadMore(): void {
+  void activeQuery.value.fetchNextPage();
+}
 
 onMounted(() => {
   void vocab.ensure().catch(() => {});
 });
 
-const recipes = computed(() => data.value?.recipes?.items ?? []);
-const users = computed(() => data.value?.users?.items ?? []);
-const ingredients = computed(() => data.value?.ingredients?.items ?? []);
+useHead(() => ({
+  title: submitted.value ? `${submitted.value} · 搜索 · Shaker` : "搜索 · Shaker",
+}));
 </script>
 
 <template>
-  <div class="mx-auto flex max-w-3xl flex-col gap-5">
+  <div class="mx-auto flex max-w-5xl flex-col gap-5">
     <form class="flex gap-2" @submit.prevent="submit()">
       <div class="relative flex-1">
         <Search class="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
-        <Input v-model="q" placeholder="搜配方 / 用户 / 原料…" class="pl-9" autofocus />
+        <Input
+          v-model="q"
+          placeholder="搜配方 / 酒单 / 用户…"
+          class="pl-9"
+          :autofocus="!submitted"
+        />
       </div>
       <Button type="submit" :disabled="isFetching">搜索</Button>
     </form>
 
-    <div class="flex flex-wrap items-center gap-2 text-sm">
-      <Select v-model="family">
-        <SelectTrigger class="h-8 w-32 text-xs"><SelectValue placeholder="家族" /></SelectTrigger>
-        <SelectContent>
-          <SelectItem value="all">全部家族</SelectItem>
-          <SelectItem v-for="(zh, f) in FAMILY_ZH" :key="f" :value="f">{{ zh }}</SelectItem>
-        </SelectContent>
-      </Select>
-      <Select v-model="method">
-        <SelectTrigger class="h-8 w-32 text-xs"><SelectValue placeholder="手法" /></SelectTrigger>
-        <SelectContent>
-          <SelectItem value="all">全部手法</SelectItem>
-          <SelectItem v-for="(zh, m) in METHOD_ZH" :key="m" :value="m">{{ zh }}</SelectItem>
-        </SelectContent>
-      </Select>
-      <Select v-model="glass">
-        <SelectTrigger class="h-8 w-32 text-xs"><SelectValue placeholder="杯型" /></SelectTrigger>
-        <SelectContent>
-          <SelectItem value="all">全部杯型</SelectItem>
-          <SelectItem v-for="g in vocab.glassware" :key="g.id" :value="g.id">
-            {{ g.nameZh }}
-          </SelectItem>
-        </SelectContent>
-      </Select>
+    <!-- Tab 导航 -->
+    <nav class="flex items-center gap-1 border-b-2 border-border">
+      <button
+        v-for="t in TABS"
+        :key="t.key"
+        type="button"
+        class="-mb-0.5 border-b-2 px-4 py-2 text-sm transition-colors"
+        :class="
+          tab === t.key
+            ? 'border-primary font-medium text-foreground'
+            : 'border-transparent text-muted-foreground hover:text-foreground'
+        "
+        @click="switchTab(t.key)"
+      >
+        {{ t.label }}
+      </button>
+    </nav>
+
+    <!-- 配方筛选 -->
+    <div
+      v-if="tab === 'recipe'"
+      class="flex flex-col gap-3 rounded-sm border-2 border-border bg-card p-3"
+    >
+      <div class="flex flex-wrap items-center gap-2">
+        <span class="flex items-center gap-1 text-xs text-muted-foreground">
+          <SlidersHorizontal class="size-3.5" /> 筛选
+        </span>
+        <Select v-model="sort">
+          <SelectTrigger class="h-8 w-28 text-xs"><SelectValue /></SelectTrigger>
+          <SelectContent>
+            <SelectItem v-for="s in SORTS" :key="s.key" :value="s.key">{{ s.label }}</SelectItem>
+          </SelectContent>
+        </Select>
+        <Select v-model="family">
+          <SelectTrigger class="h-8 w-28 text-xs"><SelectValue placeholder="家族" /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">全部家族</SelectItem>
+            <SelectItem v-for="(zh, f) in FAMILY_ZH" :key="f" :value="f">{{ zh }}</SelectItem>
+          </SelectContent>
+        </Select>
+        <Select v-model="method">
+          <SelectTrigger class="h-8 w-28 text-xs"><SelectValue placeholder="手法" /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">全部手法</SelectItem>
+            <SelectItem v-for="(zh, m) in METHOD_ZH" :key="m" :value="m">{{ zh }}</SelectItem>
+          </SelectContent>
+        </Select>
+        <Select v-model="glass">
+          <SelectTrigger class="h-8 w-28 text-xs"><SelectValue placeholder="杯型" /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">全部杯型</SelectItem>
+            <SelectItem v-for="g in vocab.glassware" :key="g.id" :value="g.id">
+              {{ g.nameZh }}
+            </SelectItem>
+          </SelectContent>
+        </Select>
+        <Button
+          v-if="hasFilters"
+          variant="ghost"
+          size="sm"
+          class="h-8 gap-1 text-xs"
+          @click="clearFilters()"
+        >
+          <X class="size-3.5" /> 清除
+        </Button>
+      </div>
+
+      <div v-if="vocab.tags.length" class="flex flex-wrap gap-1.5">
+        <button
+          v-for="t in vocab.tags"
+          :key="t.id"
+          type="button"
+          class="rounded-sm border px-2 py-1 text-xs transition-colors"
+          :class="
+            tag === t.id
+              ? 'border-primary bg-primary text-primary-foreground'
+              : 'border-border text-muted-foreground hover:border-primary/50 hover:text-foreground'
+          "
+          @click="toggleTag(t.id)"
+        >
+          {{ t.nameZh }}
+        </button>
+      </div>
     </div>
 
+    <!-- 结果 -->
     <div v-if="isLoading" class="flex flex-col gap-3">
       <Skeleton class="h-24 w-full" />
       <Skeleton class="h-24 w-full" />
     </div>
 
-    <template v-else-if="data">
+    <template v-else-if="searched">
       <!-- 配方 -->
-      <section v-if="recipes.length" class="flex flex-col gap-2">
-        <h2 class="text-sm font-medium text-muted-foreground">
-          配方（{{ data.recipes?.total ?? recipes.length }}）
-        </h2>
-        <div class="grid gap-4 sm:grid-cols-2">
-          <RecipeCard v-for="r in recipes" :key="r.id" :recipe="r" />
+      <div v-if="tab === 'recipe'" class="grid gap-4 sm:grid-cols-3 lg:grid-cols-4">
+        <RecipeCard v-for="r in recipes" :key="r.id" :recipe="r" />
+      </div>
+
+      <!-- 酒单 -->
+      <div v-else-if="tab === 'menu'" class="flex flex-col gap-3">
+        <div
+          v-for="m in menus"
+          :key="m.id"
+          class="flex flex-col gap-3 rounded-sm border-2 border-border bg-card p-3 pixel-shadow-sm sm:flex-row"
+        >
+          <MenuCoverStack
+            :covers="pickCovers(m.coverUrls, m.coverUrlsLight)"
+            class="w-28 shrink-0 sm:w-36"
+          />
+          <div class="flex min-w-0 flex-1 flex-col gap-2">
+            <div class="flex flex-wrap items-center gap-2">
+              <NuxtLink :to="`/menus/${m.id}`" class="truncate font-medium hover:text-primary">
+                {{ m.title }}
+              </NuxtLink>
+              <Badge variant="secondary">{{ m.itemCount }} 杯</Badge>
+            </div>
+            <NuxtLink
+              v-if="m.owner"
+              :to="`/u/${m.owner.handle}`"
+              class="flex w-fit items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground"
+            >
+              <Avatar class="size-5">
+                <AvatarImage v-if="m.owner.avatarUrl" :src="m.owner.avatarUrl" />
+                <AvatarFallback class="text-[10px]">
+                  {{ m.owner.displayName.slice(0, 1) }}
+                </AvatarFallback>
+              </Avatar>
+              {{ m.owner.displayName }}
+            </NuxtLink>
+            <p v-if="m.description" class="line-clamp-2 text-xs text-muted-foreground">
+              {{ m.description }}
+            </p>
+            <div v-if="(m.recipeCards ?? []).length" class="flex gap-2 overflow-x-auto pb-1">
+              <RecipeCard
+                v-for="c in m.recipeCards"
+                :key="c.id"
+                :recipe="c"
+                class="w-28 shrink-0"
+              />
+            </div>
+            <Button size="sm" variant="outline" as-child class="w-fit">
+              <NuxtLink :to="`/menus/${m.id}`">查看酒单</NuxtLink>
+            </Button>
+          </div>
         </div>
-      </section>
+      </div>
 
       <!-- 用户 -->
-      <section v-if="users.length" class="flex flex-col gap-2">
-        <h2 class="text-sm font-medium text-muted-foreground">用户</h2>
+      <div v-else class="grid gap-3 sm:grid-cols-2">
         <NuxtLink
           v-for="u in users"
           :key="u.id"
           :to="`/u/${u.handle}`"
-          class="flex items-center gap-3 rounded-xl border border-border bg-card p-3 transition-colors hover:border-primary/40"
+          class="flex items-center gap-3 rounded-sm border-2 border-border bg-card p-3 transition-all pixel-shadow-sm hover:-translate-y-0.5 hover:border-primary/60"
         >
-          <Avatar class="size-10">
+          <Avatar class="size-11">
             <AvatarImage v-if="u.avatarUrl" :src="u.avatarUrl" />
             <AvatarFallback>{{ u.displayName.slice(0, 1) }}</AvatarFallback>
           </Avatar>
           <div class="min-w-0">
-            <div class="font-medium">{{ u.displayName }} <span class="text-xs text-muted-foreground">@{{ u.handle }}</span></div>
-            <div class="text-xs text-muted-foreground">{{ u.recipeCount }} 个配方 · {{ u.followerCount }} 粉丝</div>
+            <div class="truncate font-medium">
+              {{ u.displayName }}
+              <span class="text-xs text-muted-foreground">@{{ u.handle }}</span>
+            </div>
+            <div class="text-xs text-muted-foreground">
+              {{ u.recipeCount }} 个配方 · {{ u.followerCount }} 粉丝
+            </div>
           </div>
         </NuxtLink>
-      </section>
+      </div>
 
-      <!-- 原料 -->
-      <section v-if="ingredients.length" class="flex flex-col gap-2">
-        <h2 class="text-sm font-medium text-muted-foreground">原料</h2>
-        <div class="flex flex-wrap gap-2">
-          <NuxtLink
-            v-for="i in ingredients"
-            :key="i.id"
-            :to="`/ingredients/${i.id}`"
-            class="flex items-center gap-2 rounded-full border border-border px-3 py-1.5 text-sm transition-colors hover:bg-accent"
-          >
-            {{ i.nameZh }}
-            <span class="text-xs text-muted-foreground">{{ i.nameEn }}</span>
-          </NuxtLink>
-        </div>
-      </section>
-
-      <p
-        v-if="!recipes.length && !users.length && !ingredients.length"
-        class="py-12 text-center text-sm text-muted-foreground"
-      >
-        没有找到相关内容
+      <p v-if="isEmpty" class="py-12 text-center text-sm text-muted-foreground">
+        没有找到相关{{ tab === "recipe" ? "配方" : tab === "menu" ? "酒单" : "用户" }}{{
+          tab === "recipe" && hasFilters ? "，试试清除筛选" : ""
+        }}
       </p>
+
+      <InfiniteLoader
+        :has-next-page="hasNextPage"
+        :is-fetching-next-page="isFetchingNextPage"
+        :error="isError"
+        :ended-text="!isEmpty ? '到底了' : null"
+        @load="loadMore()"
+      />
     </template>
 
-    <p v-else-if="!searched" class="py-12 text-center text-sm text-muted-foreground">
-      输入关键词开始搜索，比如 <Badge variant="secondary">Daiquiri</Badge> 或 <Badge variant="secondary">朗姆</Badge>
+    <p v-else class="py-12 text-center text-sm text-muted-foreground">
+      输入关键词开始搜索，比如 <Badge variant="secondary">Daiquiri</Badge> 或
+      <Badge variant="secondary">朗姆</Badge>
     </p>
   </div>
 </template>
