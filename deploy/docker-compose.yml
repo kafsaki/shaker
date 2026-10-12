@@ -1,0 +1,117 @@
+# 全栈部署（v1.0.0）。仓库根的 docker-compose.yml 只起 Postgres + MinIO 供本地开发，
+# 这份把 API、前端、反代一并纳入，一条命令起完整站点。
+#
+#   cp deploy/.env.example deploy/.env      # 改掉所有 change-me
+#   docker compose -f deploy/docker-compose.yml --env-file deploy/.env up -d --build
+#
+# 只有一个对外域：反代把 /api 与 /shaker-media 都收在它下面。前端按同源相对路径
+# 请求（api-client 的 baseUrl 是空串），所以不能拆成两个域。
+#
+# 项目名刻意与开发栈区分：两份 compose 里的卷都叫 pgdata/miniodata，
+# 同名会共用同一个卷，第二个起来的 Postgres 会因数据目录被占而启不来。
+name: shaker-deploy
+
+services:
+  postgres:
+    image: postgres:17-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: shaker
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?deploy/.env 里必须设置}
+      POSTGRES_DB: shaker
+      POSTGRES_INITDB_ARGS: "--locale=C.UTF-8 --encoding=UTF8"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U shaker -d shaker"]
+      interval: 5s
+      timeout: 3s
+      retries: 12
+
+  minio:
+    image: minio/minio:RELEASE.2025-09-07T16-13-09Z
+    restart: unless-stopped
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:?}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:?}
+    volumes:
+      - miniodata:/data
+    healthcheck:
+      test: ["CMD", "mc", "ready", "local"]
+      interval: 5s
+      timeout: 3s
+      retries: 12
+
+  # 建桶 + 开匿名读（封面/头像直接由浏览器从桶里读，不走 API）。跑一次就退出。
+  minio-init:
+    image: minio/minio:RELEASE.2025-09-07T16-13-09Z
+    depends_on:
+      minio:
+        condition: service_healthy
+    entrypoint: >
+      /bin/sh -c "
+      mc alias set local http://minio:9000 ${MINIO_ROOT_USER} ${MINIO_ROOT_PASSWORD} &&
+      mc mb --ignore-existing local/shaker-media &&
+      mc anonymous set download local/shaker-media
+      "
+
+  api:
+    build:
+      context: ../apps/api
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+      minio-init:
+        condition: service_completed_successfully
+    environment:
+      SHAKER_ADDR: ":8080"
+      SHAKER_DATABASE_URL: "postgres://shaker:${POSTGRES_PASSWORD}@postgres:5432/shaker?sslmode=disable"
+      SHAKER_JWT_SECRET: ${SHAKER_JWT_SECRET:?}
+      # 服务端自己的 HEAD/DELETE 走容器网络
+      SHAKER_S3_ENDPOINT: "http://minio:9000"
+      # 签发给浏览器的预签名 PUT 地址必须浏览器可达，且与反代看到的 Host 一致
+      # （SigV4 签名覆盖 Host 头）。容器解析不了自己的公网域名，所以这两个必须分开。
+      SHAKER_S3_PRESIGN_ENDPOINT: "https://${SHAKER_DOMAIN:?}"
+      SHAKER_S3_PUBLIC_URL: "https://${SHAKER_DOMAIN}/shaker-media"
+      SHAKER_S3_BUCKET: "shaker-media"
+      SHAKER_S3_ACCESS_KEY: ${MINIO_ROOT_USER}
+      SHAKER_S3_SECRET_KEY: ${MINIO_ROOT_PASSWORD}
+      SHAKER_SEED: "true"
+      TZ: ${TZ:-Asia/Shanghai}
+    # 不发布端口：对外只经反代，避免绕过 HTTPS
+
+  web:
+    build:
+      context: ..
+      dockerfile: apps/web/Dockerfile
+    restart: unless-stopped
+    depends_on:
+      - api
+    environment:
+      NITRO_HOST: "0.0.0.0"
+      NITRO_PORT: "3000"
+      TZ: ${TZ:-Asia/Shanghai}
+
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    depends_on:
+      - api
+      - web
+    ports:
+      - "80:80"
+      - "443:443"
+    environment:
+      SHAKER_DOMAIN: ${SHAKER_DOMAIN:?}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+
+volumes:
+  pgdata:
+  miniodata:
+  caddy_data:
+  caddy_config:

@@ -1,0 +1,13 @@
+# 前端镜像的构建上下文是仓库根，这里排除掉构建不需要的东西（尤其 .env*，别打进镜像）。
+.git
+.gitignore
+node_modules
+**/node_modules
+**/.output
+**/.nuxt
+**/dist
+apps/api/bin
+docs
+*.log
+.env
+.env.*

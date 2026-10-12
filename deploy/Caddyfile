@@ -1,0 +1,21 @@
+# 一个域收三件事：/api → API，/shaker-media → MinIO，其余 → 前端。
+# 前端与 API 同源，所以没有 CORS 配置。
+{$SHAKER_DOMAIN} {
+	encode zstd gzip
+
+	# Caddy 默认原样透传客户端 Host —— 这一条是必须的：
+	# 预签名 URL 的 SigV4 签名覆盖 Host 头，改写 Host 会让 MinIO 验签失败。
+	handle /api/* {
+		reverse_proxy api:8080
+	}
+
+	# 路径即桶名（MinIO 用 path-style），所以不需要 rewrite。
+	# 匿名读已在 minio-init 里对桶打开；PUT 走预签名鉴权。
+	handle /shaker-media/* {
+		reverse_proxy minio:9000
+	}
+
+	handle {
+		reverse_proxy web:3000
+	}
+}
