@@ -433,7 +433,7 @@ CREATE TABLE media_assets (
   height        integer,
   content_hash  text,
   -- 预签名直传是两步：先建记录（pending），客户端传完再确认（committed）。
-  -- 没确认的记录由 river 周期任务清理，避免孤儿对象。
+  -- 没确认的记录由孤儿清理任务连对象一起删（apps/api/internal/media/cleanup.go）。
   committed_at  timestamptz,
   created_at    timestamptz NOT NULL DEFAULT now()
 );

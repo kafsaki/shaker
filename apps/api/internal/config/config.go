@@ -4,6 +4,7 @@ package config
 import (
 	"log/slog"
 	"os"
+	"time"
 )
 
 type Config struct {
@@ -18,6 +19,12 @@ type Config struct {
 	S3PublicURL string
 	// Seed 为 true 时每次启动都把 seed.json 全量 upsert 一遍（幂等）；false 跳过导入。
 	Seed bool
+	// MediaCleanupInterval 孤儿媒体清理的扫描间隔；0 表示关闭（如多实例部署时应关闭，
+	// 避免每个实例各扫一遍）。默认 6h。
+	MediaCleanupInterval time.Duration
+	// MediaOrphanTTL 未 commit 的媒体记录保留多久后连对象一起清理。默认 24h，
+	// 必须远大于 PresignTTL（15 分钟），否则会删掉正在上传的对象。
+	MediaOrphanTTL time.Duration
 }
 
 func env(key, def string) string {
@@ -25,6 +32,18 @@ func env(key, def string) string {
 		return v
 	}
 	return def
+}
+
+// envDuration 读时长配置（如 "6h" / "30m"）。解析失败时告警并退回默认值，
+// 不让一个手误的配置把服务挡在启动之外。
+func envDuration(key, def string) time.Duration {
+	raw := env(key, def)
+	d, err := time.ParseDuration(raw)
+	if err != nil {
+		slog.Warn("时长配置无法解析，改用默认值", "key", key, "value", raw, "default", def)
+		d, _ = time.ParseDuration(def)
+	}
+	return d
 }
 
 func Load() Config {
@@ -42,5 +61,8 @@ func Load() Config {
 		S3SecretKey: env("SHAKER_S3_SECRET_KEY", "shaker_dev_secret"),
 		S3PublicURL: env("SHAKER_S3_PUBLIC_URL", "http://localhost:9000/shaker-media"),
 		Seed:        env("SHAKER_SEED", "true") == "true",
+
+		MediaCleanupInterval: envDuration("SHAKER_MEDIA_CLEANUP_INTERVAL", "6h"),
+		MediaOrphanTTL:       envDuration("SHAKER_MEDIA_ORPHAN_TTL", "24h"),
 	}
 }

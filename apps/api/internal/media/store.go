@@ -1,7 +1,7 @@
 // Package media 媒体预签名直传（API 定义 §2.10，ADR-015）。
 //
 // 三步：签发预签名 PUT（记录 pending）→ 客户端直传 MinIO → commit 确认。
-// 未 commit 的记录由周期任务连对象一起清理（v1 暂无 river，先留 orphan 索引）。
+// 超过 TTL 仍未 commit 的记录由 CleanupOrphans 连对象一起清掉（见 cleanup.go）。
 // 安全边界：mime 白名单 + byteSize 上限 + key 服务端生成（客户端不能自选路径）。
 package media
 

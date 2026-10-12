@@ -16,6 +16,7 @@ import (
 	"github.com/kafsaki/shaker/apps/api/db"
 	"github.com/kafsaki/shaker/apps/api/internal/api"
 	"github.com/kafsaki/shaker/apps/api/internal/config"
+	"github.com/kafsaki/shaker/apps/api/internal/media"
 	"github.com/kafsaki/shaker/apps/api/internal/seed"
 )
 
@@ -46,6 +47,10 @@ func main() {
 		}
 		slog.Info("种子导入完成（幂等）")
 	}
+
+	// 孤儿媒体清理。单独建一个 media.Store：handler 侧那个藏在 api 包内部，
+	// 而定时任务只需要 连接池 + S3 客户端，没必要为此改 api.New 的签名。
+	go media.NewStore(pool, cfg).RunCleanupLoop(ctx, cfg.MediaCleanupInterval, cfg.MediaOrphanTTL)
 
 	srv := &http.Server{
 		Addr:              cfg.Addr,
