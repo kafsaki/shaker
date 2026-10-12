@@ -31,6 +31,8 @@ export default defineNuxtConfig({
   },
 
   app: {
+    // 像素百叶窗切页（样式在 main.css .page-*）
+    pageTransition: { name: "page", mode: "out-in" },
     head: {
       title: "Shaker · 调酒社区",
       meta: [

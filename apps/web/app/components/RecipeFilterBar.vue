@@ -1,10 +1,9 @@
 <script setup lang="ts">
 /**
- * 配方筛选条：家族 / 手法 / 杯型 / 标签 / 原创·权威 / 酒精度·容量区间 / 难度星级，
- * 可选排序。搜索结果页与「探索」页共用；每一项与后端 filterConds 一一对应
- * （标签走配方自身的 recipe_tags，不是按原料反推）。
+ * 配方筛选器（游戏里的「条件检索」面板）：家族 / 手法 / 杯型 / 来源 / 排序下拉，
+ * 标签多选 + 组合方式，酒精度·容量区间，难度星级。搜索结果页与「酒馆」页共用；
+ * 每一项与后端 filterConds 一一对应（标签走配方自身的 recipe_tags，不是按原料反推）。
  */
-import { SlidersHorizontal, X } from "lucide-vue-next";
 import { FAMILY_ZH, METHOD_ZH } from "@/lib/labels";
 import {
   ABV_MAX,
@@ -13,40 +12,11 @@ import {
   isFilterActive,
   type RecipeFilterState,
 } from "@/lib/recipe-filter";
-import StarRating from "@/components/StarRating.vue";
-import { Button } from "@/components/ui/button";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import { Slider } from "@/components/ui/slider";
 
 const props = withDefaults(defineProps<{ showSort?: boolean }>(), { showSort: false });
-
 const filter = defineModel<RecipeFilterState>({ required: true });
-
-const SORTS = [
-  { key: "relevance", label: "相关度" },
-  { key: "hot", label: "最热" },
-  { key: "new", label: "最新" },
-] as const;
-
-const ORIGINS = [
-  { key: "all", label: "全部来源" },
-  { key: "original", label: "原创" },
-  { key: "canonical", label: "权威" },
-] as const;
-
-/** 多选标签之间的组合方式（对应后端 tagMode）。 */
-const TAG_MODES = [
-  { key: "or", label: "任一" },
-  { key: "and", label: "全部" },
-] as const;
-
 const vocab = useVocabStore();
+const { play } = useSfx();
 
 onMounted(() => {
   void vocab.ensure().catch(() => {});
@@ -58,7 +28,30 @@ function patch(p: Partial<RecipeFilterState>): void {
 
 const hasFilters = computed(() => isFilterActive(filter.value, props.showSort));
 
-/** 滑块值（双滑块区间）↔ 扁平状态字段。 */
+const SORTS = [
+  { value: "relevance", label: "相关度" },
+  { value: "hot", label: "最热" },
+  { value: "new", label: "最新" },
+];
+const familyOpts = computed(() => [
+  { value: "all", label: "全部家族" },
+  ...Object.entries(FAMILY_ZH).map(([value, label]) => ({ value, label })),
+]);
+const methodOpts = computed(() => [
+  { value: "all", label: "全部手法" },
+  ...Object.entries(METHOD_ZH).map(([value, label]) => ({ value, label })),
+]);
+const glassOpts = computed(() => [
+  { value: "all", label: "全部杯型" },
+  ...vocab.glassware.map((g) => ({ value: g.id, label: g.nameZh })),
+]);
+const ORIGINS = [
+  { value: "all", label: "全部来源" },
+  { value: "original", label: "原创" },
+  { value: "canonical", label: "权威" },
+];
+
+/** 双滑块区间 ↔ 扁平状态字段。 */
 const abvRange = computed({
   get: () => [filter.value.abvMin, filter.value.abvMax],
   set: (v: number[]) => patch({ abvMin: v[0] ?? 0, abvMax: v[1] ?? ABV_MAX }),
@@ -67,7 +60,6 @@ const volumeRange = computed({
   get: () => [filter.value.volumeMin, filter.value.volumeMax],
   set: (v: number[]) => patch({ volumeMin: v[0] ?? 0, volumeMax: v[1] ?? VOLUME_MAX }),
 });
-
 const abvLabel = computed(() =>
   filter.value.abvMin === 0 && filter.value.abvMax >= ABV_MAX
     ? "不限"
@@ -82,10 +74,11 @@ const volumeLabel = computed(() =>
 function clearFilters(): void {
   const keepSort = filter.value.sort;
   filter.value = { ...defaultFilter(), sort: props.showSort ? "relevance" : keepSort };
+  play("cancel");
 }
 
-/** 标签多选（OR 语义）：再点一次取消。 */
 function toggleTag(id: string): void {
+  play("click");
   const tags = filter.value.tags.includes(id)
     ? filter.value.tags.filter((t) => t !== id)
     : [...filter.value.tags, id];
@@ -94,129 +87,95 @@ function toggleTag(id: string): void {
 </script>
 
 <template>
-  <div class="flex flex-col gap-3 rounded-sm border-2 border-border bg-card p-3">
-    <div class="flex flex-wrap items-center gap-2">
-      <span class="flex items-center gap-1 text-xs text-muted-foreground">
-        <SlidersHorizontal class="size-3.5" /> 筛选
-      </span>
-      <Select
-        v-if="showSort"
-        :model-value="filter.sort"
-        @update:model-value="(v) => patch({ sort: v as RecipeFilterState['sort'] })"
-      >
-        <SelectTrigger class="h-8 w-28 text-xs"><SelectValue /></SelectTrigger>
-        <SelectContent>
-          <SelectItem v-for="s in SORTS" :key="s.key" :value="s.key">{{ s.label }}</SelectItem>
-        </SelectContent>
-      </Select>
-      <Select :model-value="filter.family" @update:model-value="(v) => patch({ family: String(v) })">
-        <SelectTrigger class="h-8 w-28 text-xs"><SelectValue placeholder="家族" /></SelectTrigger>
-        <SelectContent>
-          <SelectItem value="all">全部家族</SelectItem>
-          <SelectItem v-for="(zh, f) in FAMILY_ZH" :key="f" :value="f">{{ zh }}</SelectItem>
-        </SelectContent>
-      </Select>
-      <Select :model-value="filter.method" @update:model-value="(v) => patch({ method: String(v) })">
-        <SelectTrigger class="h-8 w-28 text-xs"><SelectValue placeholder="手法" /></SelectTrigger>
-        <SelectContent>
-          <SelectItem value="all">全部手法</SelectItem>
-          <SelectItem v-for="(zh, m) in METHOD_ZH" :key="m" :value="m">{{ zh }}</SelectItem>
-        </SelectContent>
-      </Select>
-      <Select :model-value="filter.glass" @update:model-value="(v) => patch({ glass: String(v) })">
-        <SelectTrigger class="h-8 w-28 text-xs"><SelectValue placeholder="杯型" /></SelectTrigger>
-        <SelectContent>
-          <SelectItem value="all">全部杯型</SelectItem>
-          <SelectItem v-for="g in vocab.glassware" :key="g.id" :value="g.id">
-            {{ g.nameZh }}
-          </SelectItem>
-        </SelectContent>
-      </Select>
-      <Select
-        :model-value="filter.origin || 'all'"
-        @update:model-value="(v) => patch({ origin: v === 'all' ? '' : (String(v) as RecipeFilterState['origin']) })"
-      >
-        <SelectTrigger class="h-8 w-28 text-xs"><SelectValue placeholder="来源" /></SelectTrigger>
-        <SelectContent>
-          <SelectItem v-for="o in ORIGINS" :key="o.key" :value="o.key">{{ o.label }}</SelectItem>
-        </SelectContent>
-      </Select>
-      <Button
-        v-if="hasFilters"
-        variant="ghost"
-        size="sm"
-        class="h-8 gap-1 text-xs"
-        @click="clearFilters()"
-      >
-        <X class="size-3.5" /> 清除
-      </Button>
-    </div>
+  <PxPanel title="条件检索" icon="filter" tone="cyan">
+    <template #actions>
+      <PxButton v-if="hasFilters" size="sm" variant="ghost" icon="x" :sfx="false" @click="clearFilters()">清除</PxButton>
+    </template>
 
-    <div v-if="vocab.tags.length" class="flex flex-wrap items-center gap-x-4 gap-y-2">
-      <div class="flex flex-wrap items-center gap-1.5">
-        <span class="text-xs text-muted-foreground">标签</span>
+    <div class="flex flex-col gap-4">
+      <div class="flex flex-wrap items-center gap-2">
+        <PxSelect
+          v-if="showSort"
+          :model-value="filter.sort"
+          :options="SORTS"
+          size="sm"
+          class="w-28"
+          @update:model-value="(v) => patch({ sort: v as RecipeFilterState['sort'] })"
+        />
+        <PxSelect :model-value="filter.family" :options="familyOpts" size="sm" class="w-32" @update:model-value="(v) => patch({ family: String(v) })" />
+        <PxSelect :model-value="filter.method" :options="methodOpts" size="sm" class="w-28" @update:model-value="(v) => patch({ method: String(v) })" />
+        <PxSelect :model-value="filter.glass" :options="glassOpts" size="sm" class="w-32" @update:model-value="(v) => patch({ glass: String(v) })" />
+        <PxSelect
+          :model-value="filter.origin || 'all'"
+          :options="ORIGINS"
+          size="sm"
+          class="w-28"
+          @update:model-value="(v) => patch({ origin: v === 'all' ? '' : (String(v) as RecipeFilterState['origin']) })"
+        />
+      </div>
+
+      <div v-if="vocab.tags.length" class="flex flex-wrap items-center gap-x-1 gap-y-1">
+        <span class="mr-2 text-faint">标签</span>
         <button
           v-for="t in vocab.tags"
           :key="t.id"
           type="button"
-          class="rounded-sm border px-2 py-1 text-xs transition-colors"
-          :class="
-            filter.tags.includes(t.id)
-              ? 'border-primary bg-primary text-primary-foreground'
-              : 'border-border text-muted-foreground hover:border-primary/50 hover:text-foreground'
-          "
+          class="chip"
+          :class="{ on: filter.tags.includes(t.id) }"
+          :aria-pressed="filter.tags.includes(t.id)"
           @click="toggleTag(t.id)"
         >
           {{ t.nameZh }}
         </button>
-      </div>
-
-      <!-- 组合方式：选到第 2 个标签才开始影响结果，所以此时才出现 -->
-      <div
-        v-if="filter.tags.length > 1"
-        class="flex items-center gap-1.5 border-l-2 border-border pl-3"
-      >
-        <span class="text-xs text-muted-foreground">多选组合</span>
-        <button
-          v-for="m in TAG_MODES"
-          :key="m.key"
-          type="button"
-          class="rounded-sm border px-2 py-1 text-xs transition-colors"
-          :class="
-            filter.tagMode === m.key
-              ? 'border-primary bg-primary text-primary-foreground'
-              : 'border-border text-muted-foreground hover:border-primary/50 hover:text-foreground'
-          "
-          @click="patch({ tagMode: m.key })"
-        >
-          {{ m.label }}
-        </button>
-      </div>
-    </div>
-
-    <!-- 数值维度：区间条形 + 星级 -->
-    <div class="flex flex-wrap items-center gap-x-6 gap-y-3">
-      <div class="flex min-w-56 flex-1 items-center gap-2">
-        <span class="w-14 shrink-0 text-xs text-muted-foreground">酒精度</span>
-        <Slider v-model="abvRange" :min="0" :max="ABV_MAX" :step="1" class="flex-1" />
-        <span class="w-16 shrink-0 text-right text-xs tabular-nums text-muted-foreground">
-          {{ abvLabel }}
+        <!-- 组合方式：选到第 2 个标签才影响结果，所以此时才出现 -->
+        <span v-if="filter.tags.length > 1" class="ml-3 flex items-center gap-2 text-faint">
+          组合
+          <PxSegmented
+            :model-value="filter.tagMode"
+            size="sm"
+            :items="[{ value: 'or', label: '任一' }, { value: 'and', label: '全部' }]"
+            @update:model-value="(v) => patch({ tagMode: v as RecipeFilterState['tagMode'] })"
+          />
         </span>
       </div>
-      <div class="flex min-w-56 flex-1 items-center gap-2">
-        <span class="w-14 shrink-0 text-xs text-muted-foreground">容量</span>
-        <Slider v-model="volumeRange" :min="0" :max="VOLUME_MAX" :step="10" class="flex-1" />
-        <span class="w-16 shrink-0 text-right text-xs tabular-nums text-muted-foreground">
-          {{ volumeLabel }}
-        </span>
-      </div>
-      <div class="flex items-center gap-2">
-        <span class="text-xs text-muted-foreground">难度</span>
-        <StarRating
-          :model-value="filter.difficultyMax"
-          @update:model-value="(v) => patch({ difficultyMax: v })"
-        />
+
+      <div class="grid gap-x-8 gap-y-3 md:grid-cols-[1fr_1fr_auto]">
+        <div class="flex items-center gap-3">
+          <span class="w-12 shrink-0 text-faint">酒精度</span>
+          <PxSlider v-model="abvRange" :min="0" :max="ABV_MAX" :step="1" label="酒精度" class="flex-1" />
+          <span class="w-16 shrink-0 text-right font-logo text-[8px] text-amber">{{ abvLabel }}</span>
+        </div>
+        <div class="flex items-center gap-3">
+          <span class="w-12 shrink-0 text-faint">容量</span>
+          <PxSlider v-model="volumeRange" :min="0" :max="VOLUME_MAX" :step="10" label="容量" class="flex-1" />
+          <span class="w-16 shrink-0 text-right font-logo text-[8px] text-amber">{{ volumeLabel }}</span>
+        </div>
+        <div class="flex items-center gap-3">
+          <span class="text-faint">难度 ≤</span>
+          <PxStars
+            :model-value="filter.difficultyMax"
+            label="难度不高于"
+            @update:model-value="(v) => patch({ difficultyMax: v })"
+          />
+        </div>
       </div>
     </div>
-  </div>
+  </PxPanel>
 </template>
+
+<style scoped>
+.chip {
+  height: 22px;
+  margin: 2px;
+  padding: 0 7px;
+  background: var(--panel-lo);
+  color: var(--dim);
+  box-shadow: 0 0 0 var(--p) var(--line);
+}
+.chip:hover { color: var(--fg); box-shadow: 0 0 0 var(--p) var(--amber); }
+.chip.on {
+  background: var(--amber);
+  color: var(--on-accent);
+  box-shadow: 0 0 0 var(--p) var(--ink), inset var(--p) var(--p) 0 0 rgb(255 255 255 / 0.35);
+}
+</style>

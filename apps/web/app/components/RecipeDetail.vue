@@ -1,47 +1,30 @@
 <script setup lang="ts">
 /**
  * 配方详情主体（/r/[code] 与经典页共用）。
- * 左：动画播放器（sticky）；右：原料卡 + 文字步骤（点击单步回看）+ 元信息。
- * hideHeader：经典页 hero 已承载标题/徽章，传 true 隐藏本组件的标题与徽章行。
+ * 左：吧台小电视（sticky）；右：名牌 + 属性面板 + 酒保手记 + 材料清单 + 调制流程（任务日志，
+ * 与动画联动：已完成打勾、当前步闪 ▶，点击任一步回看）+ 互动 + 留言板。
+ * hideHeader：经典页 hero 已承载标题/徽章，传 true 隐藏名牌里的标题与徽章行。
  */
 import type { components } from "@shaker/api-client";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/vue-query";
-import { toast } from "vue-sonner";
-import { Trash2 } from "lucide-vue-next";
 import type { RecipeIR } from "@shaker/recipe-ir/core";
 import { displayAmount } from "@shaker/recipe-ir/core";
 import type { Timeline } from "@shaker/animator-core";
 import { vizToVocab } from "@/lib/animation";
-import { FAMILY_ZH, IBA_ZH, METHOD_ZH, SOURCE_ZH } from "@/lib/labels";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import {
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
-import { Separator } from "@/components/ui/separator";
-import { Skeleton } from "@/components/ui/skeleton";
+import { FAMILY_ZH, IBA_ZH, METHOD_ZH } from "@/lib/labels";
+import { rarityOf } from "@/lib/game";
+import { toast } from "@/lib/toast";
 
 type Recipe = components["schemas"]["RecipeBody"];
 type VizIngredient = NonNullable<Recipe["viz"]>["ingredients"][string];
 
-const props = withDefaults(
-  defineProps<{ recipe: Recipe; hideHeader?: boolean }>(),
-  { hideHeader: false },
-);
+const props = withDefaults(defineProps<{ recipe: Recipe; hideHeader?: boolean }>(), {
+  hideHeader: false,
+});
 
 const auth = useAuthStore();
 const api = useApi();
+const { play } = useSfx();
 const player = ref<{
   seekToStep: (i: number) => void;
   captureCover: () => Promise<{ dark: Blob; light: Blob } | null>;
@@ -58,7 +41,8 @@ if (useRoute().query.__cover === "1") {
       __shakerCover?: () => Promise<{ dark: Shot; light: Shot } | null>;
     }).__shakerCover = async () => {
       const toShot = async (blob: Blob): Promise<Shot> => {
-        const canvas = document.querySelector("canvas");
+        // 页面里还有背景画布，必须按 data-viz 精确取播放器那块
+        const canvas = document.querySelector<HTMLCanvasElement>("canvas[data-viz]");
         const dataUrl = await new Promise<string>((resolve) => {
           const r = new FileReader();
           r.onload = () => resolve(String(r.result));
@@ -72,10 +56,7 @@ if (useRoute().query.__cover === "1") {
         if (p?.timeline) {
           const covers = await p.captureCover();
           if (covers) {
-            return {
-              dark: await toShot(covers.dark),
-              light: await toShot(covers.light),
-            };
+            return { dark: await toShot(covers.dark), light: await toShot(covers.light) };
           }
         }
         await new Promise((r) => setTimeout(r, 100));
@@ -86,21 +67,19 @@ if (useRoute().query.__cover === "1") {
 }
 
 const ir = computed(() => props.recipe.ir as RecipeIR);
+const rarity = computed(() => rarityOf(props.recipe));
 
 /* ── 经典关联（classicKey → 经典名，classics 第一页 50 条覆盖 v1 全量）── */
 const { data: classics } = useQuery({
   queryKey: ["classics-options"] as const, // 与编辑器共享缓存
   queryFn: async () => {
-    const { data, error } = await api.GET("/api/v1/classics", {
-      params: { query: { limit: 50 } },
-    });
+    const { data, error } = await api.GET("/api/v1/classics", { params: { query: { limit: 50 } } });
     if (error) throw error;
     return data;
   },
   enabled: computed(() => props.recipe.classicKey != null),
   staleTime: 5 * 60_000,
 });
-
 const classicTitle = computed(() => {
   const k = props.recipe.classicKey;
   if (!k) return "";
@@ -120,30 +99,24 @@ const { data: derivedRecipe } = useQuery({
   enabled: computed(() => props.recipe.derivedFrom != null && !props.recipe.isCanonical),
   retry: false,
 });
-
 // 从经典页「创作我的版本」进来时 derivedFrom 指向同一经典的权威条目，
 // 变体徽章已表达这层关系，改编行不重复展示
 const derivedLink = computed(() => {
   const d = derivedRecipe.value;
   if (!d) return null;
-  if (props.recipe.classicKey && d.isCanonical && d.classicKey === props.recipe.classicKey) {
-    return null;
-  }
+  if (props.recipe.classicKey && d.isCanonical && d.classicKey === props.recipe.classicKey) return null;
   return d;
 });
 
 // viz 载荷优先（一次请求带全视觉数据）；没有时回退到全量词表
 //（/classics/:key 返回不带 viz，但引用的原料/杯型都在 /vocab 里）。
 const vocabStore = useVocabStore();
-const vocab = computed(() =>
-  props.recipe.viz
-    ? vizToVocab(props.recipe.viz)
-    : vocabStore.toVocabLookup(),
-);
+const vocab = computed(() => (props.recipe.viz ? vizToVocab(props.recipe.viz) : vocabStore.toVocabLookup()));
+onMounted(() => {
+  void vocabStore.ensure().catch(() => {});
+});
 
-const unitPref = ref<"ml" | "oz">(
-  auth.user?.unitPreference === "oz" ? "oz" : "ml",
-);
+const unitPref = ref<string>(auth.user?.unitPreference === "oz" ? "oz" : "ml");
 
 /** 配方标签（recipe_tags）展示名；词表未加载时回落原始 id。 */
 const recipeTags = computed(() =>
@@ -152,10 +125,6 @@ const recipeTags = computed(() =>
     label: vocabStore.tags.find((t) => t.id === id)?.nameZh ?? id,
   })),
 );
-// 标签中文名取自词表（详情页其余部分靠 viz 载荷，不依赖词表，这里单独确保加载）
-onMounted(() => {
-  void vocabStore.ensure().catch(() => {});
-});
 
 const steps = computed(() => player.value?.timeline?.steps ?? []);
 const activeStep = ref(-1);
@@ -163,10 +132,10 @@ const activeStep = ref(-1);
 function onProgress(stepIndex: number): void {
   activeStep.value = stepIndex;
 }
-
 function seekStep(i: number): void {
   player.value?.seekToStep(i);
   activeStep.value = i;
+  play("click");
 }
 
 interface Row {
@@ -176,15 +145,17 @@ interface Row {
   nameEn: string;
   amount: string;
   approximate: boolean;
+  color: string;
+  optional: boolean;
 }
 
 const rows = computed<Row[]>(() => {
-  const vizIngs =
-    (props.recipe.viz?.ingredients as Record<string, VizIngredient> | undefined) ?? {};
+  const vizIngs = (props.recipe.viz?.ingredients as Record<string, VizIngredient> | undefined) ?? {};
   return ir.value.ingredients.map((r) => {
     // 经典条目接口不带 viz，回退全量词表取中英名（否则只剩 ingredientId 裸值）
     const meta = vizIngs[r.ingredientId] ?? vocabStore.ingMap.get(r.ingredientId);
-    const d = displayAmount(r, unitPref.value);
+    const d = displayAmount(r, unitPref.value as "ml" | "oz");
+    const color = (meta?.viz as { color?: string } | undefined)?.color ?? "var(--dim)";
     return {
       slot: r.slot,
       id: r.ingredientId,
@@ -192,19 +163,22 @@ const rows = computed<Row[]>(() => {
       nameEn: meta?.nameEn ?? "",
       amount: d.text,
       approximate: d.approximate,
+      color,
+      optional: r.optional ?? false,
     };
   });
 });
 
+const TASTE = [
+  { key: "sweet", label: "甜", tone: "pink" },
+  { key: "sour", label: "酸", tone: "green" },
+  { key: "bitter", label: "苦", tone: "cyan" },
+  { key: "strength", label: "烈", tone: "red" },
+] as const;
 const taste = computed(() => {
   const t = props.recipe.tasteProfile;
   if (!t || t.sweet + t.sour + t.bitter + t.strength === 0) return null;
-  return [
-    { label: "甜", value: t.sweet },
-    { label: "酸", value: t.sour },
-    { label: "苦", value: t.bitter },
-    { label: "烈", value: t.strength },
-  ];
+  return TASTE.map((x) => ({ ...x, value: t[x.key] }));
 });
 
 const published = computed(() => {
@@ -218,9 +192,7 @@ const qc = useQueryClient();
 const deleteOpen = ref(false);
 const deleteMutation = useMutation({
   mutationFn: async () => {
-    const { error } = await api.DELETE("/api/v1/recipes/{id}", {
-      params: { path: { id: props.recipe.id } },
-    });
+    const { error } = await api.DELETE("/api/v1/recipes/{id}", { params: { path: { id: props.recipe.id } } });
     if (error) throw error;
   },
   onSuccess: () => {
@@ -233,252 +205,220 @@ const deleteMutation = useMutation({
 </script>
 
 <template>
-  <div class="grid items-start gap-8 lg:grid-cols-[400px_minmax(0,1fr)]">
+  <div class="grid items-start gap-6 lg:grid-cols-[430px_minmax(0,1fr)]">
     <div class="lg:sticky lg:top-20">
-      <div
-        v-if="!recipe.viz && !vocabStore.loaded"
-        class="flex aspect-[400/520] items-center justify-center rounded-xl border border-dashed border-border text-sm text-muted-foreground"
-      >
-        词表加载中…
+      <div v-if="!recipe.viz && !vocabStore.loaded" class="aspect-[400/520]">
+        <PxLoader text="TUNING" />
       </div>
       <VizPlayer v-else ref="player" :ir="ir" :vocab="vocab" @progress="onProgress" />
     </div>
 
-    <div class="flex min-w-0 flex-col gap-6">
-      <!-- 标题与作者（经典页 hero 承载，hideHeader 时隐藏） -->
-      <div v-if="!hideHeader" class="flex items-start justify-between gap-4">
-        <div class="flex flex-col gap-2">
-          <div class="flex flex-wrap items-baseline gap-x-3">
-            <h1 class="text-2xl font-bold">{{ recipe.title }}</h1>
-            <!-- 配方 ID 跟在标题右侧（经典档案模式由 hero 承载标题，这一行不渲染） -->
-            <span
-              class="font-mono text-xs tracking-wide text-muted-foreground"
-              title="配方 ID"
-            >
-              {{ recipe.code }}
-            </span>
+    <div class="flex min-w-0 flex-col gap-5">
+      <!-- 名牌 -->
+      <PxPanel :padded="false">
+        <div class="flex flex-col gap-3 p-4">
+          <div v-if="!hideHeader" class="flex items-start gap-3">
+            <div class="min-w-0 flex-1">
+              <p class="flex items-center gap-2">
+                <PxBadge :tone="rarity.tone === 'plain' ? 'plain' : rarity.tone" variant="solid" :icon="rarity.icon">
+                  {{ rarity.label }}
+                </PxBadge>
+                <span class="font-logo text-[8px] tracking-[0.15em] text-faint" title="配方 ID">No.{{ recipe.code }}</span>
+              </p>
+              <h1 class="mt-2 text-2xl text-fg text-shadow-px">{{ recipe.title }}</h1>
+              <p v-if="recipe.subtitle" class="text-dim">{{ recipe.subtitle }}</p>
+            </div>
+            <PxButton v-if="isAuthor" square size="sm" variant="ghost" icon="trash" title="删除配方" @click="deleteOpen = true" />
           </div>
-          <p v-if="recipe.subtitle" class="text-sm text-muted-foreground">
-            {{ recipe.subtitle }}
-          </p>
-          <div class="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-muted-foreground">
-            <NuxtLink
-              :to="`/u/${recipe.author.handle}`"
-              class="font-medium text-foreground underline-offset-4 hover:underline"
-            >
-              {{ recipe.author.displayName }}
-            </NuxtLink>
-            <span v-if="recipe.author.isOfficial" class="text-primary">官方</span>
-            <span v-if="published">· {{ published }}</span>
-          </div>
-        </div>
-        <Button
-          v-if="isAuthor"
-          variant="ghost"
-          size="icon"
-          class="mt-1 shrink-0 text-muted-foreground hover:text-destructive"
-          title="删除配方"
-          @click="deleteOpen = true"
-        >
-          <Trash2 class="size-4" />
-        </Button>
-      </div>
 
-      <!-- 徽章行（hideHeader 时由经典页 hero 徽章替代） -->
-      <div v-if="!hideHeader" class="flex flex-wrap items-center gap-1.5">
-        <Badge v-if="recipe.family && FAMILY_ZH[recipe.family]" variant="secondary">
-          {{ FAMILY_ZH[recipe.family] }}
-        </Badge>
-        <Badge v-if="METHOD_ZH[ir.method]" variant="secondary">
-          {{ METHOD_ZH[ir.method] }}
-        </Badge>
-        <Badge
-          v-if="recipe.ibaCategory && IBA_ZH[recipe.ibaCategory]"
-          class="border-primary/40 bg-primary/10 text-primary"
-        >
-          {{ IBA_ZH[recipe.ibaCategory] }}
-        </Badge>
-        <NuxtLink
-          v-if="recipe.classicKey"
-          :to="`/classics/${recipe.classicKey}`"
-          class="rounded focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
-        >
-          <Badge v-if="recipe.isCanonical" variant="outline">权威条目 · 查看经典</Badge>
-          <Badge v-else class="border-primary/40 bg-primary/10 text-primary">
-            {{ classicTitle }}的变体 · 查看经典
-          </Badge>
-        </NuxtLink>
-        <Badge v-else-if="recipe.isCanonical" variant="outline">权威条目</Badge>
-        <Badge v-else-if="recipe.source && SOURCE_ZH[recipe.source]" variant="outline">
-          {{ SOURCE_ZH[recipe.source] }}
-        </Badge>
-        <Separator orientation="vertical" class="!h-4" />
-        <span v-if="derivedLink" class="text-sm text-muted-foreground">
-          改编自
-          <NuxtLink
-            :to="`/r/${derivedLink.code}`"
-            class="text-primary underline-offset-4 hover:underline"
-          >
-            {{ derivedLink.title }}
+          <NuxtLink v-if="!hideHeader" :to="`/u/${recipe.author.handle}`" class="flex w-fit items-center gap-2 text-dim hover:text-amber">
+            <PxAvatar :src="recipe.author.avatarUrl" :seed="recipe.author.handle" :size="24" />
+            <span class="text-fg">{{ recipe.author.displayName }}</span>
+            <PxBadge v-if="recipe.author.isOfficial" tone="amber" icon="crown">官方</PxBadge>
+            <span v-if="published" class="text-faint">· {{ published }}</span>
           </NuxtLink>
-        </span>
-        <span v-if="recipe.derivedCount > 0" class="text-sm text-muted-foreground">
-          {{ recipe.derivedCount }} 个改编
-        </span>
-        <span v-if="recipe.abvEst !== null" class="text-sm text-muted-foreground">
-          {{ recipe.abvEst.toFixed(1) }}% ABV
-        </span>
-        <span v-if="recipe.totalVolumeMl !== null" class="text-sm text-muted-foreground">
-          {{ Math.round(recipe.totalVolumeMl) }} ml
-        </span>
-        <span class="text-sm text-muted-foreground">{{ recipe.servings }} 人份</span>
-        <span v-if="recipe.difficulty" class="text-sm text-muted-foreground">
-          难度 {{ "★".repeat(recipe.difficulty) }}
-        </span>
-      </div>
 
-      <!-- 标签（受控词表，点击可跳搜索页按标签筛） -->
-      <div v-if="recipeTags.length" class="flex flex-wrap items-center gap-1.5">
-        <NuxtLink
-          v-for="t in recipeTags"
-          :key="t.id"
-          :to="`/search?type=recipe&tag=${t.id}`"
-          class="rounded focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
-        >
-          <Badge variant="outline" class="hover:border-primary/60 hover:text-foreground">
-            #{{ t.label }}
-          </Badge>
-        </NuxtLink>
-      </div>
-
-      <!-- 口味 -->
-      <div v-if="taste" class="flex flex-wrap gap-4">
-        <div
-          v-for="t in taste"
-          :key="t.label"
-          class="flex items-center gap-1.5 text-xs text-muted-foreground"
-        >
-          <span class="w-5">{{ t.label }}</span>
-          <span class="flex h-1.5 w-16 overflow-hidden rounded-full bg-secondary">
-            <span class="bg-primary" :style="{ width: `${(t.value / 5) * 100}%` }" />
-          </span>
-        </div>
-      </div>
-
-      <!-- 描述 -->
-      <p
-        v-if="recipe.descriptionMd"
-        class="whitespace-pre-wrap text-sm leading-relaxed text-muted-foreground"
-      >
-        {{ recipe.descriptionMd }}
-      </p>
-
-      <!-- 原料卡 -->
-      <Card>
-        <CardHeader class="flex-row items-center justify-between">
-          <CardTitle class="text-base">原料</CardTitle>
-          <Button
-            variant="ghost"
-            size="sm"
-            class="h-7 px-2 text-xs"
-            @click="unitPref = unitPref === 'ml' ? 'oz' : 'ml'"
-          >
-            {{ unitPref === "ml" ? "切到 oz" : "切到 ml" }}
-          </Button>
-        </CardHeader>
-        <CardContent>
-          <ul class="divide-y divide-border">
-            <li v-for="r in rows" :key="r.slot">
-              <!-- 点击原料跳「原料百科」详情页（/ingredients/{id}） -->
-              <NuxtLink
-                :to="`/ingredients/${r.id}`"
-                class="flex items-baseline justify-between gap-4 py-2 transition-colors hover:text-primary"
-              >
-                <div class="min-w-0">
-                  <div class="truncate text-sm font-medium">{{ r.nameZh }}</div>
-                  <div v-if="r.nameEn" class="truncate text-xs text-muted-foreground">
-                    {{ r.nameEn }}
-                  </div>
-                </div>
-                <div class="shrink-0 text-sm tabular-nums text-muted-foreground">
-                  {{ r.approximate ? "≈ " : "" }}{{ r.amount }}
-                </div>
-              </NuxtLink>
-            </li>
-          </ul>
-        </CardContent>
-      </Card>
-
-      <!-- 文字步骤（与动画单步联动） -->
-      <Card>
-        <CardHeader>
-          <CardTitle class="text-base">步骤</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <ol v-if="steps.length" class="flex flex-col gap-1">
-            <li v-for="(s, i) in steps" :key="s.stepId">
-              <button
-                class="w-full rounded-lg border px-3 py-2 text-left transition-colors"
-                :class="
-                  i === activeStep
-                    ? 'border-primary/50 bg-primary/10'
-                    : 'border-transparent hover:bg-accent'
-                "
-                @click="seekStep(i)"
-              >
-                <div class="flex items-baseline justify-between gap-3">
-                  <span class="text-sm">
-                    <span class="mr-2 font-mono text-xs text-muted-foreground">
-                      {{ i + 1 }}
-                    </span>
-                    {{ s.label.zh }}
-                  </span>
-                  <span class="shrink-0 text-xs tabular-nums text-muted-foreground">
-                    {{ (s.durationMs / 1000).toFixed(1) }}s
-                  </span>
-                </div>
-                <div class="pl-6 text-xs text-muted-foreground">{{ s.label.en }}</div>
-              </button>
-            </li>
-          </ol>
-          <div v-else class="flex flex-col gap-2">
-            <Skeleton class="h-9 w-full" />
-            <Skeleton class="h-9 w-full" />
-            <Skeleton class="h-9 w-2/3" />
+          <div v-if="!hideHeader" class="flex flex-wrap items-center gap-1">
+            <PxBadge v-if="recipe.family && FAMILY_ZH[recipe.family]">{{ FAMILY_ZH[recipe.family] }}</PxBadge>
+            <PxBadge v-if="METHOD_ZH[ir.method]">{{ METHOD_ZH[ir.method] }}</PxBadge>
+            <PxBadge v-if="recipe.ibaCategory && IBA_ZH[recipe.ibaCategory]" tone="gold">{{ IBA_ZH[recipe.ibaCategory] }}</PxBadge>
+            <NuxtLink v-if="recipe.classicKey" :to="`/classics/${recipe.classicKey}`" class="hover:brightness-125">
+              <PxBadge v-if="recipe.isCanonical" tone="gold" icon="book">图鉴条目 ›</PxBadge>
+              <PxBadge v-else tone="green" icon="branch">{{ classicTitle }} 的变体 ›</PxBadge>
+            </NuxtLink>
+            <span v-if="derivedLink" class="ml-1 text-faint">
+              改编自
+              <NuxtLink :to="`/r/${derivedLink.code}`" class="text-amber hover:underline">{{ derivedLink.title }}</NuxtLink>
+            </span>
+            <span v-if="recipe.derivedCount > 0" class="ml-1 text-faint">· {{ recipe.derivedCount }} 个改编</span>
           </div>
-          <p class="mt-3 text-xs text-muted-foreground">点击任一步骤可回看该步动画。</p>
-        </CardContent>
-      </Card>
+        </div>
+        <div class="border-t-2 border-dashed border-line px-4 py-3">
+          <RecipeActions :recipe="recipe" />
+        </div>
+      </PxPanel>
 
-      <!-- 互动条 -->
-      <RecipeActions :recipe="recipe" />
+      <!-- 属性面板 -->
+      <PxPanel title="属性" icon="trophy" tone="pink">
+        <div class="grid grid-cols-2 gap-2 sm:grid-cols-4">
+          <div class="stat">
+            <span class="text-faint">酒精度</span>
+            <span class="val">{{ recipe.abvEst !== null ? `${recipe.abvEst.toFixed(1)}%` : "—" }}</span>
+          </div>
+          <div class="stat">
+            <span class="text-faint">容量</span>
+            <span class="val">{{ recipe.totalVolumeMl !== null ? `${Math.round(recipe.totalVolumeMl)}ml` : "—" }}</span>
+          </div>
+          <div class="stat">
+            <span class="text-faint">份数</span>
+            <span class="val">×{{ recipe.servings }}</span>
+          </div>
+          <div class="stat">
+            <span class="text-faint">难度</span>
+            <PxStars v-if="recipe.difficulty" :model-value="recipe.difficulty" :max="5" readonly />
+            <span v-else class="val">—</span>
+          </div>
+        </div>
+        <div v-if="taste" class="mt-4 grid gap-x-6 gap-y-2 sm:grid-cols-2">
+          <div v-for="t in taste" :key="t.key" class="flex items-center gap-3">
+            <span class="w-4 text-dim">{{ t.label }}</span>
+            <PxBar :value="t.value" :max="5" :tone="t.tone" :cell-width="18" />
+            <span class="font-logo text-[8px] text-faint">{{ t.value }}/5</span>
+          </div>
+        </div>
+        <div v-if="recipeTags.length" class="mt-4 flex flex-wrap items-center gap-1">
+          <NuxtLink v-for="t in recipeTags" :key="t.id" :to="`/search?type=recipe&tag=${t.id}`" class="hover:brightness-125">
+            <PxBadge tone="cyan">#{{ t.label }}</PxBadge>
+          </NuxtLink>
+        </div>
+      </PxPanel>
 
-      <!-- 评论 -->
+      <!-- 酒保手记 -->
+      <PxPanel v-if="recipe.descriptionMd" title="调酒师手记" icon="pencil" tone="plain" variant="inset">
+        <p class="whitespace-pre-wrap leading-[2] text-fg">{{ recipe.descriptionMd }}</p>
+      </PxPanel>
+
+      <!-- 材料清单 -->
+      <PxPanel title="材料" icon="bottle" tone="green" :padded="false">
+        <template #actions>
+          <PxSegmented v-model="unitPref" size="sm" :items="[{ value: 'ml', label: 'ML' }, { value: 'oz', label: 'OZ' }]" />
+        </template>
+        <ul class="flex flex-col p-2">
+          <li v-for="r in rows" :key="r.slot">
+            <NuxtLink :to="`/ingredients/${r.id}`" class="ing">
+              <span class="vial" :style="{ '--px-icon-2': r.color }"><PxIcon name="bottle" :scale="2" /></span>
+              <span class="min-w-0 flex-1">
+                <span class="block truncate text-fg">
+                  {{ r.nameZh }}<span v-if="r.optional" class="ml-1 text-faint">（可选）</span>
+                </span>
+                <span v-if="r.nameEn" class="block truncate text-faint">{{ r.nameEn }}</span>
+              </span>
+              <span class="amt">{{ r.approximate ? "≈" : "" }}{{ r.amount }}</span>
+            </NuxtLink>
+          </li>
+        </ul>
+      </PxPanel>
+
+      <!-- 调制流程（任务日志） -->
+      <PxPanel title="调制流程" icon="list" tone="amber" :padded="false">
+        <template #actions>
+          <span class="text-faint">点击任一步回看</span>
+        </template>
+        <ol v-if="steps.length" class="flex flex-col gap-1 p-2">
+          <li v-for="(s, i) in steps" :key="s.stepId">
+            <button
+              type="button"
+              class="quest"
+              :class="{ now: i === activeStep, done: i < activeStep }"
+              @click="seekStep(i)"
+            >
+              <span class="num">
+                <PxIcon v-if="i < activeStep" name="check" :scale="1" />
+                <span v-else-if="i === activeStep" class="animate-blink">▶</span>
+                <span v-else class="font-logo text-[8px]">{{ i + 1 }}</span>
+              </span>
+              <span class="min-w-0 flex-1">
+                <span class="block text-fg">{{ s.stepId === "__final" ? "★ 成品出杯" : s.label.zh }}</span>
+                <span class="block truncate text-faint">{{ s.label.en }}</span>
+              </span>
+              <span class="font-logo text-[8px] text-faint">{{ (s.durationMs / 1000).toFixed(1) }}s</span>
+            </button>
+          </li>
+        </ol>
+        <div v-else class="flex flex-col gap-2 p-3">
+          <PxSkeleton v-for="i in 3" :key="i" class="h-10" />
+        </div>
+      </PxPanel>
+
       <CommentsSection :recipe-id="recipe.id" />
     </div>
 
-    <!-- 删除确认 -->
-    <Dialog v-model:open="deleteOpen">
-      <DialogContent class="max-w-sm">
-        <DialogHeader>
-          <DialogTitle>删除「{{ recipe.title }}」？</DialogTitle>
-          <DialogDescription>
-            删除后链接将失效且不可恢复，酒单与点赞中的条目会标记为已删除。此操作无法撤销。
-          </DialogDescription>
-        </DialogHeader>
-        <DialogFooter>
-          <Button variant="outline" :disabled="deleteMutation.isPending.value" @click="deleteOpen = false">
-            取消
-          </Button>
-          <Button
-            variant="destructive"
-            :disabled="deleteMutation.isPending.value"
-            @click="deleteMutation.mutate()"
-          >
-            {{ deleteMutation.isPending.value ? "删除中…" : "确认删除" }}
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+    <PxDialog v-model:open="deleteOpen" :title="`删除「${recipe.title}」？`" icon="trash" tone="red" size="sm">
+      <p class="text-dim">删除后链接将失效且不可恢复，酒单与点赞中的条目会标记为已删除。</p>
+      <template #footer>
+        <PxButton :disabled="deleteMutation.isPending.value" @click="deleteOpen = false">取消</PxButton>
+        <PxButton variant="danger" icon="trash" :loading="deleteMutation.isPending.value" @click="deleteMutation.mutate()">
+          确认删除
+        </PxButton>
+      </template>
+    </PxDialog>
   </div>
 </template>
+
+<style scoped>
+.stat {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 8px 10px;
+  margin: var(--p);
+  background: var(--panel-lo);
+  box-shadow: 0 0 0 var(--p) var(--ink), inset var(--p) var(--p) 0 0 var(--lo);
+}
+.stat .val { font-family: var(--font-logo); font-size: 12px; color: var(--amber); line-height: 18px; }
+.ing {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 10px;
+}
+.ing:hover { background: var(--panel-hi); }
+.ing:hover .amt { color: var(--amber-hi); }
+.vial {
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  background: var(--deep);
+  box-shadow: 0 0 0 var(--p) var(--ink), inset var(--p) var(--p) 0 0 var(--lo);
+  color: var(--dim);
+  --px-icon-2-alpha: 1;
+}
+.amt { font-family: var(--font-logo); font-size: 8px; color: var(--amber); white-space: nowrap; }
+.quest {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  padding: 8px 10px;
+  text-align: left;
+}
+.quest:hover { background: var(--panel-hi); }
+.quest .num {
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  width: 24px;
+  height: 24px;
+  background: var(--panel-lo);
+  color: var(--dim);
+  box-shadow: 0 0 0 var(--p) var(--ink);
+}
+.quest.done .num { background: var(--green); color: var(--on-accent); }
+.quest.done { opacity: 0.7; }
+.quest.now {
+  background: color-mix(in srgb, var(--amber) 14%, transparent);
+  box-shadow: inset calc(var(--p) * 2) 0 0 0 var(--amber);
+}
+.quest.now .num { background: var(--amber); color: var(--on-accent); }
+</style>
