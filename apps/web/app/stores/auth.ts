@@ -24,6 +24,9 @@ export const useAuthStore = defineStore("auth", () => {
   const ready = ref(false);
 
   const isAuthenticated = computed(() => user.value !== null);
+  /** 百科编辑：可修订经典配方与原料词条（ADR-027）。后端每次写操作都会再查一次角色 */
+  const isEditor = computed(() => user.value?.role === "editor" || user.value?.role === "admin");
+  const isAdmin = computed(() => user.value?.role === "admin");
 
   function persistRefresh(rt: string | null): void {
     refreshToken.value = rt;
@@ -126,6 +129,8 @@ export const useAuthStore = defineStore("auth", () => {
     user,
     ready,
     isAuthenticated,
+    isEditor,
+    isAdmin,
     client,
     login,
     register,

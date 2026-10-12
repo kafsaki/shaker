@@ -28,6 +28,8 @@ type Ingredient struct {
 	DescriptionZh *string
 	DescriptionEn *string
 	RecipeCount   int
+	WikiVersion   int        // 百科修订次数（ADR-027），0 = 仍是种子原文
+	WikiEditedAt  *time.Time
 }
 
 type Glass struct {
@@ -102,7 +104,8 @@ func scanIngredient(row pgx.Row, withDesc bool) (*Ingredient, error) {
 	var dest []any
 	if withDesc {
 		dest = []any{&ing.ID, &ing.NameZh, &ing.NameEn, &ing.Category, &ing.Subcategory,
-			&ing.ABV, &ing.Density, &ing.Viz, &ing.Aliases, &ing.DescriptionZh, &ing.DescriptionEn, &ing.RecipeCount}
+			&ing.ABV, &ing.Density, &ing.Viz, &ing.Aliases, &ing.DescriptionZh, &ing.DescriptionEn, &ing.RecipeCount,
+			&ing.WikiVersion, &ing.WikiEditedAt}
 	} else {
 		dest = []any{&ing.ID, &ing.NameZh, &ing.NameEn, &ing.Category, &ing.Subcategory,
 			&ing.ABV, &ing.Density, &ing.Viz, &ing.Aliases}
@@ -249,7 +252,7 @@ func (s *Store) CountIngredients(ctx context.Context, q string) (int, error) {
 // Ingredient 按 ID 取详情（含双语介绍与配方计数）。
 func (s *Store) Ingredient(ctx context.Context, id string) (*Ingredient, error) {
 	row := s.pool.QueryRow(ctx, `SELECT `+ingredientCols+`,
-			i.description_zh_md, i.description_en_md, i.recipe_count`+ingredientFrom+`
+			i.description_zh_md, i.description_en_md, i.recipe_count, i.wiki_version, i.wiki_edited_at`+ingredientFrom+`
 			AND i.id = $1
 		GROUP BY i.id`, id)
 	ing, err := scanIngredient(row, true)

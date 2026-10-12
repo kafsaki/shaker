@@ -142,14 +142,22 @@ type UpdateInput struct {
 	IfMatch       int // 乐观锁：必须等于当前 ir_version
 	EditorID      uuid.UUID
 	Vocab         *irv.Vocab
+	// AsEditor 调用者是百科编辑（ADR-027）：可修订经典条目（is_canonical），
+	// 每次修订都记一个版本（含元数据快照），并让种子导入不再覆盖这一条。
+	AsEditor bool
+	// Note 修订摘要（wiki 的「编辑摘要」）；空则用默认说明。
+	Note *string
 }
 
 type Revision struct {
-	Version   int
-	Title     string
-	Note      *string
-	EditorID  *uuid.UUID
-	CreatedAt time.Time
+	Version      int
+	Title        string
+	Note         *string
+	EditorID     *uuid.UUID
+	EditorHandle *string
+	EditorName   *string
+	Meta         []byte // 元数据快照（副标题、描述、口味……）；早期版本为 nil
+	CreatedAt    time.Time
 }
 
 // recipeCols 详情/锁行共用的列。author 由调用方决定是否 join。
@@ -340,11 +348,25 @@ func (s *Store) Update(ctx context.Context, id, authorID uuid.UUID, in UpdateInp
 	if err != nil {
 		return nil, err
 	}
-	if r.AuthorID == nil || *r.AuthorID != authorID {
+	// 经典条目归官方账号所有，作者校验对它没有意义；编辑身份才是修订资格（ADR-027）
+	wiki := r.IsCanonical && in.AsEditor
+	if !wiki && (r.AuthorID == nil || *r.AuthorID != authorID) {
 		return nil, ErrForbidden
 	}
 	if r.IRVersion != in.IfMatch {
 		return nil, &VersionConflict{Current: r.IRVersion}
+	}
+	if wiki {
+		// 经典条目自己就是锚点：不能改挂别的经典，也不认血缘
+		in.ClassicKey, in.DerivedFrom = nil, nil
+		// 种子导入的那一版没有元数据快照；首次修订前按改前的值补上，
+		// 否则历史页对比不出这次改了简介还是副标题（同原料词条的 v0 种子原文）
+		if _, err := tx.Exec(ctx, `
+			UPDATE recipe_revisions v SET meta = `+revisionMetaSQL+`
+			FROM recipes r WHERE r.id = $1 AND v.recipe_id = r.id AND v.version = r.ir_version AND v.meta IS NULL`,
+			id); err != nil {
+			return nil, fmt.Errorf("补记版本 %d 的元数据: %w", r.IRVersion, err)
+		}
 	}
 
 	/* ── IR 变更：已发布跑完整校验，草稿只拦外键（glass）── */
@@ -422,6 +444,12 @@ func (s *Store) Update(ctx context.Context, id, authorID uuid.UUID, in UpdateInp
 		sets = append(sets, fmt.Sprintf(
 			"ir = $%d, ir_version = ir_version + 1, glass_id = $%d, method = $%d, abv_est = $%d, total_volume_ml = $%d",
 			n, n+1, n+2, n+3, n+4))
+	} else if wiki {
+		// 经典条目只改元数据也记一版：描述、口味的修订同样要能追溯与回滚
+		sets = append(sets, "ir_version = ir_version + 1")
+	}
+	if wiki {
+		sets = append(sets, "wiki_edited_at = now()")
 	}
 
 	if len(sets) > 0 {
@@ -432,19 +460,8 @@ func (s *Store) Update(ctx context.Context, id, authorID uuid.UUID, in UpdateInp
 		}
 	}
 
-	/* ── 版本历史与投影 ── */
+	/* ── 投影 ── */
 	if in.IRRaw != nil {
-		newVersion := r.IRVersion + 1
-		title := r.Title
-		if in.Title != nil {
-			title = *in.Title
-		}
-		if _, err := tx.Exec(ctx, `
-			INSERT INTO recipe_revisions (recipe_id, version, ir, ir_version, title, editor_id, note)
-			VALUES ($1, $2, $3, $2, $4, $5, $6)`,
-			id, newVersion, in.IRRaw, title, in.EditorID, revisionNote(r.Status)); err != nil {
-			return nil, fmt.Errorf("写入版本 %d: %w", newVersion, err)
-		}
 		if r.Status == "published" {
 			oldIDs, err := projectedIngredientIDs(ctx, tx, id)
 			if err != nil {
@@ -470,17 +487,42 @@ func (s *Store) Update(ctx context.Context, id, authorID uuid.UUID, in UpdateInp
 		}
 	}
 
+	/* ── 版本历史：IR 变了、或经典条目被修订时记一版。放在标签之后，元数据快照取的是改后的值 ── */
+	if in.IRRaw != nil || wiki {
+		note := revisionNote(r.Status, wiki)
+		if in.Note != nil && strings.TrimSpace(*in.Note) != "" {
+			note = strings.TrimSpace(*in.Note)
+		}
+		if _, err := tx.Exec(ctx, `
+			INSERT INTO recipe_revisions (recipe_id, version, ir, ir_version, title, editor_id, note, meta)
+			SELECT r.id, r.ir_version, r.ir, r.ir_version, r.title, $2, $3, `+revisionMetaSQL+`
+			FROM recipes r WHERE r.id = $1`,
+			id, in.EditorID, note); err != nil {
+			return nil, fmt.Errorf("写入版本 %d: %w", r.IRVersion+1, err)
+		}
+	}
+
 	if err := tx.Commit(ctx); err != nil {
 		return nil, fmt.Errorf("提交事务: %w", err)
 	}
 	return s.Get(ctx, id)
 }
 
-func revisionNote(status string) string {
-	if status == "published" {
+// revisionMetaSQL 版本的元数据快照（表别名须为 r）；历史页靠它逐字段对比。
+const revisionMetaSQL = `jsonb_build_object(
+	'subtitle', r.subtitle, 'descriptionMd', r.description_md, 'family', r.family,
+	'tasteProfile', r.taste_profile, 'difficulty', r.difficulty,
+	'tags', coalesce((SELECT jsonb_agg(t.tag_id ORDER BY t.tag_id) FROM recipe_tags t WHERE t.recipe_id = r.id), '[]'::jsonb))`
+
+func revisionNote(status string, wiki bool) string {
+	switch {
+	case wiki:
+		return "修订经典条目"
+	case status == "published":
 		return "编辑已发布配方"
+	default:
+		return "保存草稿"
 	}
-	return "保存草稿"
 }
 
 /* ────────────────────────── 发布事务（API 定义 §3） ────────────────────────── */
@@ -647,10 +689,13 @@ func (s *Store) Delete(ctx context.Context, id, authorID uuid.UUID) error {
 
 /* ────────────────────────── 版本历史 ────────────────────────── */
 
+const revisionCols = `v.version, v.title, v.note, v.editor_id, u.handle, u.display_name, v.meta, v.created_at`
+
 func (s *Store) Revisions(ctx context.Context, id uuid.UUID) ([]Revision, error) {
 	rows, err := s.pool.Query(ctx, `
-		SELECT version, title, note, editor_id, created_at
-		FROM recipe_revisions WHERE recipe_id = $1 ORDER BY version DESC`, id)
+		SELECT `+revisionCols+`
+		FROM recipe_revisions v LEFT JOIN users u ON u.id = v.editor_id
+		WHERE v.recipe_id = $1 ORDER BY v.version DESC`, id)
 	if err != nil {
 		return nil, fmt.Errorf("查询版本历史: %w", err)
 	}
@@ -658,7 +703,8 @@ func (s *Store) Revisions(ctx context.Context, id uuid.UUID) ([]Revision, error)
 	var out []Revision
 	for rows.Next() {
 		var rev Revision
-		if err := rows.Scan(&rev.Version, &rev.Title, &rev.Note, &rev.EditorID, &rev.CreatedAt); err != nil {
+		if err := rows.Scan(&rev.Version, &rev.Title, &rev.Note, &rev.EditorID, &rev.EditorHandle,
+			&rev.EditorName, &rev.Meta, &rev.CreatedAt); err != nil {
 			return nil, fmt.Errorf("扫描版本历史: %w", err)
 		}
 		out = append(out, rev)
@@ -671,9 +717,11 @@ func (s *Store) Revision(ctx context.Context, id uuid.UUID, version int) (*Revis
 	rev := &Revision{}
 	var ir []byte
 	err := s.pool.QueryRow(ctx, `
-		SELECT version, title, note, editor_id, created_at, ir
-		FROM recipe_revisions WHERE recipe_id = $1 AND version = $2`, id, version).
-		Scan(&rev.Version, &rev.Title, &rev.Note, &rev.EditorID, &rev.CreatedAt, &ir)
+		SELECT `+revisionCols+`, v.ir
+		FROM recipe_revisions v LEFT JOIN users u ON u.id = v.editor_id
+		WHERE v.recipe_id = $1 AND v.version = $2`, id, version).
+		Scan(&rev.Version, &rev.Title, &rev.Note, &rev.EditorID, &rev.EditorHandle,
+			&rev.EditorName, &rev.Meta, &rev.CreatedAt, &ir)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return nil, nil, ErrNotFound

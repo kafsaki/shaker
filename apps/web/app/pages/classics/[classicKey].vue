@@ -14,6 +14,7 @@ type VariantPage = components["schemas"]["RecipeListOutputBody"];
 const route = useRoute();
 const api = useApi();
 const vocab = useVocabStore();
+const auth = useAuthStore();
 const key = computed(() => String(route.params.classicKey ?? ""));
 const tab = ref("variants");
 
@@ -187,9 +188,14 @@ async function goDistribution(): Promise<void> {
 
             <!-- 从经典进入创作：编辑器据此自动关联 classicKey + derivedFrom，
                  发布后就会出现在下面的「社区变体」里 -->
-            <PxButton variant="primary" size="lg" icon="shaker" :to="createTo" sfx="start" class="mt-1 self-start">
-              创作我的版本
-            </PxButton>
+            <div class="mt-1 flex flex-wrap items-center gap-2">
+              <PxButton variant="primary" size="lg" icon="shaker" :to="createTo" sfx="start">
+                创作我的版本
+              </PxButton>
+              <!-- 百科条目（ADR-027）：编辑可直接修订，所有人都能翻修订历史 -->
+              <PxButton v-if="auth.isEditor" icon="pencil" :to="'/editor/' + canonical.id">编辑词条</PxButton>
+              <PxButton variant="ghost" icon="clock" :to="'/wiki/history/recipe/' + canonical.id">修订历史</PxButton>
+            </div>
           </div>
 
           <!-- 迷你共识分布：主原料用量中位前 3 的 p10~p90 区间 -->

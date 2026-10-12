@@ -173,6 +173,7 @@ const meActive = computed(() => !!auth.user && route.path.startsWith(`/u/${auth.
           <PxMenuItem icon="user" :to="`/u/${auth.user.handle}`">角色面板</PxMenuItem>
           <PxMenuItem icon="list" :to="`/u/${auth.user.handle}/menus`">我的酒单</PxMenuItem>
           <PxMenuItem icon="folder" to="/editor/new?drafts=1">草稿箱</PxMenuItem>
+          <PxMenuItem icon="book" to="/wiki">编辑部</PxMenuItem>
           <PxMenuItem icon="gear" :to="`/u/${auth.user.handle}/settings`">系统设置</PxMenuItem>
           <div class="px-menu-sep" />
           <PxMenuItem icon="logout" danger @select="onLogout()">退出游戏</PxMenuItem>

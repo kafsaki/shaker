@@ -4,6 +4,7 @@ package config
 import (
 	"log/slog"
 	"os"
+	"strings"
 	"time"
 )
 
@@ -29,6 +30,9 @@ type Config struct {
 	// MediaOrphanTTL 未 commit 的媒体记录保留多久后连对象一起清理。默认 24h，
 	// 必须远大于 PresignTTL（15 分钟），否则会删掉正在上传的对象。
 	MediaOrphanTTL time.Duration
+	// AdminHandles 启动时提升为百科管理员的账号（逗号分隔，ADR-027）。管理员再在站内
+	// 授予/撤销编辑身份；这里只负责「第一个管理员从哪来」。
+	AdminHandles []string
 }
 
 func env(key, def string) string {
@@ -48,6 +52,17 @@ func envDuration(key, def string) time.Duration {
 		d, _ = time.ParseDuration(def)
 	}
 	return d
+}
+
+// envList 读逗号分隔的列表，去掉空项与两端空白。
+func envList(key string) []string {
+	var out []string
+	for _, v := range strings.Split(os.Getenv(key), ",") {
+		if v = strings.TrimSpace(v); v != "" {
+			out = append(out, v)
+		}
+	}
+	return out
 }
 
 func Load() Config {
@@ -70,5 +85,6 @@ func Load() Config {
 
 		MediaCleanupInterval: envDuration("SHAKER_MEDIA_CLEANUP_INTERVAL", "6h"),
 		MediaOrphanTTL:       envDuration("SHAKER_MEDIA_ORPHAN_TTL", "24h"),
+		AdminHandles:         envList("SHAKER_ADMIN_HANDLES"),
 	}
 }

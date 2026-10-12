@@ -83,6 +83,17 @@ export const useVocabStore = defineStore("vocab", () => {
     return loading.value;
   }
 
+  /** 百科修订后丢掉本地缓存重拉，改过的名称/别名立即生效（ADR-027）。 */
+  async function refresh(): Promise<void> {
+    try {
+      localStorage.removeItem(CACHE_KEY);
+    } catch {
+      // 无痕模式等拿不到 storage，忽略
+    }
+    loaded.value = false;
+    await ensure();
+  }
+
   /** 编辑器/编译用的 VocabLookup（工作容器由 animator-core 内置兜底）。 */
   function toVocabLookup(): VocabLookup {
     const meta = new Map<string, IngredientMeta>();
@@ -122,6 +133,7 @@ export const useVocabStore = defineStore("vocab", () => {
     version,
     loaded,
     ensure,
+    refresh,
     ingMap,
     glassMap,
     toVocabLookup,

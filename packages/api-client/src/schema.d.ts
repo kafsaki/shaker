@@ -4,6 +4,26 @@
  */
 
 export interface paths {
+    "/api/v1/admin/users/{handle}/role": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * 授予/撤销编辑身份
+         * @description 仅管理员。只在 user 与 editor 之间切换；管理员由部署配置 SHAKER_ADMIN_HANDLES 产生。
+         */
+        put: operations["admin-set-role"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/auth/login": {
         parameters: {
             query?: never;
@@ -343,6 +363,47 @@ export interface paths {
         };
         /** 原料详情 */
         get: operations["ingredients-get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /**
+         * 修订原料词条
+         * @description 仅编辑/管理员。整表提交名称、别名与介绍；If-Match 为当前 wikiVersion。ABV、品类与视觉样式 v1 不开放修订。
+         */
+        patch: operations["ingredients-update"];
+        trace?: never;
+    };
+    "/api/v1/ingredients/{id}/revisions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * 原料词条修订历史
+         * @description 新→旧，含每一版的完整快照。第 0 版是种子原文（首次修订时存档）。
+         */
+        get: operations["ingredients-revisions"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/ingredients/{id}/revisions/{version}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** 原料词条的某一版 */
+        get: operations["ingredients-revision-get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -1022,6 +1083,43 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/wiki/changes": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * 最近修订
+         * @description 经典配方与原料词条的修订动态，新→旧。
+         */
+        get: operations["wiki-changes"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/wiki/editors": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** 编辑名册 */
+        get: operations["wiki-editors"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/healthz": {
         parameters: {
             query?: never;
@@ -1300,6 +1398,13 @@ export interface components {
             recipeCount: number;
             subcategory?: string;
             viz: unknown;
+            /** Format: date-time */
+            wikiEditedAt: string | null;
+            /**
+             * Format: int64
+             * @description 百科修订版本号；修订时作为 If-Match。0 = 仍是种子原文
+             */
+            wikiVersion: number;
         };
         IngredientListOutputBody: {
             /**
@@ -1310,6 +1415,38 @@ export interface components {
             readonly $schema?: string;
             items: components["schemas"]["IngredientBody"][] | null;
             nextCursor: string | null;
+        };
+        IngredientRevisionBody: {
+            /**
+             * Format: uri
+             * @description A URL to the JSON Schema for this object.
+             * @example https://example.com/schemas/IngredientRevisionBody.json
+             */
+            readonly $schema?: string;
+            /** Format: date-time */
+            createdAt: string;
+            editorHandle: string | null;
+            editorName: string | null;
+            note: string | null;
+            snapshot: components["schemas"]["IngredientSnapshotBody"];
+            /** Format: int64 */
+            version: number;
+        };
+        IngredientRevisionsOutputBody: {
+            /**
+             * Format: uri
+             * @description A URL to the JSON Schema for this object.
+             * @example https://example.com/schemas/IngredientRevisionsOutputBody.json
+             */
+            readonly $schema?: string;
+            items: components["schemas"]["IngredientRevisionBody"][] | null;
+        };
+        IngredientSnapshotBody: {
+            aliases: string[] | null;
+            descriptionEn: string | null;
+            descriptionZh: string | null;
+            nameEn: string;
+            nameZh: string;
         };
         LikerBody: {
             likedAt: string;
@@ -1592,6 +1729,8 @@ export interface components {
             id: string;
             isOfficial: boolean;
             location: string | null;
+            /** @enum {string} */
+            role: "user" | "editor" | "admin";
             viewerIsFollowing?: boolean;
             website: string | null;
         };
@@ -1749,22 +1888,29 @@ export interface components {
         };
         RevisionBody: {
             createdAt: string;
+            editorHandle: string | null;
             editorId: string | null;
+            editorName: string | null;
+            /** @description 该版本的元数据快照；ADR-027 之前写入的版本为 null */
+            meta: components["schemas"]["RevisionMetaBody"];
             note: string | null;
             title: string;
             /** Format: int64 */
             version: number;
         };
-        RevisionDetailOutputBody: {
+        RevisionDetailBody: {
             /**
              * Format: uri
              * @description A URL to the JSON Schema for this object.
-             * @example https://example.com/schemas/RevisionDetailOutputBody.json
+             * @example https://example.com/schemas/RevisionDetailBody.json
              */
             readonly $schema?: string;
             createdAt: string;
+            editorHandle: string | null;
             editorId: string | null;
+            editorName: string | null;
             ir: unknown;
+            meta: components["schemas"]["RevisionMetaBody"];
             note: string | null;
             title: string;
             /** Format: int64 */
@@ -1778,6 +1924,15 @@ export interface components {
              */
             readonly $schema?: string;
             items: components["schemas"]["RevisionBody"][] | null;
+        };
+        RevisionMetaBody: {
+            descriptionMd: string | null;
+            /** Format: int64 */
+            difficulty: number | null;
+            family: string | null;
+            subtitle: string | null;
+            tags: string[] | null;
+            tasteProfile: components["schemas"]["TasteProfileInput"];
         };
         SearchIngredientBody: {
             /** Format: double */
@@ -1828,6 +1983,16 @@ export interface components {
             /** Format: int64 */
             total?: number;
         };
+        SetRoleInputBody: {
+            /**
+             * Format: uri
+             * @description A URL to the JSON Schema for this object.
+             * @example https://example.com/schemas/SetRoleInputBody.json
+             */
+            readonly $schema?: string;
+            /** @enum {string} */
+            role: "user" | "editor";
+        };
         TagBody: {
             id: string;
             kind: string;
@@ -1875,6 +2040,21 @@ export interface components {
             readonly $schema?: string;
             body: string;
         };
+        UpdateIngredientInputBody: {
+            /**
+             * Format: uri
+             * @description A URL to the JSON Schema for this object.
+             * @example https://example.com/schemas/UpdateIngredientInputBody.json
+             */
+            readonly $schema?: string;
+            aliases: string[] | null;
+            descriptionEn?: string;
+            descriptionZh?: string;
+            nameEn: string;
+            nameZh: string;
+            /** @description 修订摘要 */
+            note?: string;
+        };
         UpdateMeInputBody: {
             /**
              * Format: uri
@@ -1909,6 +2089,8 @@ export interface components {
             ir?: unknown;
             /** @enum {string} */
             lang?: "zh" | "en";
+            /** @description 修订摘要（编辑修订经典条目时显示在修订历史里） */
+            note?: string;
             subtitle?: string;
             tags?: string[] | null;
             tasteProfile?: components["schemas"]["TasteProfileInput"];
@@ -1939,6 +2121,11 @@ export interface components {
             location: string | null;
             /** Format: int64 */
             recipeCount: number;
+            /**
+             * @description editor/admin 可在站内修订经典配方与原料百科（ADR-027）
+             * @enum {string}
+             */
+            role: "user" | "editor" | "admin";
             unitPreference: string;
             website: string | null;
         };
@@ -1986,6 +2173,59 @@ export interface components {
             /** Format: date-time */
             version: string;
         };
+        "Wiki-changesResponse": {
+            /**
+             * Format: uri
+             * @description A URL to the JSON Schema for this object.
+             * @example https://example.com/schemas/Wiki-changesResponse.json
+             */
+            readonly $schema?: string;
+            items: components["schemas"]["WikiChangeBody"][] | null;
+        };
+        WikiChangeBody: {
+            /** Format: date-time */
+            createdAt: string;
+            editorHandle: string | null;
+            editorName: string | null;
+            /** @enum {string} */
+            kind: "recipe" | "ingredient";
+            note: string | null;
+            /** @description 配方 UUID 或原料 ID */
+            targetId: string;
+            /** @description classicKey 或原料 ID（前端路由用） */
+            targetKey: string;
+            title: string;
+            /** Format: int64 */
+            version: number;
+        };
+        WikiMemberBody: {
+            /**
+             * Format: uri
+             * @description A URL to the JSON Schema for this object.
+             * @example https://example.com/schemas/WikiMemberBody.json
+             */
+            readonly $schema?: string;
+            avatarUrl: string | null;
+            displayName: string;
+            /** Format: int64 */
+            editCount: number;
+            handle: string;
+            /** Format: uuid */
+            id: string;
+            /** Format: date-time */
+            lastEditAt: string | null;
+            /** @enum {string} */
+            role: "user" | "editor" | "admin";
+        };
+        WikiMembersOutputBody: {
+            /**
+             * Format: uri
+             * @description A URL to the JSON Schema for this object.
+             * @example https://example.com/schemas/WikiMembersOutputBody.json
+             */
+            readonly $schema?: string;
+            items: components["schemas"]["WikiMemberBody"][] | null;
+        };
     };
     responses: never;
     parameters: never;
@@ -1995,6 +2235,41 @@ export interface components {
 }
 export type $defs = Record<string, never>;
 export interface operations {
+    "admin-set-role": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                handle: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SetRoleInputBody"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WikiMemberBody"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+        };
+    };
     "auth-login": {
         parameters: {
             query?: never;
@@ -2659,6 +2934,106 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["IngredientDetailBody"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+        };
+    };
+    "ingredients-update": {
+        parameters: {
+            query?: never;
+            header?: {
+                "If-Match"?: string;
+            };
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdateIngredientInputBody"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["IngredientDetailBody"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+        };
+    };
+    "ingredients-revisions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["IngredientRevisionsOutputBody"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+        };
+    };
+    "ingredients-revision-get": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+                version: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["IngredientRevisionBody"];
                 };
             };
             /** @description Error */
@@ -3653,7 +4028,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["RevisionDetailOutputBody"];
+                    "application/json": components["schemas"]["RevisionDetailBody"];
                 };
             };
             /** @description Error */
@@ -4056,6 +4431,66 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["VocabBody"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+        };
+    };
+    "wiki-changes": {
+        parameters: {
+            query?: {
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Wiki-changesResponse"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+        };
+    };
+    "wiki-editors": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WikiMembersOutputBody"];
                 };
             };
             /** @description Error */

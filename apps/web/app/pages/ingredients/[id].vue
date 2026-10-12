@@ -3,12 +3,14 @@
 import { useInfiniteQuery, useQuery } from "@tanstack/vue-query";
 import type { components } from "@shaker/api-client";
 import { CATEGORY_ZH } from "@/lib/labels";
+import { fmtTime } from "@/lib/wiki";
 
 type Detail = components["schemas"]["IngredientDetailBody"];
 type SearchOut = components["schemas"]["SearchOutputBody"];
 
 const route = useRoute();
 const api = useApi();
+const auth = useAuthStore();
 const id = computed(() => String(route.params.id ?? ""));
 
 const { data: ing, error, isLoading } = useQuery({
@@ -143,8 +145,21 @@ const stats = computed(() => {
 
           <PxPanel v-if="ing.descriptionZh || ing.descriptionEn" title="物品说明" icon="book" tone="plain" variant="inset">
             <p v-if="ing.descriptionZh" class="whitespace-pre-wrap leading-[2] text-fg">{{ ing.descriptionZh }}</p>
-            <p v-if="ing.descriptionEn" class="mt-2 text-faint">{{ ing.descriptionEn }}</p>
+            <p v-if="ing.descriptionEn" class="mt-2 whitespace-pre-wrap text-faint">{{ ing.descriptionEn }}</p>
           </PxPanel>
+          <NuxtLink v-else-if="auth.isEditor" :to="`/wiki/ingredients/${ing.id}`" class="empty-desc">
+            <PxIcon name="pencil" :scale="2" class="text-amber" />
+            <span>这件物品还没有说明，来写第一段</span>
+          </NuxtLink>
+
+          <!-- 百科条目（ADR-027）：编辑可直接修订，所有人都能翻修订历史 -->
+          <div class="flex flex-wrap items-center gap-2">
+            <PxButton v-if="auth.isEditor" size="sm" icon="pencil" :to="`/wiki/ingredients/${ing.id}`">编辑词条</PxButton>
+            <PxButton size="sm" variant="ghost" icon="clock" :to="`/wiki/history/ingredient/${ing.id}`">修订历史</PxButton>
+            <span v-if="ing.wikiVersion" class="text-faint">
+              已修订 {{ ing.wikiVersion }} 次<template v-if="ing.wikiEditedAt"> · {{ fmtTime(ing.wikiEditedAt) }}</template>
+            </span>
+          </div>
 
           <p v-if="(ing.aliases ?? []).length" class="flex flex-wrap items-center gap-x-2 text-faint">
             <span>又名</span>
@@ -229,6 +244,20 @@ const stats = computed(() => {
   background: var(--panel-lo);
   color: var(--dim);
   box-shadow: 0 0 0 var(--p) var(--line);
+}
+/* 编辑看到的空说明：虚线框邀请补写 */
+.empty-desc {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px;
+  color: var(--dim);
+  outline: var(--p) dashed var(--line);
+  outline-offset: calc(var(--p) * -1);
+}
+.empty-desc:hover {
+  color: var(--amber);
+  outline-color: var(--amber);
 }
 .stat {
   display: flex;

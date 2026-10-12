@@ -3,6 +3,8 @@
  * 结构化编辑器（ADR-001 创作区）——「调酒工坊」：左配方卡 / 材料 / 工序，右试饮预览 + 诊断。
  * 草稿宽松（错误不阻止保存），发布严格（本地完整校验通过才允许）。
  * 发布流程：保存 → 封面截帧 → 预签名三步直传（ADR-015）→ PATCH coverUrl → publish。
+ * 百科修订（ADR-027）：载入的是经典条目时进入修订模式——没有草稿与发布，只有「提交修订」，
+ * 每次提交在修订历史里记一版；?from=<版本号> 以历史版本为底稿。
  */
 import { useMutation, useQuery, useQueryClient } from "@tanstack/vue-query";
 import { toast } from "@/lib/toast";
@@ -44,6 +46,10 @@ const { data: existing, isLoading } = useQuery({
   },
   enabled: computed(() => recipeId.value !== null),
 });
+
+/** 修订经典条目（百科模式）：经典本身就是锚点，不能再关联别的经典 */
+const wikiMode = computed(() => existing.value?.isCanonical === true);
+const wikiNote = ref("");
 
 /* ── 编辑状态 ── */
 const title = ref("");
@@ -136,9 +142,39 @@ watch(
     derivedFrom.value = r.derivedFrom ?? "";
     tags.value = [...(r.tags ?? [])];
     ir.value = JSON.parse(JSON.stringify(loaded)) as RecipeIR;
+    if (r.isCanonical && typeof route.query.from === "string") void loadRevision(r.id, Number(route.query.from));
   },
   { immediate: true },
 );
+
+/** 以历史版本为底稿：IR 与元数据快照覆盖表单（早期版本没有快照，只回滚 IR）。 */
+async function loadRevision(id: string, version: number): Promise<void> {
+  if (!Number.isInteger(version) || version < 1) return;
+  const { data, error } = await api.GET("/api/v1/recipes/{id}/revisions/{version}", {
+    params: { path: { id, version } },
+  });
+  if (error) {
+    toast.error(apiErrorMessage(error));
+    return;
+  }
+  const old = data.ir as RecipeIR;
+  title.value = data.title;
+  ir.value = JSON.parse(JSON.stringify(old)) as RecipeIR;
+  glass.value = old.glass ?? glass.value;
+  method.value = old.method ?? method.value;
+  servings.value = old.servings ?? servings.value;
+  const m = data.meta;
+  if (m) {
+    subtitle.value = m.subtitle ?? "";
+    descriptionMd.value = m.descriptionMd ?? "";
+    if (m.family) family.value = m.family;
+    if (m.difficulty) difficulty.value = m.difficulty;
+    if (m.tasteProfile) taste.value = { ...m.tasteProfile };
+    tags.value = [...(m.tags ?? [])];
+  }
+  wikiNote.value = `回退到第 ${version} 版`;
+  toast.info(`已载入第 ${version} 版作为底稿，确认后提交修订`);
+}
 
 onMounted(() => {
   void vocab.ensure().catch((e) => toast.error(apiErrorMessage(e)));
@@ -281,7 +317,7 @@ watch(existing, (r) => {
 });
 
 function metaBody() {
-  return {
+  const base = {
     title: title.value.trim(),
     subtitle: subtitle.value.trim() || undefined,
     descriptionMd: descriptionMd.value.trim() || undefined,
@@ -289,9 +325,13 @@ function metaBody() {
     lang: "zh" as const,
     difficulty: difficulty.value,
     tasteProfile: { ...taste.value },
+    tags: tags.value,
+  };
+  if (wikiMode.value) return { ...base, note: wikiNote.value.trim() || undefined };
+  return {
+    ...base,
     classicKey: classicKey.value || undefined,
     derivedFrom: derivedFrom.value || undefined,
-    tags: tags.value,
   };
 }
 
@@ -419,6 +459,28 @@ async function onPublish(): Promise<void> {
     toast.error(apiErrorMessage(err));
   } finally {
     publishing.value = false;
+  }
+}
+
+/** 百科修订：经典条目是已发布状态，服务端会跑完整校验，这里先在本地拦一道。 */
+async function onSubmitRevision(): Promise<void> {
+  if (!diagnosis.value.ok) {
+    toast.error("还有未解决的错误，不能提交", { description: diagnosis.value.errors[0]?.message });
+    return;
+  }
+  saving.value = true;
+  try {
+    const r = await saveDraft();
+    if (!r) return;
+    toast.success(`修订已提交（第 ${r.version} 版）`);
+    const key = existing.value?.classicKey;
+    await qc.invalidateQueries({ queryKey: ["classic", key] });
+    await qc.invalidateQueries({ queryKey: ["wiki-changes"] });
+    void qc.invalidateQueries({ queryKey: ["recipe-revisions", r.id] });
+    void qc.invalidateQueries({ queryKey: ["wiki-target", "recipe", r.id] });
+    await router.push(key ? `/classics/${key}` : `/wiki/history/recipe/${r.id}`);
+  } finally {
+    saving.value = false;
   }
 }
 
@@ -560,7 +622,12 @@ function setDifficulty(v: number): void {
               调酒工坊
               <span class="font-logo text-[8px] tracking-[0.25em] text-amber">WORKSHOP</span>
             </h1>
-            <p class="flex flex-wrap items-center gap-x-2 text-dim">
+            <p v-if="wikiMode" class="flex flex-wrap items-center gap-x-2 text-dim">
+              <PxBadge tone="gold" variant="solid" icon="book">百科修订</PxBadge>
+              <span>正在修订经典条目</span>
+              <span class="font-logo text-[8px] text-faint">v{{ savedVersion }}</span>
+            </p>
+            <p v-else class="flex flex-wrap items-center gap-x-2 text-dim">
               <PxBadge :tone="isNew && !savedId ? 'pink' : 'cyan'" variant="solid">
                 {{ isNew && !savedId ? "新配方" : "编辑中" }}
               </PxBadge>
@@ -574,7 +641,13 @@ function setDifficulty(v: number): void {
             </p>
           </div>
         </div>
-        <div class="flex flex-wrap items-center gap-2">
+        <div v-if="wikiMode" class="flex flex-wrap items-center gap-2">
+          <PxButton icon="clock" :to="`/wiki/history/recipe/${savedId}`">修订历史</PxButton>
+          <PxButton variant="primary" icon="send" sfx="start" :loading="saving" @click="onSubmitRevision()">
+            {{ saving ? "提交中…" : "提交修订" }}
+          </PxButton>
+        </div>
+        <div v-else class="flex flex-wrap items-center gap-2">
           <PxButton icon="folder" @click="draftsOpen = true">读取草稿</PxButton>
           <PxButton icon="save" :loading="saving" @click="onSave()">
             {{ saving ? "保存中…" : "保存草稿" }}
@@ -588,6 +661,13 @@ function setDifficulty(v: number): void {
       <div class="grid items-start gap-6 lg:grid-cols-[minmax(0,1fr)_420px]">
         <!-- 左：表单 -->
         <div class="flex min-w-0 flex-col gap-6">
+          <!-- 百科修订：编辑摘要（写进修订历史，让后来的人知道为什么改） -->
+          <PxPanel v-if="wikiMode" title="编辑摘要" icon="book" tone="plain" variant="inset">
+            <div class="field">
+              <PxInput v-model="wikiNote" maxlength="200" placeholder="例：按 IBA 2020 版修正青柠用量" />
+              <p class="text-faint">这是官方经典条目，所有人都会看到你的修订。改动会记一版，随时可以回退。</p>
+            </div>
+          </PxPanel>
           <!-- 配方卡 -->
           <PxPanel title="配方卡" icon="pencil">
             <div class="grid gap-x-5 gap-y-4 sm:grid-cols-2">
@@ -639,7 +719,7 @@ function setDifficulty(v: number): void {
                 <p v-else class="text-faint">标签词表加载中…</p>
               </div>
 
-              <div class="field sm:col-span-2">
+              <div v-if="!wikiMode" class="field sm:col-span-2">
                 <span class="lbl">关联经典</span>
                 <div class="sel"><PxSelect v-model="classicSel" :options="classicSelectOptions" placeholder="不关联" /></div>
                 <p class="text-faint">

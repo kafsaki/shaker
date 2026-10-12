@@ -621,8 +621,19 @@ components:
         subcategory:
           type: string
         viz: {}
+        wikiEditedAt:
+          format: date-time
+          type:
+            - string
+            - "null"
+        wikiVersion:
+          description: 百科修订版本号；修订时作为 If-Match。0 = 仍是种子原文
+          format: int64
+          type: integer
       required:
         - recipeCount
+        - wikiVersion
+        - wikiEditedAt
         - id
         - nameZh
         - nameEn
@@ -655,6 +666,91 @@ components:
       required:
         - items
         - nextCursor
+      type: object
+    IngredientRevisionBody:
+      additionalProperties: false
+      properties:
+        $schema:
+          description: A URL to the JSON Schema for this object.
+          examples:
+            - https://example.com/schemas/IngredientRevisionBody.json
+          format: uri
+          readOnly: true
+          type: string
+        createdAt:
+          format: date-time
+          type: string
+        editorHandle:
+          type:
+            - string
+            - "null"
+        editorName:
+          type:
+            - string
+            - "null"
+        note:
+          type:
+            - string
+            - "null"
+        snapshot:
+          $ref: "#/components/schemas/IngredientSnapshotBody"
+        version:
+          format: int64
+          type: integer
+      required:
+        - version
+        - note
+        - editorHandle
+        - editorName
+        - snapshot
+        - createdAt
+      type: object
+    IngredientRevisionsOutputBody:
+      additionalProperties: false
+      properties:
+        $schema:
+          description: A URL to the JSON Schema for this object.
+          examples:
+            - https://example.com/schemas/IngredientRevisionsOutputBody.json
+          format: uri
+          readOnly: true
+          type: string
+        items:
+          items:
+            $ref: "#/components/schemas/IngredientRevisionBody"
+          type:
+            - array
+            - "null"
+      required:
+        - items
+      type: object
+    IngredientSnapshotBody:
+      additionalProperties: false
+      properties:
+        aliases:
+          items:
+            type: string
+          type:
+            - array
+            - "null"
+        descriptionEn:
+          type:
+            - string
+            - "null"
+        descriptionZh:
+          type:
+            - string
+            - "null"
+        nameEn:
+          type: string
+        nameZh:
+          type: string
+      required:
+        - nameZh
+        - nameEn
+        - aliases
+        - descriptionZh
+        - descriptionEn
       type: object
     LikerBody:
       additionalProperties: false
@@ -1326,6 +1422,12 @@ components:
           type:
             - string
             - "null"
+        role:
+          enum:
+            - user
+            - editor
+            - admin
+          type: string
         viewerIsFollowing:
           type: boolean
         website:
@@ -1341,6 +1443,7 @@ components:
         - location
         - website
         - isOfficial
+        - role
         - counts
         - createdAt
       type: object
@@ -1739,10 +1842,21 @@ components:
       properties:
         createdAt:
           type: string
+        editorHandle:
+          type:
+            - string
+            - "null"
         editorId:
           type:
             - string
             - "null"
+        editorName:
+          type:
+            - string
+            - "null"
+        meta:
+          $ref: "#/components/schemas/RevisionMetaBody"
+          description: 该版本的元数据快照；ADR-027 之前写入的版本为 null
         note:
           type:
             - string
@@ -1757,25 +1871,38 @@ components:
         - title
         - note
         - editorId
+        - editorHandle
+        - editorName
+        - meta
         - createdAt
       type: object
-    RevisionDetailOutputBody:
+    RevisionDetailBody:
       additionalProperties: false
       properties:
         $schema:
           description: A URL to the JSON Schema for this object.
           examples:
-            - https://example.com/schemas/RevisionDetailOutputBody.json
+            - https://example.com/schemas/RevisionDetailBody.json
           format: uri
           readOnly: true
           type: string
         createdAt:
           type: string
+        editorHandle:
+          type:
+            - string
+            - "null"
         editorId:
           type:
             - string
             - "null"
+        editorName:
+          type:
+            - string
+            - "null"
         ir: {}
+        meta:
+          $ref: "#/components/schemas/RevisionMetaBody"
         note:
           type:
             - string
@@ -1790,6 +1917,9 @@ components:
         - title
         - note
         - editorId
+        - editorHandle
+        - editorName
+        - meta
         - createdAt
         - ir
       type: object
@@ -1811,6 +1941,42 @@ components:
             - "null"
       required:
         - items
+      type: object
+    RevisionMetaBody:
+      additionalProperties: false
+      properties:
+        descriptionMd:
+          type:
+            - string
+            - "null"
+        difficulty:
+          format: int64
+          type:
+            - integer
+            - "null"
+        family:
+          type:
+            - string
+            - "null"
+        subtitle:
+          type:
+            - string
+            - "null"
+        tags:
+          items:
+            type: string
+          type:
+            - array
+            - "null"
+        tasteProfile:
+          $ref: "#/components/schemas/TasteProfileInput"
+      required:
+        - subtitle
+        - descriptionMd
+        - family
+        - tasteProfile
+        - difficulty
+        - tags
       type: object
     SearchIngredientBody:
       additionalProperties: false
@@ -1932,6 +2098,24 @@ components:
       required:
         - items
       type: object
+    SetRoleInputBody:
+      additionalProperties: false
+      properties:
+        $schema:
+          description: A URL to the JSON Schema for this object.
+          examples:
+            - https://example.com/schemas/SetRoleInputBody.json
+          format: uri
+          readOnly: true
+          type: string
+        role:
+          enum:
+            - user
+            - editor
+          type: string
+      required:
+        - role
+      type: object
     TagBody:
       additionalProperties: false
       properties:
@@ -2037,6 +2221,46 @@ components:
       required:
         - body
       type: object
+    UpdateIngredientInputBody:
+      additionalProperties: false
+      properties:
+        $schema:
+          description: A URL to the JSON Schema for this object.
+          examples:
+            - https://example.com/schemas/UpdateIngredientInputBody.json
+          format: uri
+          readOnly: true
+          type: string
+        aliases:
+          items:
+            type: string
+          maxItems: 30
+          type:
+            - array
+            - "null"
+        descriptionEn:
+          maxLength: 8000
+          type: string
+        descriptionZh:
+          maxLength: 8000
+          type: string
+        nameEn:
+          maxLength: 80
+          minLength: 1
+          type: string
+        nameZh:
+          maxLength: 60
+          minLength: 1
+          type: string
+        note:
+          description: 修订摘要
+          maxLength: 200
+          type: string
+      required:
+        - nameZh
+        - nameEn
+        - aliases
+      type: object
     UpdateMeInputBody:
       additionalProperties: false
       properties:
@@ -2108,6 +2332,10 @@ components:
             - zh
             - en
           type: string
+        note:
+          description: 修订摘要（编辑修订经典条目时显示在修订历史里）
+          maxLength: 200
+          type: string
         subtitle:
           maxLength: 120
           type: string
@@ -2172,6 +2400,13 @@ components:
         recipeCount:
           format: int64
           type: integer
+        role:
+          description: editor/admin 可在站内修订经典配方与原料百科（ADR-027）
+          enum:
+            - user
+            - editor
+            - admin
+          type: string
         unitPreference:
           type: string
         website:
@@ -2190,6 +2425,7 @@ components:
         - website
         - unitPreference
         - isOfficial
+        - role
         - followerCount
         - followingCount
         - recipeCount
@@ -2311,6 +2547,133 @@ components:
         - techniques
         - tags
       type: object
+    Wiki-changesResponse:
+      additionalProperties: false
+      properties:
+        $schema:
+          description: A URL to the JSON Schema for this object.
+          examples:
+            - https://example.com/schemas/Wiki-changesResponse.json
+          format: uri
+          readOnly: true
+          type: string
+        items:
+          items:
+            $ref: "#/components/schemas/WikiChangeBody"
+          type:
+            - array
+            - "null"
+      required:
+        - items
+      type: object
+    WikiChangeBody:
+      additionalProperties: false
+      properties:
+        createdAt:
+          format: date-time
+          type: string
+        editorHandle:
+          type:
+            - string
+            - "null"
+        editorName:
+          type:
+            - string
+            - "null"
+        kind:
+          enum:
+            - recipe
+            - ingredient
+          type: string
+        note:
+          type:
+            - string
+            - "null"
+        targetId:
+          description: 配方 UUID 或原料 ID
+          type: string
+        targetKey:
+          description: classicKey 或原料 ID（前端路由用）
+          type: string
+        title:
+          type: string
+        version:
+          format: int64
+          type: integer
+      required:
+        - kind
+        - targetId
+        - targetKey
+        - title
+        - version
+        - note
+        - editorHandle
+        - editorName
+        - createdAt
+      type: object
+    WikiMemberBody:
+      additionalProperties: false
+      properties:
+        $schema:
+          description: A URL to the JSON Schema for this object.
+          examples:
+            - https://example.com/schemas/WikiMemberBody.json
+          format: uri
+          readOnly: true
+          type: string
+        avatarUrl:
+          type:
+            - string
+            - "null"
+        displayName:
+          type: string
+        editCount:
+          format: int64
+          type: integer
+        handle:
+          type: string
+        id:
+          format: uuid
+          type: string
+        lastEditAt:
+          format: date-time
+          type:
+            - string
+            - "null"
+        role:
+          enum:
+            - user
+            - editor
+            - admin
+          type: string
+      required:
+        - id
+        - handle
+        - displayName
+        - avatarUrl
+        - role
+        - editCount
+        - lastEditAt
+      type: object
+    WikiMembersOutputBody:
+      additionalProperties: false
+      properties:
+        $schema:
+          description: A URL to the JSON Schema for this object.
+          examples:
+            - https://example.com/schemas/WikiMembersOutputBody.json
+          format: uri
+          readOnly: true
+          type: string
+        items:
+          items:
+            $ref: "#/components/schemas/WikiMemberBody"
+          type:
+            - array
+            - "null"
+      required:
+        - items
+      type: object
   securitySchemes:
     bearerAuth:
       bearerFormat: JWT
@@ -2321,6 +2684,39 @@ info:
   version: 0.1.0
 openapi: 3.1.0
 paths:
+  /api/v1/admin/users/{handle}/role:
+    put:
+      description: 仅管理员。只在 user 与 editor 之间切换；管理员由部署配置 SHAKER_ADMIN_HANDLES 产生。
+      operationId: admin-set-role
+      parameters:
+        - in: path
+          name: handle
+          required: true
+          schema:
+            pattern: ^[a-zA-Z0-9_]{3,24}$
+            type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SetRoleInputBody"
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/WikiMemberBody"
+          description: OK
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+          description: Error
+      security:
+        - bearerAuth: []
+      summary: 授予/撤销编辑身份
   /api/v1/auth/login:
     post:
       description: identifier 接受 handle 或 email。
@@ -3220,6 +3616,98 @@ paths:
                 $ref: "#/components/schemas/ApiError"
           description: Error
       summary: 原料详情
+    patch:
+      description: 仅编辑/管理员。整表提交名称、别名与介绍；If-Match 为当前 wikiVersion。ABV、品类与视觉样式 v1 不开放修订。
+      operationId: ingredients-update
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            maxLength: 64
+            type: string
+        - in: header
+          name: If-Match
+          schema:
+            type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateIngredientInputBody"
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/IngredientDetailBody"
+          description: OK
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+          description: Error
+      security:
+        - bearerAuth: []
+      summary: 修订原料词条
+  /api/v1/ingredients/{id}/revisions:
+    get:
+      description: 新→旧，含每一版的完整快照。第 0 版是种子原文（首次修订时存档）。
+      operationId: ingredients-revisions
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            maxLength: 64
+            type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/IngredientRevisionsOutputBody"
+          description: OK
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+          description: Error
+      summary: 原料词条修订历史
+  /api/v1/ingredients/{id}/revisions/{version}:
+    get:
+      operationId: ingredients-revision-get
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            maxLength: 64
+            type: string
+        - in: path
+          name: version
+          required: true
+          schema:
+            format: int64
+            minimum: 0
+            type: integer
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/IngredientRevisionBody"
+          description: OK
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+          description: Error
+      summary: 原料词条的某一版
   /api/v1/me:
     get:
       operationId: me-get
@@ -4088,7 +4576,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/RevisionDetailOutputBody"
+                $ref: "#/components/schemas/RevisionDetailBody"
           description: OK
         default:
           content:
@@ -4603,6 +5091,51 @@ paths:
                 $ref: "#/components/schemas/ApiError"
           description: Error
       summary: 全量受控词表
+  /api/v1/wiki/changes:
+    get:
+      description: 经典配方与原料词条的修订动态，新→旧。
+      operationId: wiki-changes
+      parameters:
+        - explode: false
+          in: query
+          name: limit
+          schema:
+            default: 50
+            format: int64
+            maximum: 100
+            minimum: 1
+            type: integer
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Wiki-changesResponse"
+          description: OK
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+          description: Error
+      summary: 最近修订
+  /api/v1/wiki/editors:
+    get:
+      operationId: wiki-editors
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/WikiMembersOutputBody"
+          description: OK
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+          description: Error
+      summary: 编辑名册
   /healthz:
     get:
       operationId: health

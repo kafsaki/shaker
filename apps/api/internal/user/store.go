@@ -35,6 +35,7 @@ type Profile struct {
 	Location       *string
 	Website        *string
 	IsOfficial     bool
+	Role           string // user / editor / admin（ADR-027）
 	FollowerCount  int
 	FollowingCount int
 	RecipeCount    int
@@ -62,12 +63,12 @@ func NewStore(pool *pgxpool.Pool) *Store {
 }
 
 const profileCols = `id, handle, display_name, avatar_url, bio, location, website,
-	is_official, follower_count, following_count, recipe_count, created_at`
+	is_official, role, follower_count, following_count, recipe_count, created_at`
 
 func scanProfile(row pgx.Row) (*Profile, error) {
 	p := &Profile{}
 	if err := row.Scan(&p.ID, &p.Handle, &p.DisplayName, &p.AvatarURL, &p.Bio, &p.Location,
-		&p.Website, &p.IsOfficial, &p.FollowerCount, &p.FollowingCount, &p.RecipeCount, &p.CreatedAt); err != nil {
+		&p.Website, &p.IsOfficial, &p.Role, &p.FollowerCount, &p.FollowingCount, &p.RecipeCount, &p.CreatedAt); err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return nil, ErrNotFound
 		}

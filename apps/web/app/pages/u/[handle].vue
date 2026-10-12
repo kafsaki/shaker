@@ -156,6 +156,9 @@ useHead(() => ({
             <div class="flex flex-wrap items-center gap-2">
               <h1 class="min-w-0 break-words text-2xl text-fg text-shadow-px">{{ user.displayName }}</h1>
               <PxBadge v-if="user.isOfficial" tone="gold" variant="solid" icon="crown">官方</PxBadge>
+              <NuxtLink v-if="user.role === 'editor' || user.role === 'admin'" to="/wiki" class="hover:brightness-125">
+                <PxBadge tone="amber" icon="pencil">{{ user.role === "admin" ? "百科管理员" : "百科编辑" }}</PxBadge>
+              </NuxtLink>
             </div>
             <p class="flex flex-wrap items-center gap-x-3 gap-y-1">
               <span class="text-faint">@{{ user.handle }}</span>

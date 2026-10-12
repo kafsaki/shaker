@@ -10,6 +10,7 @@ import (
 	"context"
 	"embed"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"math"
 
@@ -224,19 +225,27 @@ func upsertOfficialUser(ctx context.Context, tx pgx.Tx, u OfficialUser) (uuid.UU
 
 func importIngredients(ctx context.Context, tx pgx.Tx, officialID uuid.UUID, list []Ingredient) error {
 	for _, ing := range list {
-		_, err := tx.Exec(ctx, `
+		// 名称与别名是 wiki 可编辑字段：编辑改过（wiki_edited_at 非空）就保留站内版本（ADR-027）；
+		// 分类、物性、视觉不开放编辑，始终以 seed.json 为准。
+		var wikiEdited bool
+		err := tx.QueryRow(ctx, `
 			INSERT INTO ingredients (id, name_zh, name_en, category, subcategory, abv, density, viz, is_official, created_by)
 			VALUES ($1, $2, $3, $4, $5, $6, $7, $8, true, $9)
 			ON CONFLICT (id) DO UPDATE SET
-				name_zh = EXCLUDED.name_zh, name_en = EXCLUDED.name_en,
+				name_zh = CASE WHEN ingredients.wiki_edited_at IS NULL THEN EXCLUDED.name_zh ELSE ingredients.name_zh END,
+				name_en = CASE WHEN ingredients.wiki_edited_at IS NULL THEN EXCLUDED.name_en ELSE ingredients.name_en END,
 				category = EXCLUDED.category, subcategory = EXCLUDED.subcategory,
 				abv = EXCLUDED.abv, density = EXCLUDED.density, viz = EXCLUDED.viz,
-				is_official = true, updated_at = now()`,
-			ing.ID, ing.NameZh, ing.NameEn, ing.Category, ing.Subcategory, ing.ABV, ing.Density, ing.Viz, officialID)
+				is_official = true, updated_at = now()
+			RETURNING wiki_edited_at IS NOT NULL`,
+			ing.ID, ing.NameZh, ing.NameEn, ing.Category, ing.Subcategory, ing.ABV, ing.Density, ing.Viz, officialID).Scan(&wikiEdited)
 		if err != nil {
 			return fmt.Errorf("导入原料 %s: %w", ing.ID, err)
 		}
-		// 别名整表重建：seed.json 是别名的唯一真相源
+		if wikiEdited {
+			continue
+		}
+		// 别名整表重建：没人在站内改过的词条，seed.json 是别名的唯一真相源
 		if _, err := tx.Exec(ctx, `DELETE FROM ingredient_aliases WHERE ingredient_id = $1`, ing.ID); err != nil {
 			return fmt.Errorf("清空原料别名 %s: %w", ing.ID, err)
 		}
@@ -336,10 +345,14 @@ func importClassic(ctx context.Context, tx pgx.Tx, officialID uuid.UUID, vocab *
 			iba_category = EXCLUDED.iba_category, abv_est = EXCLUDED.abv_est,
 			total_volume_ml = EXCLUDED.total_volume_ml, taste_profile = EXCLUDED.taste_profile,
 			difficulty = EXCLUDED.difficulty, updated_at = now()
+		WHERE recipes.wiki_edited_at IS NULL
 		RETURNING id, (xmax = 0)`,
 		newID, officialID, c.Title, c.Subtitle, c.DescriptionMd, c.Lang,
 		c.IR, ir.Glass, ir.Method, c.Family, c.ClassicKey,
 		c.IBACategory, abvEst, totalMl, taste, c.Difficulty).Scan(&id, &inserted)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil // 编辑在站内修订过（WHERE 挡下了 UPDATE）：站内版本优先，投影也不动（ADR-027）
+	}
 	if err != nil {
 		return fmt.Errorf("导入配方 %q: %w", c.Title, err)
 	}

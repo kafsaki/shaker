@@ -15,6 +15,7 @@ import (
 	"github.com/kafsaki/shaker/apps/api/internal/auth"
 	"github.com/kafsaki/shaker/apps/api/internal/irv"
 	"github.com/kafsaki/shaker/apps/api/internal/recipe"
+	"github.com/kafsaki/shaker/apps/api/internal/wiki"
 )
 
 func (a *API) registerRecipes(api huma.API) {
@@ -433,6 +434,7 @@ type updateRecipeInput struct {
 		CoverURLLight *string            `json:"coverUrlLight,omitempty" maxLength:"500"`
 		Tags          []string           `json:"tags,omitempty" maxItems:"20"`
 		IR            json.RawMessage    `json:"ir,omitempty"`
+		Note          *string            `json:"note,omitempty" maxLength:"200" doc:"修订摘要（编辑修订经典条目时显示在修订历史里）"`
 	}
 }
 
@@ -467,8 +469,14 @@ func (a *API) updateRecipeHandler(ctx context.Context, in *updateRecipeInput) (*
 		TasteProfile: tasteToDomain(in.Body.TasteProfile), Difficulty: in.Body.Difficulty,
 		CoverURL: in.Body.CoverURL, CoverURLLight: in.Body.CoverURLLight, Tags: in.Body.Tags,
 		IR: ir, IRRaw: in.Body.IR, IfMatch: ifMatch,
-		EditorID: claims.UserUUID(), Vocab: vocab,
+		EditorID: claims.UserUUID(), Vocab: vocab, Note: in.Body.Note,
 	}
+	// 角色每次查库：撤销编辑身份即时生效，不必等访问令牌过期（ADR-027）
+	role, err := a.wiki.Role(ctx, claims.UserUUID())
+	if err != nil {
+		return nil, internalErr(err)
+	}
+	ui.AsEditor = wiki.CanEdit(role)
 	if in.Body.DerivedFrom != nil {
 		did, err := uuid.Parse(*in.Body.DerivedFrom)
 		if err != nil {
@@ -555,11 +563,24 @@ func (a *API) deleteRecipeHandler(ctx context.Context, in *recipeActionInput) (*
 /* ─────────────────────────────── 版本历史 ─────────────────────────────── */
 
 type revisionBody struct {
-	Version   int     `json:"version"`
-	Title     string  `json:"title"`
-	Note      *string `json:"note"`
-	EditorID  *string `json:"editorId"`
-	CreatedAt string  `json:"createdAt"`
+	Version      int               `json:"version"`
+	Title        string            `json:"title"`
+	Note         *string           `json:"note"`
+	EditorID     *string           `json:"editorId"`
+	EditorHandle *string           `json:"editorHandle"`
+	EditorName   *string           `json:"editorName"`
+	Meta         *revisionMetaBody `json:"meta" doc:"该版本的元数据快照；ADR-027 之前写入的版本为 null"`
+	CreatedAt    string            `json:"createdAt"`
+}
+
+// revisionMetaBody 修订时的元数据快照，供历史页逐字段对比。
+type revisionMetaBody struct {
+	Subtitle      *string            `json:"subtitle"`
+	DescriptionMd *string            `json:"descriptionMd"`
+	Family        *string            `json:"family"`
+	TasteProfile  *tasteProfileInput `json:"tasteProfile"`
+	Difficulty    *int               `json:"difficulty"`
+	Tags          []string           `json:"tags"`
 }
 
 type revisionListOutput struct {
@@ -573,15 +594,22 @@ type revisionGetInput struct {
 	Version int    `path:"version" minimum:"1"`
 }
 
+// revisionDetailBody 不能内嵌 revisionBody：huma 生成 schema 时跳过未导出的内嵌字段，
+// 前端类型会只剩 ir。
+type revisionDetailBody struct {
+	Version      int               `json:"version"`
+	Title        string            `json:"title"`
+	Note         *string           `json:"note"`
+	EditorID     *string           `json:"editorId"`
+	EditorHandle *string           `json:"editorHandle"`
+	EditorName   *string           `json:"editorName"`
+	Meta         *revisionMetaBody `json:"meta"`
+	CreatedAt    string            `json:"createdAt"`
+	IR           json.RawMessage   `json:"ir"`
+}
+
 type revisionDetailOutput struct {
-	Body struct {
-		Version   int             `json:"version"`
-		Title     string          `json:"title"`
-		Note      *string         `json:"note"`
-		EditorID  *string         `json:"editorId"`
-		CreatedAt string          `json:"createdAt"`
-		IR        json.RawMessage `json:"ir"`
-	}
+	Body revisionDetailBody
 }
 
 func (a *API) listRevisionsHandler(ctx context.Context, in *recipeGetInput) (*revisionListOutput, error) {
@@ -626,27 +654,32 @@ func (a *API) getRevisionHandler(ctx context.Context, in *revisionGetInput) (*re
 	if err != nil {
 		return nil, recipeErr(err)
 	}
-	out := &revisionDetailOutput{}
-	out.Body.Version = rev.Version
-	out.Body.Title = rev.Title
-	out.Body.Note = rev.Note
-	out.Body.CreatedAt = rev.CreatedAt.UTC().Format(time.RFC3339Nano)
-	out.Body.IR = ir
-	if rev.EditorID != nil {
-		s := rev.EditorID.String()
-		out.Body.EditorID = &s
-	}
-	return out, nil
+	b := revisionToBody(*rev)
+	return &revisionDetailOutput{Body: revisionDetailBody{
+		Version: b.Version, Title: b.Title, Note: b.Note, EditorID: b.EditorID,
+		EditorHandle: b.EditorHandle, EditorName: b.EditorName, Meta: b.Meta, CreatedAt: b.CreatedAt,
+		IR: ir,
+	}}, nil
 }
 
 func revisionToBody(rev recipe.Revision) revisionBody {
 	b := revisionBody{
 		Version: rev.Version, Title: rev.Title, Note: rev.Note,
+		EditorHandle: rev.EditorHandle, EditorName: rev.EditorName,
 		CreatedAt: rev.CreatedAt.UTC().Format(time.RFC3339Nano),
 	}
 	if rev.EditorID != nil {
 		s := rev.EditorID.String()
 		b.EditorID = &s
+	}
+	if rev.Meta != nil {
+		var m revisionMetaBody
+		if err := json.Unmarshal(rev.Meta, &m); err == nil {
+			if m.Tags == nil {
+				m.Tags = []string{}
+			}
+			b.Meta = &m
+		}
 	}
 	return b
 }

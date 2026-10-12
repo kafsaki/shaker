@@ -18,6 +18,7 @@ import (
 	"github.com/kafsaki/shaker/apps/api/internal/config"
 	"github.com/kafsaki/shaker/apps/api/internal/media"
 	"github.com/kafsaki/shaker/apps/api/internal/seed"
+	"github.com/kafsaki/shaker/apps/api/internal/wiki"
 )
 
 func main() {
@@ -46,6 +47,18 @@ func main() {
 			os.Exit(1)
 		}
 		slog.Info("种子导入完成（幂等）")
+	}
+
+	// 百科管理员从部署配置来（ADR-027）；之后的编辑身份由管理员在站内授予
+	if len(cfg.AdminHandles) > 0 {
+		missing, err := wiki.NewStore(pool).PromoteAdmins(ctx, cfg.AdminHandles)
+		if err != nil {
+			slog.Error("提升百科管理员失败", "err", err)
+			os.Exit(1)
+		}
+		if len(missing) > 0 {
+			slog.Warn("SHAKER_ADMIN_HANDLES 中有账号不存在，注册后重启即可生效", "handles", missing)
+		}
 	}
 
 	// 孤儿媒体清理。单独建一个 media.Store：handler 侧那个藏在 api 包内部，
