@@ -46,6 +46,14 @@ function greeting(): string {
 const line = ref("");
 onMounted(() => (line.value = greeting()));
 
+/** 煤球又把杯子推下去了（BarCat 彩蛋），酒保换一句台词 */
+function onCatPrank(glasses: number): void {
+  line.value =
+    glasses === 1
+      ? "……煤球！那是刚擦好的杯子。唉，算了——它才是这家店真正的老板。"
+      : `第 ${glasses} 只杯子了。煤球，这些都从你的小鱼干里扣。`;
+}
+
 /* ── 今日特调：全时段最热的一杯 ── */
 const { data: special } = useQuery({
   queryKey: ["feed", "special"] as const,
@@ -173,7 +181,7 @@ const items = computed(() => feedQuery.data.value?.pages.flatMap((p) => p.items 
 
     <!-- 吧台：酒保对白 + 今日特调 -->
     <section class="grid items-start gap-6 lg:grid-cols-[minmax(0,1fr)_260px]">
-      <BarScene>
+      <BarScene @prank="onCatPrank">
         <PxDialogue v-if="line" speaker="酒保 · 摇摇" :text="line">
           <template #choices>
           <PxButton variant="primary" icon="dice" :loading="rolling" sfx="coin" @click="randomDrink()">

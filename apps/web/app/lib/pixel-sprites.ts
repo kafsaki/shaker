@@ -133,6 +133,108 @@ export const LIQUORS = [
   { g: "#d9a31a", h: "#ffe08a" },
 ] as const;
 
+/**
+ * 吧台黑猫「煤球」22 宽：k 描边 b 毛 h 背光 l 闭眼/眯眼 t 尾巴 p 耳内 n 鼻 y 眼 m 张嘴。
+ * 趴着的四帧共用轮廓（换帧不跳位），站立帧给「推杯子」彩蛋用。
+ */
+export const CAT = {
+  sleepA: [
+    "...........kkkkkk.....",
+    ".k.....k.kkbbbbbbkk...",
+    "kpk...kpkbbbbbbbbbbkk.",
+    "kbbkkkbbkbbbbbbbbbbbbk",
+    "kbbbbbbbbbbbbbbbbbhbbk",
+    "kbllbllbbbbbbbbbbbbhbk",
+    "kbbbnbbbkbbbbbbbbbbhbk",
+    ".kbbbbbktbbbbbbbbbbbbk",
+    "kttttttttttttttbbbbbbk",
+    ".kkkkkkkkkkkkkkkkkkkk.",
+  ],
+  /** 呼气：背脊塌一格 */
+  sleepB: [
+    "......................",
+    ".k.....k...kkkkkk.....",
+    "kpk...kpkkkbbbbbbkkk..",
+    "kbbkkkbbkbbbbbbbbbbbkk",
+    "kbbbbbbbbbbbbbbbbbhbbk",
+    "kbllbllbbbbbbbbbbbbhbk",
+    "kbbbnbbbkbbbbbbbbbbhbk",
+    ".kbbbbbktbbbbbbbbbbbbk",
+    "kttttttttttttttbbbbbbk",
+    ".kkkkkkkkkkkkkkkkkkkk.",
+  ],
+  /** 抬头睁眼（竖瞳） */
+  awake: [
+    ".k.....k..............",
+    "kpk...kpk..kkkkkk.....",
+    "kbbkkkbbkkkbbbbbbkk...",
+    "kbbbbbbbkbbbbbbbbbbkk.",
+    "kykybykykbbbbbbbbbhbbk",
+    "kykybykybbbbbbbbbbbhbk",
+    "kbbbnbbbkbbbbbbbbbbhbk",
+    ".kbbbbbktbbbbbbbbbbbbk",
+    "kttttttttttttttbbbbbbk",
+    ".kkkkkkkkkkkkkkkkkkkk.",
+  ],
+  /** 眯眼张嘴「喵」 */
+  meow: [
+    ".k.....k..............",
+    "kpk...kpk..kkkkkk.....",
+    "kbbkkkbbkkkbbbbbbkk...",
+    "kbbbbbbbkbbbbbbbbbbkk.",
+    "klbblbblbbbbbbbbbbhbbk",
+    "kbllbllbbbbbbbbbbbbhbk",
+    "kbbbmbbbkbbbbbbbbbbhbk",
+    ".kbbmbbktbbbbbbbbbbbbk",
+    "kttttttttttttttbbbbbbk",
+    ".kkkkkkkkkkkkkkkkkkkk.",
+  ],
+  /** 站起来、尾巴竖着、脸朝右 */
+  stand: [
+    "..kk..................",
+    ".ktk...........k...k..",
+    ".ktk..........kpk.kpk.",
+    "..ktk.........kbbkbbk.",
+    "..ktk........kbyybyybk",
+    "...ktk.......kbykbykbk",
+    "....ktkkkkkkkkbbbnbbbk",
+    "....kbbbbbbbbbbbbbbbk.",
+    "...kbbbbbbbbbbbbbbbk..",
+    "...kbhbbbbbbbbbbbbbk..",
+    "...kbhbkkkkkkkkkbbbk..",
+    "...kbkbk.......kbkbk..",
+    "...kkkkk.......kkkkk..",
+  ],
+} as const;
+
+export const CAT_PALETTE = {
+  k: "#0a0610",
+  b: "#2e2642",
+  h: "#6a5a8c",
+  l: "#8c7cae",
+  t: "#40365a",
+  p: "#ff8aa8",
+  n: "#ff8aa8",
+  y: "#e8e04a",
+  m: "#ff5c8a",
+} as const;
+
+/** 吧台上的古典杯 7×7：g 玻璃 w 反光 a 酒液 A 液面 i 冰块 */
+export const ROCKS_GLASS = [
+  "g.....g",
+  "gw....g",
+  "gAAAAAg",
+  "gwaiiag",
+  "gwaiiag",
+  "gaaaaag",
+  "ggggggg",
+] as const;
+
+export const ROCKS_PALETTE = {
+  dark: { g: "#b8d0e8", w: "#ffffff", a: "#e08a2c", A: "#ffc46a", i: "#e8f6ff" },
+  light: { g: "#6e8aa6", w: "#ffffff", a: "#e08a2c", A: "#ffc46a", i: "#f4fbff" },
+} as const;
+
 export const LOGO_PALETTE = {
   dark: { k: "#06030b", m: "#9db4d0", h: "#e8f0fa", a: "#ffb547" },
   light: { k: "#3a2a1e", m: "#7c8690", h: "#e8eef4", a: "#e08a2c" },

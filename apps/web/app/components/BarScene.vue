@@ -1,7 +1,8 @@
 <script setup lang="ts">
 /**
  * 大厅吧台场景：护墙板后墙 + 两层酒架（瓶型/酒色按下标确定性挑选）+ 霓虹招牌 +
- * 站在吧台后的酒保 + 木质台面。纯装饰，默认插槽叠在台面上（放对白框）。
+ * 站在吧台后的酒保 + 木质台面 + 台面上睡觉的黑猫（BarCat，可互动）。默认插槽叠在台面上（放对白框）。
+ * 猫推掉杯子时整个场景抖一下，并把 prank 事件往外传给大厅（酒保接话）。
  */
 import { BARTENDER, BARTENDER_PALETTE, BOTTLES, LIQUORS } from "@/lib/pixel-sprites";
 
@@ -17,11 +18,19 @@ function bottle(i: number) {
     palette: { k: ink, g: liq.g, h: liq.h, c: i % 3 ? "#5a4a3a" : "#c9a24a", l: "#efe2c4" },
   };
 }
+const emit = defineEmits<{ prank: [glasses: number] }>();
+const shaking = ref(false);
+function onPrank(glasses: number): void {
+  shaking.value = true;
+  setTimeout(() => (shaking.value = false), 500);
+  emit("prank", glasses);
+}
+
 const shelves = [Array.from({ length: 24 }, (_, i) => i), Array.from({ length: 24 }, (_, i) => i + 24)];
 </script>
 
 <template>
-  <div class="scene">
+  <div class="scene" :class="{ 'animate-shake': shaking }">
     <div class="wall" aria-hidden="true">
       <div class="neon font-logo">
         <span>SHAKER</span><span class="flick">·</span><span>BAR</span>
@@ -42,6 +51,7 @@ const shelves = [Array.from({ length: 24 }, (_, i) => i), Array.from({ length: 2
         <PxSprite :rows="BARTENDER" :palette="BARTENDER_PALETTE[theme]" :scale="8" />
       </div>
     </div>
+    <BarCat class="bar-cat" @prank="onPrank" />
     <div class="counter" aria-hidden="true" />
     <div class="relative z-10 -mt-6 px-3 sm:px-8">
       <slot />
@@ -97,6 +107,12 @@ const shelves = [Array.from({ length: 24 }, (_, i) => i), Array.from({ length: 2
   left: 12%;
   z-index: 1;
 }
+/* 猫趴在台面上沿：墙高 230 − 台面上提 18 = 212，再压进高光 1 格 */
+.bar-cat {
+  position: absolute;
+  right: 16%;
+  top: 154px;
+}
 .counter {
   position: relative;
   z-index: 2;
@@ -112,6 +128,7 @@ const shelves = [Array.from({ length: 24 }, (_, i) => i), Array.from({ length: 2
 }
 @media (max-width: 640px) {
   .tender { left: 4%; }
+  .bar-cat { right: 4%; }
   .neon { font-size: 8px; }
 }
 </style>
