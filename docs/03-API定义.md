@@ -308,14 +308,17 @@ GET /search?q=&type=recipe|user|ingredient|menu|all
 
 ```
 POST /media/upload-url
-{ "purpose": "recipe_cover", "entityId": "<recipe uuid>", "mimeType": "image/png", "byteSize": 184320 }
-→ { "assetId": "…", "uploadUrl": "https://minio/…?X-Amz-Signature=…", "storageKey": "recipes/…/cover-3.png", "expiresIn": 900 }
+{ "purpose": "recipe_cover", "entityId": "<recipe uuid>", "mimeType": "image/png",
+  "byteSize": 184320, "variant": "dark" }
+→ { "assetId": "…", "uploadUrl": "https://minio/…?X-Amz-Signature=…", "storageKey": "recipes/…/cover-dark.png", "expiresIn": 900 }
 
 PUT <uploadUrl>            （客户端直传，不经过后端）
 
 POST /media/:assetId/commit
-→ { "url": "https://cdn/recipes/…/cover-3.png" }
+→ { "url": "https://cdn/recipes/…/cover-dark.png" }
 ```
+
+`variant`（`dark` / `light`）仅 `recipe_cover` 需要；`user_avatar` 的 key 是 `users/{id}/avatar.png`。两者都是固定 key 覆盖写，同一实体只留一个对象（key 规范见 DB 设计 §9.2）。
 
 三步流程是 ADR-015（前端 canvas 截帧上传封面）能安全工作的前提。未 commit 的记录由周期任务连对象一起清理（排期见 `docs/ROADMAP.md`）。
 
