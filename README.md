@@ -30,7 +30,7 @@ v1（需求 1~5）功能已实现。进度、待办与未验证项见 **[`docs/R
 docker compose up -d        # Postgres 17 + MinIO（建桶 + 匿名读）
 cd apps/api
 D:/DevApps/Go/bin/go.exe run ./cmd/api
-# 监听 :8080。启动时自动做：goose 迁移 → 幂等种子导入（词表为空才导）
+# 监听 :8080。启动时自动做：goose 迁移 → 种子导入（全量 upsert，改 seed.json 后重启即生效；SHAKER_SEED=false 跳过）
 ```
 
 **反复重启时建议构建到固定路径。** `go run` 每次把二进制编到 `%TEMP%` 下的随机路径，而 Windows 防火墙按程序路径放行，于是每次重启都会弹「是否允许访问网络」。固定路径只需放行一次，还省掉每次编译：

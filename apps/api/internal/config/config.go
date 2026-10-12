@@ -16,7 +16,7 @@ type Config struct {
 	S3SecretKey string
 	// S3PublicURL 是对象存储的公网读地址（MinIO 已对桶开匿名下载）。
 	S3PublicURL string
-	// Seed 为 true 时启动阶段做幂等种子导入（词表为空才导入）。
+	// Seed 为 true 时每次启动都把 seed.json 全量 upsert 一遍（幂等）；false 跳过导入。
 	Seed bool
 }
 

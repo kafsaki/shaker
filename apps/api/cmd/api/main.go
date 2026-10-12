@@ -1,6 +1,6 @@
 // shaker-api：调酒社区后端。
 //
-// 启动顺序：迁移（goose 内嵌）→ 种子导入（词表为空时）→ HTTP 服务。
+// 启动顺序：迁移（goose 内嵌）→ 种子导入（每次全量 upsert，SHAKER_SEED=false 跳过）→ HTTP 服务。
 package main
 
 import (
