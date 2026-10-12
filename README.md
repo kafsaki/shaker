@@ -6,27 +6,19 @@
 
 需求原文：`D:\DEV\docs\调酒社区网站.md`
 
----
+v1（需求 1~5）功能已实现。进度、待办与未验证项见 **[`docs/ROADMAP.md`](docs/ROADMAP.md)**。
 
-## 当前状态
+## 文档
 
-**已完成：后端 v1 功能全集（含 e2e 验证）+ 前端 v1 全集（Nuxt 4 SPA）。** 前端观感待用户肉眼验收。
-
-| | 状态 |
+| 文档 | 内容 |
 | --- | --- |
-| 决策记录（25 条 ADR） | ✅ `docs/00-决策记录.md` |
-| 配方 IR 规范（21 个动作） | ✅ `docs/01-配方IR规范.md` |
-| 数据库设计 + DDL | ✅ goose 内嵌迁移，启动自动执行，Up/Down 均经 e2e 验证 |
-| API 定义 | ✅ `docs/03-API定义.md`，`schema/openapi.yaml` 由代码生成（ADR-017） |
-| `packages/recipe-ir` | ✅ 54 个测试全绿 |
-| `packages/animator-core` | ✅ 32 个测试全绿 |
-| `packages/animator-web` | ✅ 类型检查通过，**动画观感未经人眼确认** |
-| 动画原型 | ✅ 可跑，**等你打开看效果** |
-| `apps/api`（Go） | ✅ v1 功能全集：认证/词表/配方/Feed/互动/用户/搜索/经典/酒单/通知/举报/媒体直传 |
-| 种子数据 | ✅ 169 原料 + 59 经典配方（IBA 分类对齐 2024 官方编码），启动幂等导入 |
-| e2e 验证 | ✅ 8 套 PowerShell 脚本（`scripts/e2e-*.ps1`），对运行中的 API 全绿 |
-| `apps/web`（Nuxt 4 SPA） | ✅ v1 功能全集（探索/配方页+播放器/百科/编辑器+发布/互动/搜索/用户/酒单/通知/经典），**待用户肉眼验收** |
-| `packages/api-client` | ✅ openapi-typescript 生成 + openapi-fetch 封装（401 单飞刷新轮转） |
+| [`docs/00-决策记录.md`](docs/00-决策记录.md) | ADR：每条决策的结论与理由 |
+| [`docs/01-配方IR规范.md`](docs/01-配方IR规范.md) | Recipe IR：21 个动作、单位、物理与混色模型 |
+| [`docs/02-数据库设计.md`](docs/02-数据库设计.md) | 表结构与冗余计数策略；DDL 在 `apps/api/db/migrations/` |
+| [`docs/03-API定义.md`](docs/03-API定义.md) | 端点设计；机器可读的权威版本是生成的 `schema/openapi.yaml` |
+| [`docs/ROADMAP.md`](docs/ROADMAP.md) | 进度、待办、未验证项 —— **唯一**记录「还没做什么」的地方 |
+| [`AGENTS.md`](AGENTS.md) | 在本仓库工作的规则（AI agent 与人都适用） |
+| `docs/archive/` | 一次性过程文档，不随代码维护 |
 
 ---
 
@@ -100,7 +92,7 @@ pnpm --filter @shaker/web dev
 # TS：纯 TS 包可以被 node 直接跑，不需要构建（见 ADR-021）
 cd packages/recipe-ir     && node --experimental-strip-types --test src/ir.test.ts
 cd packages/animator-core && node --experimental-strip-types --test src/compile.test.ts
-cd packages/<pkg> && ../../node_modules/.bin/tsc --noEmit     # 逐包类型检查
+pnpm -r typecheck          # 全部 TS 包 + 前端（nuxt typecheck）
 
 # Go（在 apps/api 下）
 go build ./... && go vet ./... && go test ./...
@@ -133,8 +125,8 @@ goose -dir apps/api/db/migrations postgres "$DSN" down   # Down 也要验，写�
 
 ```
 apps/
-  web/       Nuxt 4 SPA + Tailwind v4 + shadcn-vue + Pinia + vue-query  [v1 功能全集]
-  api/       Go + chi + huma + pgx + goose + MinIO 预签名        [v1 功能全集]
+  web/       Nuxt 4 SPA + Tailwind v4 + shadcn-vue + Pinia + vue-query
+  api/       Go + chi + huma + pgx + goose + MinIO 预签名
              internal/seed/data/seed.json  ★ 种子数据唯一真相源（词表 + 经典配方，直接编辑，ADR-022）
   mobile/    二期，消费优先，框架待原型实测定
 packages/
@@ -146,12 +138,12 @@ packages/
   api-client/       openapi-typescript 生成 + openapi-fetch 封装
 schema/
   recipe-ir.schema.json   由 zod 生成 → Go go:embed 校验
-  openapi.yaml            由 Go huma 生成 → 前端 client          [已生成]
+  openapi.yaml            由 Go huma 生成 → 前端 client
 scripts/
   e2e-*.ps1             对运行中 API 的端到端验证（8 套）
   classic-covers/       经典配方封面批量截帧导入（一次性工具，可幂等重跑）
 prototype/        动画验证装置
-docs/             设计文档（00 决策记录 / 01 IR 规范 / 02 数据库 / 03 API）；archive/ 存一次性过程文档
+docs/             设计文档 00~03、ROADMAP（进度与待办）、archive/（一次性过程文档）
 ```
 
 ---
@@ -177,15 +169,7 @@ docs/             设计文档（00 决策记录 / 01 IR 规范 / 02 数据库 /
 - **关键帧是完整场景快照，不是增量** → seek 是 O(1)，不需重放历史
 - **粒子是 `t` 的纯函数** → 否则 seek 回退时粒子位置会跳变，拖时间轴的体验立刻崩坏
 
-这三条都应该在 CI 里加检查，目前**还没加**。
-
----
-
-## 下一步
-
-1. **打开 http://localhost:3000 肉眼验收前端**（视觉与动画观感由作者确认）；原型在手机 WebView 实测帧率 → 定移动端框架
-2. 孤儿媒体清理任务（未 commit 的 asset + 对象，契约预留了 river 周期任务位）
-3. 三条架构纪律 + openapi 同步检查进 CI
+这三条都应该在 CI 里加检查（见 ROADMAP）。
 
 ---
 

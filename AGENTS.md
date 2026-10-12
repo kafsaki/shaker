@@ -30,7 +30,7 @@ cd D:/DEV/apps/shaker && D:/DevApps/Git/cmd/git.exe push
 2. **`animator-core` / `animator-web` 只许引 `@shaker/recipe-ir/core`**，不许引 barrel 入口。实测差 7.5 倍 bundle 体积（107 KB → 14.3 KB gzip）。
 3. **`compile()` 是纯函数。** 无 IO、无随机、无 `Date.now()`。任何"随机"必须来自显式 seed。配套：关键帧是完整场景快照（seek 为 O(1)）；粒子是 `t` 的纯函数（否则 seek 会跳变）。
 
-这三条都还**没有** CI 检查，靠自觉。加上是好事。
+这三条都还**没有** CI 检查，靠自觉（CI 已列入 ROADMAP）。
 
 ## 数据与生成物
 
@@ -49,15 +49,25 @@ cd D:/DEV/apps/shaker && D:/DevApps/Git/cmd/git.exe push
 - 本机路径：Node `D:\DevApps\NodeJS\node.exe`、Go `D:\DevApps\Go\bin\go.exe`、Git `D:\DevApps\Git\cmd\git.exe`
 - `pnpm` 经 corepack 启用；esbuild 的安装脚本已在根 `package.json` 的 `pnpm.onlyBuiltDependencies` 里显式放行
 - **Docker Desktop 已装**：`docker compose up -d` 起 Postgres 17 + MinIO（建桶 + 匿名读）。本机镜像源（轩辕）不支持 `latest` tag 之外的某些拉取——`minio/minio` 用带 `RELEASE.*` tag 的版本再补 `latest` 本地标签；`mc` 镜像拉不动，compose 里的 minio-init 已改用 minio 服务器镜像自带的 mc。
-- **`nuxt typecheck` 目前跑不起来**（`@vue/language-core` 报 `ERR_PACKAGE_PATH_NOT_EXPORTED`，工具链版本问题，不是代码类型错误）。前端改动暂以 `nuxt build` 通过为准。
+- **`nuxt typecheck` 可用**，`pnpm -r typecheck` 覆盖全部 TS 包与前端。输出里的 `[Vue] Resolve plugin path failed: vue-router/volar/sfc-route-blocks … ERR_PACKAGE_PATH_NOT_EXPORTED` 是 volar 插件路径告警，**不是类型错误**，看 exit code（2026-10-12 埋错验证：真实类型错误会报 TS 错误并以 EXIT=2 退出）。
 - 本地起 API 要构建到固定路径，否则每次重启都弹防火墙（见 README）。
 
 ## 诚实汇报
 
-这个仓库里有一件**尚未真正验证**的东西，不要在报告里含糊过去：
-
-- 动画的**观感**没有经过人眼确认 —— 能验证的只有数学正确性、seek 幂等、编译确定性
-
 已经验证过、不用再打问号的：数据库迁移（goose 内嵌，启动自动执行）、全部 API 端点（8 套 e2e 脚本全绿）、媒体直传（真实 MinIO PUT/HEAD/匿名读）。改到这些时正常回归即可。
 
-v1 **没有实现**、别当成已有的：sqlc、river，以及计数对账、孤儿媒体清理、酒单序号重整三项周期任务（ADR-003 实施状态）。
+**尚未验证的事项与未实现的功能都记在 `docs/ROADMAP.md`**，汇报时以它为准，不要含糊过去，也不要把未实现的东西当成已有。
+
+## 文档归属
+
+每类信息只有一个家，别在第二处复述 —— 复述的那份迟早过时。
+
+| 信息 | 放在 |
+| --- | --- |
+| 项目是什么、怎么跑、命令 | `README.md` |
+| 决策与理由 | `docs/00-决策记录.md`（ADR）；涉及待办时链接 ROADMAP，不自列清单 |
+| 进度、待办、未验证项 | `docs/ROADMAP.md` |
+| 工作规则 | `AGENTS.md` |
+| 一次性的任务说明 / 交付报告 | `docs/archive/` |
+
+完成一件 ROADMAP 里的事，就在同一个提交里把它从 ROADMAP 删掉。

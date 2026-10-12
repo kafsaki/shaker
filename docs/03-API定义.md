@@ -317,7 +317,7 @@ POST /media/:assetId/commit
 → { "url": "https://cdn/recipes/…/cover-3.png" }
 ```
 
-三步流程是 ADR-015（前端 canvas 截帧上传封面）能安全工作的前提。未 commit 的记录应由周期任务连对象一起清理（v1 尚未实现，见 ADR-003 实施状态）。
+三步流程是 ADR-015（前端 canvas 截帧上传封面）能安全工作的前提。未 commit 的记录由周期任务连对象一起清理（排期见 `docs/ROADMAP.md`）。
 
 服务端在签发 URL 时校验 `mimeType` 白名单与 `byteSize` 上限，并把 key 规范写死（客户端不能自选路径）。
 
