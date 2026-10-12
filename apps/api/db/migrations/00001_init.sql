@@ -417,10 +417,11 @@ CREATE TABLE moderation_logs (
 CREATE INDEX moderation_logs_entity_idx ON moderation_logs (entity_type, entity_id, created_at DESC);
 
 -- 对象存储 key 规范（ADR-018 列为半不可逆项，所以写死在这里）：
---   recipes/{recipe_id}/cover-{revision}.png
---   users/{user_id}/avatar-{content_hash}.jpg
---   menus/{menu_id}/cover-{content_hash}.jpg
--- key 里带 revision 或内容哈希，CDN 缓存靠换 URL 失效，不依赖 purge。
+--   recipes/{recipe_id}/cover-dark.png | cover-light.png
+--   users/{user_id}/avatar.png
+--   menus/{menu_id}/cover-{revision}.jpg   （休眠：酒单封面改用条目投影，不存图）
+-- 前两者是固定 key 覆盖写：同一实体只留一个对象，换版不产生孤儿对象。
+-- 代价是同实体的 URL 稳定不变，换图后靠缓存过期而非换 URL 失效。
 CREATE TABLE media_assets (
   id            uuid PRIMARY KEY,
   storage_key   text NOT NULL,

@@ -130,21 +130,28 @@ func (s *Store) Presign(ctx context.Context, ownerID uuid.UUID,
 		return nil, err
 	}
 
-	// 配方封面：key 固定为 cover-dark / cover-light，覆盖写（不留孤儿）。
-	if purpose == "recipe_cover" {
+	// 固定 key 的用途：一个实体只留一个对象，覆盖写（不留换版孤儿）。
+	// 只剩「签发后放弃上传」的中间态需要清理，由 CleanupOrphans 兜住。
+	var fixedKey string
+	switch purpose {
+	case "recipe_cover":
 		if variant != "dark" && variant != "light" {
 			return nil, ErrBadVariant
 		}
-		key := fmt.Sprintf("%s/%s/%s-%s.%s", meta.dir, entityID, meta.kind, variant, mimeExt[mimeType])
-		id, err := s.upsertAsset(ctx, key, ownerID, purpose, entityID, mimeType, byteSize, variant)
+		fixedKey = fmt.Sprintf("%s/%s/%s-%s.%s", meta.dir, entityID, meta.kind, variant, mimeExt[mimeType])
+	case "user_avatar":
+		fixedKey = fmt.Sprintf("%s/%s/%s.%s", meta.dir, entityID, meta.kind, mimeExt[mimeType])
+	}
+	if fixedKey != "" {
+		id, err := s.upsertAsset(ctx, fixedKey, ownerID, purpose, entityID, mimeType, byteSize, variant)
 		if err != nil {
 			return nil, err
 		}
-		url, err := s.presignPut(ctx, key, mimeType)
+		url, err := s.presignPut(ctx, fixedKey, mimeType)
 		if err != nil {
 			return nil, err
 		}
-		return &Asset{ID: id, StorageKey: key, UploadURL: url, ExpiresIn: int(PresignTTL.Seconds())}, nil
+		return &Asset{ID: id, StorageKey: fixedKey, UploadURL: url, ExpiresIn: int(PresignTTL.Seconds())}, nil
 	}
 
 	// 其余用途：revision = 该实体已有媒体数 + 1；唯一索引冲突（并发签发）时递增重试。
