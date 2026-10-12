@@ -77,19 +77,31 @@ type Store struct {
 func NewStore(pool *pgxpool.Pool, cfg config.Config) *Store {
 	creds := aws.NewCredentialsCache(credentials.NewStaticCredentialsProvider(
 		cfg.S3AccessKey, cfg.S3SecretKey, ""))
-	client := s3.New(s3.Options{
-		Region:       "us-east-1", // MinIO 不校验 region，但 SigV4 要求非空
-		Credentials:  creds,
-		BaseEndpoint: aws.String(cfg.S3Endpoint),
-		UsePathStyle: true, // MinIO 必须 path-style
-	})
+
+	// 两个客户端：内部地址用于服务端自己的 HEAD/DELETE（走容器网络，可靠），
+	// 预签名地址用于签发给浏览器的 PUT URL（必须是浏览器可达的公网地址）。
+	// 部署时 API 容器解析不了自己的公网域名，混用会让 commit 的 HEAD 校验失败。
+	client := newS3Client(cfg.S3Endpoint, creds)
+	presignFrom := client
+	if cfg.S3PresignEndpoint != "" && cfg.S3PresignEndpoint != cfg.S3Endpoint {
+		presignFrom = newS3Client(cfg.S3PresignEndpoint, creds)
+	}
 	return &Store{
 		pool:      pool,
 		s3:        client,
-		presign:   s3.NewPresignClient(client),
+		presign:   s3.NewPresignClient(presignFrom),
 		bucket:    cfg.S3Bucket,
 		publicURL: cfg.S3PublicURL,
 	}
+}
+
+func newS3Client(endpoint string, creds aws.CredentialsProvider) *s3.Client {
+	return s3.New(s3.Options{
+		Region:       "us-east-1", // MinIO 不校验 region，但 SigV4 要求非空
+		Credentials:  creds,
+		BaseEndpoint: aws.String(endpoint),
+		UsePathStyle: true, // MinIO 必须 path-style
+	})
 }
 
 // Asset 签发结果。

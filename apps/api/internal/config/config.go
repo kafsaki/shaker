@@ -15,6 +15,10 @@ type Config struct {
 	S3Bucket    string
 	S3AccessKey string
 	S3SecretKey string
+	// S3PresignEndpoint 是签发给浏览器的预签名 URL 所用的地址，必须是浏览器可达的
+	// 公网地址（部署时经反代指向 MinIO）。SigV4 签名覆盖 Host 头，所以这个字符串
+	// 必须与浏览器实际请求的 host 完全一致。留空则与 S3Endpoint 相同（本地开发）。
+	S3PresignEndpoint string
 	// S3PublicURL 是对象存储的公网读地址（MinIO 已对桶开匿名下载）。
 	S3PublicURL string
 	// Seed 为 true 时每次启动都把 seed.json 全量 upsert 一遍（幂等）；false 跳过导入。
@@ -59,8 +63,10 @@ func Load() Config {
 		S3Bucket:    env("SHAKER_S3_BUCKET", "shaker-media"),
 		S3AccessKey: env("SHAKER_S3_ACCESS_KEY", "shaker"),
 		S3SecretKey: env("SHAKER_S3_SECRET_KEY", "shaker_dev_secret"),
-		S3PublicURL: env("SHAKER_S3_PUBLIC_URL", "http://localhost:9000/shaker-media"),
-		Seed:        env("SHAKER_SEED", "true") == "true",
+		// 默认与 S3Endpoint 相同：本地开发时浏览器与 API 看到的是同一个地址
+		S3PresignEndpoint: env("SHAKER_S3_PRESIGN_ENDPOINT", env("SHAKER_S3_ENDPOINT", "http://localhost:9000")),
+		S3PublicURL:       env("SHAKER_S3_PUBLIC_URL", "http://localhost:9000/shaker-media"),
+		Seed:              env("SHAKER_SEED", "true") == "true",
 
 		MediaCleanupInterval: envDuration("SHAKER_MEDIA_CLEANUP_INTERVAL", "6h"),
 		MediaOrphanTTL:       envDuration("SHAKER_MEDIA_ORPHAN_TTL", "24h"),
