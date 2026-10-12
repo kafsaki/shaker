@@ -68,6 +68,10 @@
       "abv": null,
       "density": null
     },
+    "lemon-peel": {
+      "abv": null,
+      "density": null
+    },
     "orange-wheel": {
       "abv": null,
       "density": null
@@ -111,6 +115,9 @@
     },
     "__secondary": {
       "capacityMl": 400
+    },
+    "__jigger": {
+      "capacityMl": 60
     }
   },
   "cases": [
