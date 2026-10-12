@@ -13,7 +13,10 @@
     "test": "pnpm -r test",
     "gen:schema": "pnpm --filter @shaker/recipe-ir gen:schema",
     "gen:golden": "node --experimental-strip-types packages/recipe-ir/scripts/gen-golden.ts",
-    "check:schema": "pnpm gen:schema && git diff --exit-code schema/recipe-ir.schema.json"
+    "check:schema": "pnpm gen:schema && git diff --exit-code schema/recipe-ir.schema.json",
+    "check:openapi": "node scripts/check-openapi.mjs",
+    "check:architecture": "node scripts/check-architecture.mjs",
+    "check": "pnpm check:architecture && pnpm check:schema && pnpm check:openapi"
   },
   "devDependencies": {
     "typescript": "^5.7.2"

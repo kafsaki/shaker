@@ -1,0 +1,66 @@
+# CI：三条架构纪律、生成物漂移、TS 与 Go 的测试与类型检查（见 docs/ROADMAP.md「发布 v1.0.0 之前」）。
+#
+# 不跑 e2e：那 8 套脚本要对运行中的 API 执行，且注册端点按 IP 限流 5 次/小时，
+# 不适合放进每次提交的流水线。
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  go:
+    name: Go（构建 / vet / 测试 / openapi 漂移）
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: apps/api/go.mod
+          cache-dependency-path: apps/api/go.sum
+
+      - name: 构建 / vet / 测试
+        working-directory: apps/api
+        run: |
+          go build ./...
+          go vet ./...
+          go test ./...
+
+      # 漂移检查用与本地同一条脚本，避免 CI 与开发者看到不同的结果
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: openapi.yaml 漂移检查
+        run: node scripts/check-openapi.mjs
+
+  ts:
+    name: TS（类型检查 / 单测 / 纪律与 schema 漂移）
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      - name: 类型检查
+        run: pnpm -r typecheck
+
+      - name: 单元测试
+        run: pnpm -r test
+
+      # 三条不许破的架构纪律（animator-core 禁 DOM / 禁 barrel / compile 纯函数）
+      - name: 架构纪律
+        run: pnpm check:architecture
+
+      # recipe-ir.schema.json 由 zod 生成，改了 schema 必须重生成（生成物禁止手改）
+      - name: recipe-ir schema 漂移检查
+        run: pnpm check:schema
