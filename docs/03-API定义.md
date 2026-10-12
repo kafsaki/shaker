@@ -63,7 +63,7 @@ cursor 是 base64 编码的排序键元组（如 `{hot_score, id}` 或 `{publish
 
 `details` 直接复用 `packages/recipe-ir` 的 `Diagnostic` 结构（规范 §10），所以编辑器能把错误定位到具体字段。
 
-HTTP 状态：`400` 校验失败 / `401` 未认证 / `403` 无权限 / `404` 不存在 / `409` 冲突（slug 重复、已点赞）/ `422` 语义错误 / `429` 限流 / `5xx`。
+HTTP 状态：`400` 校验失败 / `401` 未认证 / `403` 无权限 / `404` 不存在 / `409` 冲突（handle 重复、已点赞）/ `422` 语义错误 / `429` 限流 / `5xx`。
 
 ### 1.5 幂等与并发
 
@@ -118,8 +118,9 @@ GET /vocab
 | --- | --- | --- |
 | `GET` | `/ingredients?category=&subcategory=&q=&cursor=` | 分类浏览 + 模糊搜索 |
 | `GET` | `/ingredients/:id` | 原料详情（含 `description_zh_md`） |
-| `GET` | `/ingredients/:id/recipes?sort=hot\|new` | **用到它的配方**（需求 1 的反查） |
 | `GET` | `/glassware/:id` | 杯型详情 |
+
+「用到它的配方」（需求 1 的反查）不设专门端点，用 `/search?type=recipe&ingredient=:id` 等价替代 —— 数据同源（`recipe_ingredients` 投影），还能顺带叠加其他筛选。
 
 ### 2.3 配方
 
@@ -131,7 +132,7 @@ GET /vocab
 | `POST` | `/recipes/:id/unpublish` | 撤回为草稿 |
 | `DELETE` | `/recipes/:id` | 软删除 |
 | `GET` | `/recipes/:id` | 按 UUID 取 |
-| `GET` | `/r/:slug` | 按 slug 取（公开页面用这个，SEO 友好） |
+| `GET` | `/r/:code` | 按对外短号取已发布配方（公开页面用这个）。`code` 为 base58，6~11 位，创建即分配、永不复用（ADR-023） |
 | `GET` | `/recipes/:id/revisions` | 版本历史 |
 | `GET` | `/recipes/:id/revisions/:version` | 某个历史版本的 IR |
 
@@ -139,7 +140,7 @@ GET /vocab
 
 ```jsonc
 {
-  "id": "0193...", "slug": "daiquiri", "title": "Daiquiri",
+  "id": "0193...", "code": "2bTq9x", "title": "Daiquiri",
   "lang": "zh", "descriptionMd": "...",
   "author": { "handle": "kafsaki", "displayName": "…", "avatarUrl": "…" },
   "ir": { "schemaVersion": 1, "glass": "coupe", "method": "shaken", /* ... */ },
@@ -316,7 +317,7 @@ POST /media/:assetId/commit
 → { "url": "https://cdn/recipes/…/cover-3.png" }
 ```
 
-三步流程是 ADR-015（前端 canvas 截帧上传封面）能安全工作的前提。未 commit 的记录由 river 周期任务连对象一起清理。
+三步流程是 ADR-015（前端 canvas 截帧上传封面）能安全工作的前提。未 commit 的记录应由周期任务连对象一起清理（v1 尚未实现，见 ADR-003 实施状态）。
 
 服务端在签发 URL 时校验 `mimeType` 白名单与 `byteSize` 上限，并把 key 规范写死（客户端不能自选路径）。
 
@@ -344,16 +345,17 @@ POST  /recipes/:id/publish → 跑完整校验：JSON Schema + 全部业务规�
 
 理由：作者是**边想边填**的。刚建草稿时"酒还没进杯子"（`flow.nothing_in_glass`）是正常状态，不该报错。只有点"发布"时才要求配方完整自洽。
 
-发布时服务端做的事（单个事务）：
+发布时服务端做的事（单个事务，与 `recipe.Store.Publish` 一致）：
 
 1. 完整校验 `ir`（JSON Schema + 业务规则）
 2. 从 `ir` 投影 `recipe_ingredients`（DELETE + INSERT）
 3. 算 `abv_est`、`total_volume_ml`（含冰融水稀释，规范 §7.4）
-4. 投影 `glass_id`、`method`
-5. 生成/去重 `slug`（冲突加后缀，`is_canonical` 的条目保留干净 slug）
-6. 写 `recipe_revisions`
-7. 置 `status = 'published'`、`published_at`
-8. 入队 river 任务：更新 `ingredients.recipe_count`、`hot_score`、给关注者发通知
+4. 投影 `glass_id`、`method`，置 `status = 'published'`、`published_at`（对外短号 `code` 创建时已分配，发布不改）
+5. 计数维护：作者 `recipe_count`、涉及原料的 `recipe_count`、上游配方 `derived_count`
+6. 写初始 `hot_score`
+7. 给关注者扇出发布通知
+
+`recipe_revisions` 不在发布时写，而是在创建与每次 IR 变更时写。v1 没有引入 river：第 5~7 步都在事务内同步执行，多实例部署后再改为异步任务。
 
 **注意第 3 步的 ABV 必须在服务端算，不能信客户端**——它会被用来筛选，客户端可篡改。算法与 `packages/recipe-ir` 的 `estimateAbv` 必须一致，所以 Go 侧要么复刻这段逻辑并配对照测试，要么从 IR 里读客户端算好的值仅作显示、筛选另算。**选前者**：逻辑很短（约 20 行），配一组共享的黄金测试用例（同一份 IR，TS 与 Go 必须算出同一个数）。
 

@@ -14,7 +14,7 @@
 
 | | 状态 |
 | --- | --- |
-| 决策记录（21 条 ADR） | ✅ `docs/00-决策记录.md` |
+| 决策记录（25 条 ADR） | ✅ `docs/00-决策记录.md` |
 | 配方 IR 规范（21 个动作） | ✅ `docs/01-配方IR规范.md` |
 | 数据库设计 + DDL | ✅ goose 内嵌迁移，启动自动执行，Up/Down 均经 e2e 验证 |
 | API 定义 | ✅ `docs/03-API定义.md`，`schema/openapi.yaml` 由代码生成（ADR-017） |
@@ -126,20 +126,23 @@ goose -dir apps/api/db/migrations postgres "$DSN" down   # Down 也要验，写�
 apps/
   web/       Nuxt 4 SPA + Tailwind v4 + shadcn-vue + Pinia + vue-query  [v1 功能全集]
   api/       Go + chi + huma + pgx + goose + MinIO 预签名        [v1 功能全集]
+             internal/seed/data/seed.json  ★ 种子数据唯一真相源（词表 + 经典配方，直接编辑，ADR-022）
   mobile/    二期，消费优先，框架待原型实测定
 packages/
   recipe-ir/      ★ 配方 IR 唯一真相源：zod schema、校验、单位换算、混色、杯型物理
-  animator-core/  ★ IR → Timeline 编译器（纯 TS，零渲染依赖）；内置工作容器剖面
-  animator-web/     Canvas 2D 像素风绘制后端
-  seed/             词表与经典配方种子数据（TS 源 → 种子 JSON）
+  animator-core/  ★ IR → Timeline 编译器（纯 TS，零渲染依赖）
+  animator-web/     Canvas 2D 像素风绘制后端（ADR-024）
+  visual-assets/    像素精灵 + 容器剖面，素材唯一来源（ADR-025）
+  fixtures/         动画测试夹具（小词表 + 高风险路径配方 + asset_test 虚构配方）；不是种子
   api-client/       openapi-typescript 生成 + openapi-fetch 封装
 schema/
   recipe-ir.schema.json   由 zod 生成 → Go go:embed 校验
   openapi.yaml            由 Go huma 生成 → 前端 client          [已生成]
 scripts/
   e2e-*.ps1             对运行中 API 的端到端验证（8 套）
+  classic-covers/       经典配方封面批量截帧导入（一次性工具，可幂等重跑）
 prototype/        动画验证装置
-docs/             设计文档
+docs/             设计文档（00 决策记录 / 01 IR 规范 / 02 数据库 / 03 API）；archive/ 存一次性过程文档
 ```
 
 ---
@@ -181,7 +184,7 @@ docs/             设计文档
 
 | 项 | 结论 | ADR |
 | --- | --- | --- |
-| 后端 | Go 1.27 + chi + huma + pgx/sqlc + river | 003 |
+| 后端 | Go 1.27 + chi + huma + pgx（v1 未引入 sqlc / river） | 003 |
 | 前端 | Nuxt 4 + Vue 3 + Tailwind + shadcn-vue | 004 |
 | 移动端 | 二期，独立 UI，消费优先，框架待实测 | 005 |
 | 基础设施 | v1 仅 Postgres + MinIO，无 Redis | 006 |
@@ -196,6 +199,10 @@ docs/             设计文档
 | v1 范围 | 需求 1~5 | 016 |
 | 渲染器 | Canvas 2D，不用 SVG | 019 |
 | bundle | `recipe-ir/core` 零 zod 子入口 | 020 |
+| 种子数据 | `seed.json` 唯一真相源；`packages/fixtures` 只是测试夹具 | 022 |
+| 配方标识 | base58 短号 `/r/{code}`，不用 slug | 023 |
+| 渲染风格 | 低分辨率像素风 + Bayer 抖动 | 024 |
+| 视觉素材 | 独立 `@shaker/visual-assets` 纯数据包 | 025 |
 
 完整理由见 `docs/00-决策记录.md`。**理由比结论重要** —— 要推翻某条决策，先驳倒它的理由。
 
