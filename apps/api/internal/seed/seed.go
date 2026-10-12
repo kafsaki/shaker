@@ -1,6 +1,7 @@
-// Package seed 幂等导入冷启动内容（ADR-016）：受控词表、官方账号、五款经典配方。
+// Package seed 幂等导入冷启动内容（ADR-016）：受控词表、官方账号、经典配方。
 //
-// 数据真相源在 packages/seed（TS），由 export.ts 双写到本包 data/seed.json。
+// data/seed.json 是种子数据的唯一真相源（ADR-022）：直接编辑它，没有生成步骤。
+// packages/fixtures 是动画测试夹具，与这里互不同步。
 // 导入全部用 upsert —— 可随启动反复执行，词表更新后重启即生效。
 // 经典配方入库前跑 irv.Check 全链路校验并计算派生值，种子数据本身不合法时启动失败（fail loud）。
 package seed

@@ -7,7 +7,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 
-import { FIXTURES, ASSET_TEST_FIXTURES, VOCAB, type Fixture } from "@shaker/seed";
+import { FIXTURES, ASSET_TEST_FIXTURES, VOCAB, type Fixture } from "@shaker/fixtures";
 import { heightForVolume } from "@shaker/recipe-ir";
 import { compile } from "./compile.ts";
 import { particlesAt, sample, stepAt, applyEase } from "./sample.ts";

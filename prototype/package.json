@@ -14,7 +14,7 @@
     "@shaker/recipe-ir": "workspace:*",
     "@shaker/animator-core": "workspace:*",
     "@shaker/animator-web": "workspace:*",
-    "@shaker/seed": "workspace:*"
+    "@shaker/fixtures": "workspace:*"
   },
   "devDependencies": {
     "esbuild": "^0.25.0",

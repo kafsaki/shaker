@@ -1,10 +1,10 @@
 {
-  "name": "@shaker/seed",
+  "name": "@shaker/fixtures",
   "version": "0.0.0",
   "private": true,
   "license": "AGPL-3.0-only",
   "type": "module",
-  "description": "词表与经典配方种子数据。物理值按真实数据填，之后直接灌进 Postgres（ADR-016 的冷启动内容）。",
+  "description": "测试夹具：小词表 + 覆盖动画高风险路径的配方 + 渲染资源覆盖用的虚构配方。只供 animator-core 测试与 prototype 使用；正式种子数据在 apps/api/internal/seed/data/seed.json。",
   "exports": { ".": "./src/index.ts" },
   "scripts": { "typecheck": "tsc --noEmit" },
   "dependencies": {

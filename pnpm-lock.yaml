@@ -97,9 +97,9 @@ importers:
         specifier: workspace:*
         version: link:../visual-assets
     devDependencies:
-      '@shaker/seed':
+      '@shaker/fixtures':
         specifier: workspace:*
-        version: link:../seed
+        version: link:../fixtures
       '@types/node':
         specifier: ^22.10.0
         version: 22.20.2
@@ -136,6 +136,19 @@ importers:
         specifier: ^5.7.2
         version: 5.9.3
 
+  packages/fixtures:
+    dependencies:
+      '@shaker/recipe-ir':
+        specifier: workspace:*
+        version: link:../recipe-ir
+      '@shaker/visual-assets':
+        specifier: workspace:*
+        version: link:../visual-assets
+    devDependencies:
+      typescript:
+        specifier: ^5.7.2
+        version: 5.9.3
+
   packages/recipe-ir:
     dependencies:
       zod:
@@ -145,19 +158,6 @@ importers:
       '@types/node':
         specifier: ^22.10.0
         version: 22.20.2
-      typescript:
-        specifier: ^5.7.2
-        version: 5.9.3
-
-  packages/seed:
-    dependencies:
-      '@shaker/recipe-ir':
-        specifier: workspace:*
-        version: link:../recipe-ir
-      '@shaker/visual-assets':
-        specifier: workspace:*
-        version: link:../visual-assets
-    devDependencies:
       typescript:
         specifier: ^5.7.2
         version: 5.9.3
@@ -180,12 +180,12 @@ importers:
       '@shaker/animator-web':
         specifier: workspace:*
         version: link:../packages/animator-web
+      '@shaker/fixtures':
+        specifier: workspace:*
+        version: link:../packages/fixtures
       '@shaker/recipe-ir':
         specifier: workspace:*
         version: link:../packages/recipe-ir
-      '@shaker/seed':
-        specifier: workspace:*
-        version: link:../packages/seed
     devDependencies:
       esbuild:
         specifier: ^0.25.0

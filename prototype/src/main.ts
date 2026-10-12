@@ -11,7 +11,7 @@
 import { compile, sample, type Timeline, type Scene } from "@shaker/animator-core";
 import { estimateAbv, totalLiquidMl, displayAmount, toParts, validateRecipeIR, type RecipeIR } from "@shaker/recipe-ir";
 import { DARK_THEME, LIGHT_THEME, renderScene } from "@shaker/animator-web";
-import { FIXTURES, ASSET_TEST_FIXTURES, INGREDIENTS, VESSEL_LIST, VOCAB, vesselLookup, type Fixture } from "@shaker/seed";
+import { FIXTURES, ASSET_TEST_FIXTURES, INGREDIENTS, VESSEL_LIST, VOCAB, vesselLookup, type Fixture } from "@shaker/fixtures";
 import { renderEditor } from "./editor.ts";
 
 /** 真实配方在前，资源覆盖测试夹具（asset_testN）排在最后。 */
