@@ -1,18 +1,14 @@
 <script setup lang="ts">
 /**
- * 用户主页骨架：资料头 + 分栏导航 + 子路由出口。
+ * 角色面板（用户主页骨架）：角色卡资料头 + 分栏页签 + 子路由出口。
  * 分栏（配方/酒单/粉丝/关注）是真实子路由，路径 `/u/{handle}/recipes|menus|followers|following`。
  * `/u/{handle}/settings` 是本人专属页，不挂资料头与分栏导航（bare 分支）。
+ * 称号 / 等级是按公开计数算的装饰（lib/game），不是独立数据。
  */
 import { useQuery } from "@tanstack/vue-query";
-import { toast } from "vue-sonner";
-import { Settings as SettingsIcon } from "lucide-vue-next";
 import type { components } from "@shaker/api-client";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { Alert, AlertDescription } from "@/components/ui/alert";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import { Skeleton } from "@/components/ui/skeleton";
+import { compact, levelOf, rankOf } from "@/lib/game";
+import { toast } from "@/lib/toast";
 
 type PubUser = components["schemas"]["PublicUserBody"];
 
@@ -38,12 +34,47 @@ const { data: user, error, isLoading } = useQuery({
 
 const isSelf = computed(() => auth.user?.handle === handle.value);
 
-const tabs = computed(() => [
-  { to: `/u/${handle.value}/recipes`, label: "配方" },
-  { to: `/u/${handle.value}/menus`, label: "酒单" },
-  { to: `/u/${handle.value}/followers`, label: "粉丝" },
-  { to: `/u/${handle.value}/following`, label: "关注" },
-]);
+const tabs = computed(() => {
+  const c = user.value?.counts;
+  return [
+    { value: "recipes", to: `/u/${handle.value}/recipes`, label: "配方", icon: "martini" as const, count: c?.recipe },
+    { value: "menus", to: `/u/${handle.value}/menus`, label: "酒单", icon: "list" as const },
+    { value: "followers", to: `/u/${handle.value}/followers`, label: "粉丝", icon: "heart" as const, count: c?.follower },
+    { value: "following", to: `/u/${handle.value}/following`, label: "关注", icon: "users" as const, count: c?.following },
+  ];
+});
+/** 当前分栏由路由决定；页签点击走 to 导航，路由变了这里自然跟上，所以 setter 不做事。 */
+const currentTab = computed({
+  get: () => tabs.value.find((t) => route.path.startsWith(t.to))?.value ?? "recipes",
+  set: () => {},
+});
+/** 窄屏页签横向滚动：把选中页签滚进视野（直链进「关注」时它可能在屏外）。 */
+/** 只横向滚动页签条（scrollIntoView 会连带滚动整页）。 */
+function revealTab(strip: HTMLElement | null): void {
+  const on = strip?.querySelector<HTMLElement>(".seg.on");
+  if (!strip || !on) return;
+  const l = on.getBoundingClientRect().left - strip.getBoundingClientRect().left + strip.scrollLeft;
+  if (l < strip.scrollLeft || l + on.offsetWidth > strip.scrollLeft + strip.clientWidth) {
+    strip.scrollLeft = Math.max(0, l - 8);
+  }
+}
+const tabsEl = ref<HTMLElement | null>(null);
+watch(
+  [currentTab, tabsEl],
+  () => nextTick(() => revealTab(tabsEl.value)),
+  { immediate: true },
+);
+
+const level = computed(() => (user.value ? levelOf(user.value.counts) : 1));
+const rank = computed(() => rankOf(user.value?.counts.recipe ?? 0));
+const joined = computed(() => (user.value ? new Date(user.value.createdAt).toLocaleDateString("zh-CN") : ""));
+/** 网站外链：用户可能只填了域名，补上协议；展示时去掉协议更短。 */
+const websiteHref = computed(() => {
+  const w = user.value?.website?.trim();
+  if (!w) return null;
+  return /^https?:\/\//i.test(w) ? w : `https://${w}`;
+});
+const websiteText = computed(() => (user.value?.website ?? "").replace(/^https?:\/\//i, "").replace(/\/$/, ""));
 
 const followingNow = ref(false);
 watch(
@@ -90,69 +121,200 @@ useHead(() => ({
 </script>
 
 <template>
-  <!-- 设置页：全屏，无资料头/分栏 -->
-  <NuxtPage v-if="bare" />
+  <div>
+    <!-- 设置页：全屏，无资料头/分栏 -->
+    <NuxtPage v-if="bare" />
 
-  <div v-else-if="isLoading" class="flex flex-col gap-4">
-    <Skeleton class="h-28 w-full" />
-    <Skeleton class="h-64 w-full" />
-  </div>
-
-  <Alert v-else-if="error" variant="destructive">
-    <AlertDescription>{{ apiErrorMessage(error) }}</AlertDescription>
-  </Alert>
-
-  <div v-else-if="user" class="flex flex-col gap-6">
-    <!-- 资料 -->
-    <div class="flex flex-wrap items-center gap-4">
-      <Avatar class="size-16">
-        <AvatarImage v-if="user.avatarUrl" :src="user.avatarUrl" />
-        <AvatarFallback class="text-xl">{{ user.displayName.slice(0, 1) }}</AvatarFallback>
-      </Avatar>
-      <div class="min-w-0 flex-1">
-        <div class="flex flex-wrap items-center gap-2">
-          <h1 class="text-xl font-bold">{{ user.displayName }}</h1>
-          <span class="text-sm text-muted-foreground">@{{ user.handle }}</span>
-          <Badge v-if="user.isOfficial" class="border-primary/40 bg-primary/10 text-primary">官方</Badge>
-        </div>
-        <p v-if="user.bio" class="mt-1 max-w-xl text-sm text-muted-foreground">{{ user.bio }}</p>
-        <p class="mt-1 flex gap-3 text-sm text-muted-foreground">
-          <span>{{ user.counts.recipe }} 配方</span>
-          <span>{{ user.counts.follower }} 粉丝</span>
-          <span>{{ user.counts.following }} 关注</span>
-        </p>
-      </div>
-      <!-- 本人：设置入口（对他人不可见）；他人：关注按钮 -->
-      <Button v-if="isSelf" variant="outline" size="sm" as-child>
-        <NuxtLink :to="`/u/${handle}/settings`">
-          <SettingsIcon class="size-4" /> 设置
-        </NuxtLink>
-      </Button>
-      <Button
-        v-else
-        :variant="followingNow ? 'outline' : 'default'"
-        :disabled="followPending"
-        @click="toggleFollow()"
-      >
-        {{ followingNow ? "已关注" : "关注" }}
-      </Button>
+    <div v-else-if="isLoading" class="flex flex-col gap-4">
+      <PxSkeleton class="h-48" />
+      <PxSkeleton class="h-10 w-2/3" />
+      <PxSkeleton class="h-64" />
     </div>
 
-    <!-- 分栏导航（真实路由） -->
-    <nav class="inline-flex h-9 w-fit items-center justify-center rounded-lg bg-muted p-0.75 text-muted-foreground">
-      <NuxtLink
-        v-for="t in tabs"
-        :key="t.to"
-        :to="t.to"
-        class="inline-flex h-[calc(100%-1px)] items-center justify-center rounded-md border border-transparent px-2.5 py-1 text-sm font-medium whitespace-nowrap transition-[color,box-shadow]"
-        :class="route.path.startsWith(t.to)
-          ? 'bg-background text-foreground shadow-sm'
-          : 'text-muted-foreground hover:text-foreground'"
-      >
-        {{ t.label }}
-      </NuxtLink>
-    </nav>
+    <PxEmpty v-else-if="error" icon="warn" tone="red" :title="apiErrorMessage(error)">
+      <PxButton icon="chevron-left" to="/">回酒馆</PxButton>
+    </PxEmpty>
 
-    <NuxtPage />
+    <div v-else-if="user" class="flex flex-col gap-6">
+      <!-- 角色卡 -->
+      <PxPanel title="角色面板" icon="user" tone="pink" :padded="false">
+        <template #actions>
+          <span class="font-logo text-[8px] tracking-[0.2em] text-faint">{{ isSelf ? "PLAYER 1" : "NPC" }}</span>
+        </template>
+
+        <div class="sheet">
+          <!-- 立绘 + 等级牌 -->
+          <div class="portrait">
+            <div class="frame">
+              <PxAvatar :src="user.avatarUrl" :seed="user.handle" :size="96" />
+            </div>
+            <span class="lv font-logo" title="等级 = 1 + 配方数 + 粉丝数/5">LV.{{ level }}</span>
+          </div>
+
+          <!-- 名牌 + 简介 + 资料 -->
+          <div class="flex min-w-0 flex-1 flex-col gap-2">
+            <div class="flex flex-wrap items-center gap-2">
+              <h1 class="min-w-0 break-words text-2xl text-fg text-shadow-px">{{ user.displayName }}</h1>
+              <PxBadge v-if="user.isOfficial" tone="gold" variant="solid" icon="crown">官方</PxBadge>
+            </div>
+            <p class="flex flex-wrap items-center gap-x-3 gap-y-1">
+              <span class="text-faint">@{{ user.handle }}</span>
+              <span class="flex items-center gap-1" title="称号按已发布配方数；等级 = 1 + 配方数 + 粉丝数/5">
+                <PxBadge tone="amber" icon="trophy">{{ rank }}</PxBadge>
+                <span class="font-logo text-[8px] text-amber">LV.{{ level }}</span>
+                <PxIcon name="info" :scale="1" class="text-faint" />
+              </span>
+            </p>
+
+            <div v-if="user.bio" class="bio">
+              <span class="speaker">{{ user.displayName }}</span>
+              <p class="whitespace-pre-wrap break-words text-fg">{{ user.bio }}</p>
+            </div>
+
+            <ul class="flex flex-wrap items-center gap-x-4 gap-y-1 text-dim">
+              <li v-if="user.location" class="flex items-center gap-1">
+                <PxIcon name="home" :scale="1" class="text-faint" />{{ user.location }}
+              </li>
+              <li v-if="websiteHref" class="flex min-w-0 items-center gap-1">
+                <PxIcon name="globe" :scale="1" class="text-faint" />
+                <a :href="websiteHref" target="_blank" rel="noopener noreferrer nofollow" class="truncate text-cyan hover:underline">
+                  {{ websiteText }}
+                </a>
+              </li>
+              <li class="flex items-center gap-1">
+                <PxIcon name="clock" :scale="1" class="text-faint" />{{ joined }} 加入
+              </li>
+            </ul>
+          </div>
+
+          <!-- 属性格 + 指令 -->
+          <div class="side">
+            <div class="grid grid-cols-3 gap-1">
+              <NuxtLink :to="`/u/${handle}/recipes`" class="attr">
+                <span class="font-logo text-[16px] text-amber">{{ compact(user.counts.recipe) }}</span>
+                <span class="text-faint">配方</span>
+              </NuxtLink>
+              <NuxtLink :to="`/u/${handle}/followers`" class="attr">
+                <span class="font-logo text-[16px] text-pink">{{ compact(user.counts.follower) }}</span>
+                <span class="text-faint">粉丝</span>
+              </NuxtLink>
+              <NuxtLink :to="`/u/${handle}/following`" class="attr">
+                <span class="font-logo text-[16px] text-cyan">{{ compact(user.counts.following) }}</span>
+                <span class="text-faint">关注</span>
+              </NuxtLink>
+            </div>
+            <!-- 本人：设置入口（对他人不可见）；他人：关注按钮 -->
+            <PxButton v-if="isSelf" icon="gear" block :to="`/u/${handle}/settings`">系统设置</PxButton>
+            <PxButton
+              v-else
+              block
+              :variant="followingNow ? 'secondary' : 'accent'"
+              :icon="followingNow ? 'check' : 'plus'"
+              :loading="followPending"
+              :sfx="followingNow ? 'cancel' : 'coin'"
+              @click="toggleFollow()"
+            >
+              {{ followingNow ? "已关注" : "关注" }}
+            </PxButton>
+          </div>
+        </div>
+      </PxPanel>
+
+      <!-- 分栏（真实子路由）；窄屏不换行，横向滑动 -->
+      <div ref="tabsEl" class="tabs-scroll">
+        <PxSegmented v-model="currentTab" variant="tabs" :items="tabs" class="!flex-nowrap min-w-full" />
+      </div>
+
+      <NuxtPage />
+    </div>
   </div>
 </template>
+
+<style scoped>
+.tabs-scroll {
+  overflow-x: auto;
+  overflow-y: hidden;
+  padding-top: 4px;
+  scrollbar-width: none;
+}
+.tabs-scroll::-webkit-scrollbar { display: none; }
+.tabs-scroll :deep(.seg) { flex-shrink: 0; white-space: nowrap; }
+.sheet {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: 20px;
+  padding: 18px;
+}
+.portrait {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+.frame {
+  padding: 6px;
+  background: var(--deep);
+  box-shadow:
+    0 0 0 var(--p) var(--ink),
+    0 0 0 calc(var(--p) * 2) var(--pink),
+    0 0 0 calc(var(--p) * 3) var(--ink),
+    calc(var(--p) * 4) calc(var(--p) * 4) 0 calc(var(--p) * 3) var(--shadow);
+  margin: calc(var(--p) * 3);
+}
+.lv {
+  padding: 4px 8px;
+  background: var(--ink);
+  color: var(--amber-hi);
+  font-size: 8px;
+  box-shadow: 0 0 0 var(--p) var(--amber);
+}
+/* 简介：RPG 对白框（名牌压在左上角） */
+.bio {
+  position: relative;
+  max-width: 60ch;
+  margin: 10px var(--p) var(--p);
+  padding: 14px 12px 10px;
+  background: var(--panel-lo);
+  box-shadow: 0 0 0 var(--p) var(--ink), inset var(--p) var(--p) 0 0 var(--lo);
+}
+.bio .speaker {
+  position: absolute;
+  left: 8px;
+  top: -10px;
+  max-width: calc(100% - 16px);
+  overflow: hidden;
+  padding: 0 6px;
+  background: var(--pink);
+  color: var(--on-accent);
+  line-height: 18px;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  box-shadow: 0 0 0 var(--p) var(--ink);
+}
+.side {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  width: 240px;
+  flex-shrink: 0;
+}
+.attr {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  margin: var(--p);
+  padding: 8px 4px 6px;
+  background: var(--panel-lo);
+  box-shadow: 0 0 0 var(--p) var(--ink), inset var(--p) var(--p) 0 0 var(--lo);
+}
+.attr:hover { background: var(--panel-hi); box-shadow: 0 0 0 var(--p) var(--amber), inset var(--p) var(--p) 0 0 var(--hi); }
+@media (max-width: 767px) {
+  .side { width: 100%; }
+}
+@media (max-width: 479px) {
+  .sheet { padding: 14px; gap: 14px; }
+}
+</style>

@@ -1,44 +1,12 @@
 <script setup lang="ts">
 /**
- * 酒单展示详情页（类似歌单）：顶部封面 + 酒单名 + 作者 + 互动条，
- * 正文用 RecipeCard 卡片排列。本人可「编辑信息」（含删除）与「编辑酒单」
- * （编辑态：卡片可拖拽重排 + 卡片角上「X」移出）。
+ * 酒单详情（像一本卡册）：封面卡叠 + 酒单名 + 主人 + 分享，正文用 RecipeCard 卡片排列。
+ * 本人可「编辑信息」（含删除）与「编辑酒单」（编辑态：卡片可拖拽重排 + 卡片角上 ✕ 移出）。
+ * 点赞/收藏/评论后端没有对应功能，不放占位按钮。
  */
 import { useMutation, useQuery, useQueryClient } from "@tanstack/vue-query";
-import {
-  ArrowUpDown,
-  Heart,
-  MessageCircle,
-  Pencil,
-  Share2,
-  Star,
-  Trash2,
-  X,
-} from "lucide-vue-next";
-import { toast } from "vue-sonner";
 import type { components } from "@shaker/api-client";
-import { Alert, AlertDescription } from "@/components/ui/alert";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import { Separator } from "@/components/ui/separator";
-import { Skeleton } from "@/components/ui/skeleton";
-import MenuCoverStack from "@/components/MenuCoverStack.vue";
-import RecipeCard from "@/components/RecipeCard.vue";
+import { toast } from "@/lib/toast";
 
 type MenuDetail = components["schemas"]["MenuDetailOutputBody"];
 
@@ -47,6 +15,7 @@ const api = useApi();
 const auth = useAuthStore();
 const qc = useQueryClient();
 const { pickCovers } = useCover();
+const { play } = useSfx();
 const id = computed(() => String(route.params.id ?? ""));
 
 const { data: detail, isLoading, error } = useQuery({
@@ -63,13 +32,12 @@ const { data: detail, isLoading, error } = useQuery({
 const menu = computed(() => detail.value?.menu);
 const items = computed(() => detail.value?.items ?? []);
 const isOwner = computed(() => menu.value?.viewerIsOwner ?? false);
+const isPublic = computed(() => menu.value?.visibility === "public");
 
-const VIS_ZH: Record<string, string> = { public: "公开", private: "私密" };
-
-/* ── 互动占位（后端未开放，仅 UI） ── */
-function notOpen(): void {
-  toast.info("该功能暂未开放");
-}
+const VIS_OPTIONS = [
+  { value: "private", label: "私密（仅自己）" },
+  { value: "public", label: "公开" },
+];
 
 /* ── 分享：直接分享 /menus/{id} 链接 ── */
 async function copyShare(): Promise<void> {
@@ -226,6 +194,7 @@ function onDragStart(i: number, e: DragEvent): void {
 /**
  * 按鼠标坐标对网格几何求插入槽位（列取最近的槽缝，行取所在行）。
  * 不依赖「悬停在哪张卡片上」，因此预览重排导致卡片位移时判定依然稳定。
+ * 依赖结构：gridWrap 的第一个子元素就是 grid 容器，grid 的子元素就是卡片格。
  */
 function onGridDragOver(e: DragEvent): void {
   if (!editMode.value || dragIndex.value === null) return;
@@ -266,6 +235,7 @@ function onDrop(e?: DragEvent): void {
   ids.splice(from, 1);
   ids.splice(target, 0, id);
   pendingIds.value = ids; // 保持落点顺序直到服务器回包
+  play("step");
   const after = target > 0 ? ids[target - 1]! : null;
   reorder.mutate({ recipeId: id, afterRecipeId: after });
 }
@@ -274,195 +244,279 @@ useHead(() => ({ title: `${menu.value?.title ?? "酒单"} · Shaker` }));
 </script>
 
 <template>
-  <div v-if="isLoading" class="flex flex-col gap-4">
-    <Skeleton class="h-12 w-2/3" />
-    <Skeleton class="h-64 w-full" />
-  </div>
-
-  <Alert v-else-if="error" variant="destructive">
-    <AlertDescription>{{ apiErrorMessage(error) }}</AlertDescription>
-  </Alert>
-
-  <div v-else-if="menu" class="flex flex-col gap-6">
-    <!-- 头部（歌单式） -->
-    <div class="flex flex-col gap-5 sm:flex-row sm:items-start">
-      <MenuCoverStack
-        :covers="pickCovers(menu.coverUrls, menu.coverUrlsLight)"
-        class="w-32 shrink-0 sm:w-44"
-      />
-      <div class="flex min-w-0 flex-1 flex-col gap-3">
-        <div class="flex flex-wrap items-center gap-2">
-          <h1 class="text-2xl font-bold">{{ menu.title }}</h1>
-          <Badge variant="secondary">{{ VIS_ZH[menu.visibility] ?? menu.visibility }}</Badge>
-        </div>
-
-        <NuxtLink
-          v-if="menu.owner"
-          :to="`/u/${menu.owner.handle}`"
-          class="flex w-fit items-center gap-2 text-sm text-muted-foreground transition-colors hover:text-foreground"
-        >
-          <img
-            v-if="menu.owner.avatarUrl"
-            :src="menu.owner.avatarUrl"
-            alt=""
-            class="size-6 rounded-full object-cover"
-          >
-          <span>{{ menu.owner.displayName }}</span>
-          <span class="text-xs">@{{ menu.owner.handle }}</span>
-        </NuxtLink>
-
-        <p v-if="menu.description" class="text-sm text-muted-foreground">{{ menu.description }}</p>
-        <p class="text-xs text-muted-foreground">{{ menu.itemCount }} 杯</p>
-
-        <div class="flex flex-wrap items-center gap-2">
-          <Button variant="outline" size="sm" class="gap-1.5" @click="notOpen()">
-            <Heart class="size-4" /> 点赞
-          </Button>
-          <Button variant="outline" size="sm" class="gap-1.5" @click="notOpen()">
-            <Star class="size-4" /> 收藏
-          </Button>
-          <Button variant="outline" size="sm" class="gap-1.5" @click="notOpen()">
-            <MessageCircle class="size-4" /> 评论
-          </Button>
-          <Button variant="outline" size="sm" class="gap-1.5" @click="copyShare()">
-            <Share2 class="size-4" /> 分享
-          </Button>
-        </div>
-
-        <div v-if="isOwner" class="flex flex-wrap items-center gap-2">
-          <Button variant="outline" size="sm" class="gap-1.5" @click="openEditInfo()">
-            <Pencil class="size-4" /> 编辑信息
-          </Button>
-          <Button
-            :variant="editMode ? 'default' : 'outline'"
-            size="sm"
-            class="gap-1.5"
-            @click="toggleEdit()"
-          >
-            <ArrowUpDown class="size-4" /> {{ editMode ? "完成" : "编辑酒单" }}
-          </Button>
-        </div>
+  <div>
+    <div v-if="isLoading" class="flex flex-col gap-4">
+      <PxSkeleton class="h-56" />
+      <div class="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
+        <PxSkeleton v-for="i in 4" :key="i" class="aspect-[3/4]" />
       </div>
     </div>
 
-    <!-- 卡片排列（TransitionGroup：实时预览重排 + 移出动画）。
-         dragover/drop 挂包裹层：卡片位移后事件冒泡仍能稳定命中 -->
-    <div ref="gridWrap" @dragover="onGridDragOver" @drop="onDrop($event)">
-      <TransitionGroup
-        v-if="previewItems.length"
-        tag="div"
-        name="menu"
-        class="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5"
-      >
-        <div
-          v-for="(it, i) in previewItems"
-          :key="it.recipe.id"
-          class="relative transition-all duration-150"
-          :draggable="editMode"
-          :class="[
-            editMode && 'cursor-grab active:cursor-grabbing',
-            dragId && dragId === it.recipe.id && 'pointer-events-none scale-95 opacity-40',
-          ]"
-          @dragstart="onDragStart(i, $event)"
-          @dragend="resetDrag()"
-        >
-          <RecipeCard
-            :recipe="it.recipe"
-            :disabled="it.recipe.deleted"
-            :class="editMode && 'pointer-events-none'"
+    <PxEmpty v-else-if="error" icon="warn" tone="red" :title="apiErrorMessage(error)">
+      <PxButton icon="chevron-left" to="/">回酒馆</PxButton>
+    </PxEmpty>
+
+    <div v-else-if="menu" class="flex flex-col gap-6">
+      <!-- 头部：卡册封皮 -->
+      <PxPanel :padded="false">
+        <div class="flex flex-col gap-5 p-4 sm:flex-row sm:items-start sm:p-5">
+          <MenuCoverStack
+            :covers="pickCovers(menu.coverUrls, menu.coverUrlsLight)"
+            class="w-40 shrink-0 self-center sm:w-56 sm:self-start"
           />
-          <button
-            v-if="editMode"
-            type="button"
-            draggable="false"
-            class="pointer-events-auto absolute -right-2 -top-2 z-10 flex size-6 items-center justify-center rounded-full border border-border bg-background text-destructive shadow-sm transition-colors hover:bg-destructive hover:text-destructive-foreground"
-            title="移出酒单"
-            @click.stop="removeItem.mutate(it.recipe.id)"
-          >
-          <X class="size-3.5" />
-        </button>
-      </div>
-      </TransitionGroup>
-      <p v-else class="py-16 text-center text-sm text-muted-foreground">
-        这个酒单还是空的。去配方页点「收藏」加进来。
-      </p>
-    </div>
+          <div class="flex min-w-0 flex-1 flex-col gap-3">
+            <p class="flex items-center gap-2 text-amber">
+              <PxIcon name="list" :scale="2" />
+              <span class="font-logo text-[8px] tracking-[0.2em]">CARD ALBUM</span>
+            </p>
+            <div class="flex flex-wrap items-center gap-2">
+              <h1 class="min-w-0 break-words text-2xl text-fg text-shadow-px">{{ menu.title }}</h1>
+              <PxBadge :tone="isPublic ? 'green' : 'plain'" :icon="isPublic ? 'globe' : 'lock'">
+                {{ isPublic ? "公开" : "私密" }}
+              </PxBadge>
+            </div>
 
-    <!-- 编辑信息 -->
-    <Dialog v-model:open="editOpen">
-      <DialogContent class="sm:max-w-sm">
-        <DialogHeader>
-          <DialogTitle>编辑信息</DialogTitle>
-        </DialogHeader>
-        <form class="flex flex-col gap-3" @submit.prevent="updateMenu.mutate()">
-          <div class="flex flex-col gap-1.5">
-            <Label for="mtitle">名称</Label>
-            <Input id="mtitle" v-model="editTitle" maxlength="60" />
+            <NuxtLink
+              v-if="menu.owner"
+              :to="`/u/${menu.owner.handle}`"
+              class="flex w-fit items-center gap-2 text-dim hover:text-amber"
+            >
+              <PxAvatar :src="menu.owner.avatarUrl" :seed="menu.owner.handle" :size="24" />
+              <span class="text-fg">{{ menu.owner.displayName }}</span>
+              <span class="text-faint">@{{ menu.owner.handle }}</span>
+              <PxBadge v-if="menu.owner.isOfficial" tone="amber" icon="crown">官方</PxBadge>
+            </NuxtLink>
+
+            <p v-if="menu.description" class="note whitespace-pre-wrap text-fg">{{ menu.description }}</p>
+
+            <p class="flex items-center gap-2 text-dim">
+              收录
+              <span class="font-logo text-[16px] text-amber">{{ menu.itemCount }}</span>
+              杯
+            </p>
+
+            <div class="flex flex-wrap items-center gap-2 border-t-2 border-dashed border-line pt-3">
+              <PxButton icon="share" @click="copyShare()">分享</PxButton>
+              <template v-if="isOwner">
+                <PxButton icon="pencil" @click="openEditInfo()">编辑信息</PxButton>
+                <PxButton
+                  :variant="editMode ? 'primary' : 'secondary'"
+                  :icon="editMode ? 'check' : 'grip'"
+                  :active="editMode"
+                  @click="toggleEdit()"
+                >
+                  {{ editMode ? "完成" : "编辑酒单" }}
+                </PxButton>
+              </template>
+            </div>
           </div>
-          <div class="flex flex-col gap-1.5">
-            <Label for="mdesc">描述</Label>
-            <Input id="mdesc" v-model="editDesc" maxlength="200" />
+        </div>
+      </PxPanel>
+
+      <!-- 卡片排列 -->
+      <section class="flex flex-col gap-3">
+        <p v-if="editMode && previewItems.length" class="hint">
+          <PxIcon name="grip" :scale="2" class="text-amber" />
+          拖动卡片调整顺序，点右上角
+          <span class="x-demo" aria-hidden="true"><PxIcon name="x" :scale="1" /></span>
+          移出酒单
+        </p>
+
+        <!-- TransitionGroup：实时预览重排 + 移出动画（steps 步进）。
+             dragover/drop 挂包裹层：卡片位移后事件冒泡仍能稳定命中。
+             结构勿改：onGridDragOver 依赖 firstElementChild = grid、grid.children = 卡片格 -->
+        <div ref="gridWrap" class="wrap" :class="{ editing: editMode }" @dragover="onGridDragOver" @drop="onDrop($event)">
+          <TransitionGroup
+            v-if="previewItems.length"
+            tag="div"
+            name="menu"
+            class="grid grid-cols-2 gap-x-3 gap-y-4 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5"
+          >
+            <div
+              v-for="(it, i) in previewItems"
+              :key="it.recipe.id"
+              class="cell"
+              :draggable="editMode"
+              :class="{ grab: editMode, ghost: dragId && dragId === it.recipe.id }"
+              @dragstart="onDragStart(i, $event)"
+              @dragend="resetDrag()"
+            >
+              <RecipeCard
+                :recipe="it.recipe"
+                :disabled="it.recipe.deleted"
+                :class="editMode && 'pointer-events-none'"
+              />
+              <template v-if="editMode">
+                <span class="grip" aria-hidden="true"><PxIcon name="grip" :scale="1" /></span>
+                <button
+                  type="button"
+                  draggable="false"
+                  class="rm"
+                  title="移出酒单"
+                  aria-label="移出酒单"
+                  @click.stop="removeItem.mutate(it.recipe.id)"
+                >
+                  <PxIcon name="x" :scale="1" />
+                </button>
+              </template>
+            </div>
+          </TransitionGroup>
+          <PxEmpty v-else icon="list" title="这个酒单还是空的。去配方页点「收藏」加进来。">
+            <PxButton icon="book" to="/classics">翻翻经典图鉴</PxButton>
+          </PxEmpty>
+        </div>
+      </section>
+
+      <!-- 编辑信息 -->
+      <PxDialog v-model:open="editOpen" title="编辑信息" icon="pencil" size="sm">
+        <form id="menu-edit-form" class="flex flex-col gap-3" @submit.prevent="updateMenu.mutate()">
+          <div class="flex flex-col gap-1">
+            <span class="text-dim">名称</span>
+            <PxInput v-model="editTitle" maxlength="60" />
           </div>
-          <div class="flex flex-col gap-1.5">
-            <Label>可见性</Label>
-            <Select v-model="editVis">
-              <SelectTrigger><SelectValue /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="private">私密（仅自己）</SelectItem>
-                <SelectItem value="public">公开</SelectItem>
-              </SelectContent>
-            </Select>
+          <div class="flex flex-col gap-1">
+            <span class="text-dim">描述</span>
+            <PxTextarea v-model="editDesc" maxlength="200" rows="3" />
           </div>
-          <Button type="submit" :disabled="updateMenu.isPending.value">保存</Button>
+          <div class="flex flex-col gap-1">
+            <span class="text-dim">可见性</span>
+            <PxSelect
+              :model-value="editVis"
+              :options="VIS_OPTIONS"
+              @update:model-value="(v) => (editVis = v === 'public' ? 'public' : 'private')"
+            />
+          </div>
         </form>
 
-        <Separator />
-        <div class="flex items-center justify-between gap-2">
-          <template v-if="!confirmDelete">
-            <Button
-              type="button"
-              variant="ghost"
-              size="sm"
-              class="gap-1.5 text-destructive"
-              @click="confirmDelete = true"
-            >
-              <Trash2 class="size-4" /> 删除酒单
-            </Button>
-          </template>
+        <!-- 危险区：二次确认才删除 -->
+        <div class="mt-5 flex flex-wrap items-center justify-between gap-2 border-t-2 border-dashed border-line pt-3">
+          <PxButton v-if="!confirmDelete" size="sm" variant="ghost" icon="trash" class="!text-red" @click="confirmDelete = true">
+            删除酒单
+          </PxButton>
           <template v-else>
-            <span class="text-sm text-muted-foreground">删除后无法恢复</span>
+            <span class="flex items-center gap-1 text-red"><PxIcon name="warn" :scale="1" />删除后无法恢复</span>
             <div class="flex gap-2">
-              <Button type="button" variant="ghost" size="sm" @click="confirmDelete = false">
-                取消
-              </Button>
-              <Button
-                type="button"
-                variant="destructive"
-                size="sm"
-                :disabled="deleteMenu.isPending.value"
-                @click="deleteMenu.mutate()"
-              >
-                {{ deleteMenu.isPending.value ? "删除中…" : "确认删除" }}
-              </Button>
+              <PxButton size="sm" variant="ghost" sfx="cancel" @click="confirmDelete = false">取消</PxButton>
+              <PxButton size="sm" variant="danger" icon="trash" :loading="deleteMenu.isPending.value" @click="deleteMenu.mutate()">
+                确认删除
+              </PxButton>
             </div>
           </template>
         </div>
-      </DialogContent>
-    </Dialog>
+
+        <template #footer>
+          <PxButton @click="editOpen = false">取消</PxButton>
+          <PxButton type="submit" form="menu-edit-form" variant="primary" icon="save" :loading="updateMenu.isPending.value">
+            保存
+          </PxButton>
+        </template>
+      </PxDialog>
+    </div>
   </div>
 </template>
 
 <style scoped>
-/* TransitionGroup：重排时平滑位移，移出时淡出并让位 */
+/* 酒单描述：贴在封皮内页的便签 */
+.note {
+  max-width: 60ch;
+  padding: 8px 12px;
+  background: var(--panel-lo);
+  box-shadow: 0 0 0 var(--p) var(--ink), inset var(--p) var(--p) 0 0 var(--lo);
+  margin: var(--p);
+}
+
+.hint {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: fit-content;
+  padding: 6px 12px;
+  background: color-mix(in srgb, var(--amber) 14%, var(--panel));
+  color: var(--fg);
+  box-shadow: 0 0 0 var(--p) var(--ink), inset calc(var(--p) * 2) 0 0 0 var(--amber);
+  animation: px-pop-in 0.22s steps(4) both;
+}
+.x-demo {
+  display: inline-grid;
+  place-items: center;
+  width: 16px;
+  height: 16px;
+  background: var(--red);
+  color: #fff;
+  box-shadow: 0 0 0 var(--p) var(--ink);
+}
+
+/* 编辑态：网格外框换成虚线 + 斜纹底，表示这里是可拖区 */
+.wrap.editing {
+  --stripe: color-mix(in srgb, var(--amber) 10%, transparent);
+  padding: 12px;
+  outline: var(--p) dashed var(--amber);
+  outline-offset: calc(var(--p) * -1);
+  background-color: var(--panel-lo);
+  background-image: repeating-linear-gradient(-45deg, var(--stripe) 0 4px, transparent 4px 8px);
+}
+
+.cell {
+  position: relative;
+  transition: opacity 0.15s steps(3);
+}
+.cell.grab { cursor: grab; }
+.cell.grab:active { cursor: grabbing; }
+.cell.grab :deep(.card) { animation: px-bob 1.2s steps(2) infinite; }
+.cell.ghost {
+  pointer-events: none;
+  opacity: 0.4;
+  outline: var(--p) dashed var(--amber);
+}
+.cell.ghost :deep(.card) { animation: none; }
+
+/* 把手：卡片上沿正中的小提耳 */
+.grip {
+  position: absolute;
+  left: 50%;
+  top: -6px;
+  z-index: 10;
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 14px;
+  translate: -50% 0;
+  background: var(--amber);
+  color: var(--on-accent);
+  box-shadow: 0 0 0 var(--p) var(--ink);
+  pointer-events: none;
+}
+/* 移出键：右上角红色像素 ✕ */
+.rm {
+  position: absolute;
+  right: -4px;
+  top: -6px;
+  z-index: 10;
+  display: grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  background: var(--red);
+  color: #fff;
+  box-shadow:
+    0 0 0 var(--p) var(--ink),
+    inset var(--p) var(--p) 0 0 rgb(255 255 255 / 0.35),
+    calc(var(--p) * 1) calc(var(--p) * 1) 0 var(--p) var(--shadow);
+  pointer-events: auto;
+}
+.rm:hover { background: var(--red-lo); }
+.rm:active { translate: var(--p) var(--p); box-shadow: 0 0 0 var(--p) var(--ink); }
+
+/* TransitionGroup：重排时步进位移，移出时缩小消失并让位 */
 .menu-move,
 .menu-enter-active,
 .menu-leave-active {
-  transition: all 0.25s ease;
+  transition: all 0.24s steps(4);
 }
 .menu-enter-from,
 .menu-leave-to {
   opacity: 0;
-  transform: scale(0.9);
+  transform: scale(0.8);
 }
 .menu-leave-active {
   position: absolute;

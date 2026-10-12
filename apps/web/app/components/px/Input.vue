@@ -1,5 +1,5 @@
 <script setup lang="ts">
-/** 凹槽输入框：左侧可带图标，聚焦时描边变琥珀；其余属性透传给 <input>。 */
+/** 凹槽输入框：左侧可带图标，聚焦时描边变琥珀。class/style 落在外框上（便于定宽、flex-1），其余属性透传给 <input>。 */
 import type { PixelIconName } from "@/lib/pixel-icons";
 
 defineOptions({ inheritAttrs: false });
@@ -8,13 +8,19 @@ withDefaults(defineProps<{ icon?: PixelIconName; size?: "sm" | "md" | "lg" }>(),
 });
 const model = defineModel<string | number | null>();
 const el = ref<HTMLInputElement | null>(null);
+const attrs = useAttrs();
+const boxAttrs = computed(() => ({ class: attrs.class, style: attrs.style }));
+const inputAttrs = computed(() => {
+  const { class: _c, style: _s, ...rest } = attrs;
+  return rest;
+});
 defineExpose({ focus: () => el.value?.focus(), el });
 </script>
 
 <template>
-  <label class="px-field" :class="`s-${size}`">
+  <label class="px-field" :class="`s-${size}`" v-bind="boxAttrs">
     <PxIcon v-if="icon" :name="icon" :scale="size === 'lg' ? 2 : 1" class="ic" />
-    <input ref="el" v-model="model" v-bind="$attrs" class="inp" />
+    <input ref="el" v-model="model" v-bind="inputAttrs" class="inp" />
   </label>
 </template>
 
