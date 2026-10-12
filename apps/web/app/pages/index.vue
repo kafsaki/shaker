@@ -189,6 +189,7 @@ const items = computed(() => feedQuery.data.value?.pages.flatMap((p) => p.items 
             随便来一杯
           </PxButton>
           <PxButton icon="book" to="/classics">翻翻经典图鉴</PxButton>
+          <PxButton icon="list" to="/menus">新手从哪杯开始？</PxButton>
           <PxButton v-if="auth.isAuthenticated && agentEnabled" variant="accent" icon="sparkle" to="/editor/new?agent=1">
             帮我想一杯
           </PxButton>

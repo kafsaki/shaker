@@ -1,8 +1,10 @@
 <script setup lang="ts">
 /**
- * 酒单详情（像一本卡册）：封面卡叠 + 酒单名 + 主人 + 分享，正文用 RecipeCard 卡片排列。
- * 本人可「编辑信息」（含删除）与「编辑酒单」（编辑态：卡片可拖拽重排 + 卡片角上 ✕ 移出）。
- * 点赞/收藏/评论后端没有对应功能，不放占位按钮。
+ * 酒单详情（像一本卡册）：封面卡叠 + 酒单名 + 主人 + 分享，正文用 RecipeCard 卡片排列，
+ * 条目有 note 时卡片下方贴一张便签（官方精选的讲解就在这里）。
+ * 访客可「收藏」（他人公开酒单，进广场「我收藏的」）与「复制到我的酒单」（私密副本，跳到副本页）。
+ * 本人可「编辑信息」（含删除）与「编辑酒单」（编辑态：拖拽重排 + ✕ 移出 + 改便签；编辑态隐藏便签，
+ * 保证卡片格等高——拖拽落点按首格高度推算）。
  */
 import { useMutation, useQuery, useQueryClient } from "@tanstack/vue-query";
 import type { components } from "@shaker/api-client";
@@ -44,6 +46,89 @@ async function copyShare(): Promise<void> {
   await navigator.clipboard.writeText(`${window.location.origin}/menus/${id.value}`);
   toast.success("链接已复制");
 }
+
+/* ── 收藏 / 复制（访客）：收藏只对他人公开酒单开放，复制对任何可见酒单开放 ── */
+function requireLogin(): boolean {
+  if (auth.isAuthenticated) return true;
+  void navigateTo(`/login?redirect=${encodeURIComponent(route.fullPath)}`);
+  return false;
+}
+
+const toggleSave = useMutation({
+  mutationFn: async (save: boolean) => {
+    const opts = { params: { path: { id: id.value } } };
+    const { data, error } = save
+      ? await api.PUT("/api/v1/menus/{id}/save", opts)
+      : await api.DELETE("/api/v1/menus/{id}/save", opts);
+    if (error) throw error;
+    return data;
+  },
+  onSuccess: (d) => {
+    play(d.saved ? "coin" : "step");
+    toast.success(d.saved ? "已收藏，可在酒单广场「我收藏的」里找到" : "已取消收藏");
+    qc.setQueryData<MenuDetail>(["menu", id.value], (old) =>
+      old ? { ...old, menu: { ...old.menu, viewerSaved: d.saved, saveCount: d.saveCount } } : old,
+    );
+    void qc.invalidateQueries({ queryKey: ["menus-plaza"] });
+    void qc.invalidateQueries({ queryKey: ["menus-featured"] });
+  },
+  onError: (e) => toast.error(apiErrorMessage(e)),
+});
+
+function onSave(): void {
+  if (!requireLogin() || !menu.value) return;
+  toggleSave.mutate(!menu.value.viewerSaved);
+}
+
+const fork = useMutation({
+  mutationFn: async () => {
+    const { data, error } = await api.POST("/api/v1/menus/{id}/fork", {
+      params: { path: { id: id.value } },
+    });
+    if (error) throw error;
+    return data;
+  },
+  onSuccess: async (d) => {
+    toast.success("已复制到你的酒单（私密），可以随意修改");
+    void qc.invalidateQueries({ queryKey: ["user-menus"] });
+    await navigateTo(`/menus/${d.id}`);
+  },
+  onError: (e) => toast.error(apiErrorMessage(e)),
+});
+
+function onFork(): void {
+  if (requireLogin()) fork.mutate();
+}
+
+/* ── 便签（本人编辑态）：沿用「加入酒单」接口，幂等刷新 note；留空即清除 ── */
+const noteOpen = ref(false);
+const noteRecipe = ref<{ id: string; name: string } | null>(null);
+const noteText = ref("");
+
+function openNote(it: (typeof items.value)[number]): void {
+  noteRecipe.value = { id: it.recipe.id, name: it.recipe.title };
+  noteText.value = it.note ?? "";
+  noteOpen.value = true;
+}
+
+const saveNote = useMutation({
+  mutationFn: async () => {
+    const r = noteRecipe.value;
+    if (!r) return;
+    const note = noteText.value.trim();
+    const { error } = await api.PUT("/api/v1/menus/{id}/items/{recipeId}", {
+      params: { path: { id: id.value, recipeId: r.id } },
+      body: { note: note || undefined },
+    });
+    if (error) throw error;
+  },
+  onSuccess: () => {
+    toast.success("便签已更新");
+    noteOpen.value = false;
+    void qc.invalidateQueries({ queryKey: ["menu"] });
+  },
+  onError: (e) => toast.error(apiErrorMessage(e)),
+});
 
 /* ── 编辑信息（含删除） ── */
 const editOpen = ref(false);
@@ -274,6 +359,7 @@ useHead(() => ({ title: `${menu.value?.title ?? "酒单"} · Shaker` }));
               <PxBadge :tone="isPublic ? 'green' : 'plain'" :icon="isPublic ? 'globe' : 'lock'">
                 {{ isPublic ? "公开" : "私密" }}
               </PxBadge>
+              <PxBadge v-if="menu.featured" tone="gold" icon="crown">官方精选</PxBadge>
             </div>
 
             <NuxtLink
@@ -293,9 +379,36 @@ useHead(() => ({ title: `${menu.value?.title ?? "酒单"} · Shaker` }));
               收录
               <span class="font-logo text-[16px] text-amber">{{ menu.itemCount }}</span>
               杯
+              <template v-if="isPublic">
+                <span class="text-faint">·</span>
+                <span class="font-logo text-[16px] text-amber">{{ menu.saveCount }}</span>
+                人收藏
+              </template>
             </p>
 
             <div class="flex flex-wrap items-center gap-2 border-t-2 border-dashed border-line pt-3">
+              <template v-if="!isOwner">
+                <PxButton
+                  v-if="isPublic"
+                  :variant="menu.viewerSaved ? 'secondary' : 'primary'"
+                  :icon="menu.viewerSaved ? 'bookmark' : 'bookmark-o'"
+                  :active="menu.viewerSaved"
+                  :sfx="false"
+                  :loading="toggleSave.isPending.value"
+                  @click="onSave()"
+                >
+                  {{ menu.viewerSaved ? "已收藏" : "收藏" }}
+                </PxButton>
+                <PxButton
+                  v-if="menu.itemCount"
+                  icon="folder"
+                  :loading="fork.isPending.value"
+                  title="复制一份私密副本到你名下，可以随意增删和改便签"
+                  @click="onFork()"
+                >
+                  复制到我的酒单
+                </PxButton>
+              </template>
               <PxButton icon="share" @click="copyShare()">分享</PxButton>
               <template v-if="isOwner">
                 <PxButton icon="pencil" @click="openEditInfo()">编辑信息</PxButton>
@@ -319,7 +432,9 @@ useHead(() => ({ title: `${menu.value?.title ?? "酒单"} · Shaker` }));
           <PxIcon name="grip" :scale="2" class="text-amber" />
           拖动卡片调整顺序，点右上角
           <span class="x-demo" aria-hidden="true"><PxIcon name="x" :scale="1" /></span>
-          移出酒单
+          移出酒单，点左上角
+          <span class="x-demo memo-demo" aria-hidden="true"><PxIcon name="pencil" :scale="1" /></span>
+          写便签
         </p>
 
         <!-- TransitionGroup：实时预览重排 + 移出动画（steps 步进）。
@@ -346,8 +461,23 @@ useHead(() => ({ title: `${menu.value?.title ?? "酒单"} · Shaker` }));
                 :disabled="it.recipe.deleted"
                 :class="editMode && 'pointer-events-none'"
               />
+              <p v-if="it.note && !editMode" class="memo">
+                <span class="font-logo text-[8px] text-amber">{{ String(i + 1).padStart(2, "0") }}</span>
+                {{ it.note }}
+              </p>
               <template v-if="editMode">
                 <span class="grip" aria-hidden="true"><PxIcon name="grip" :scale="1" /></span>
+                <button
+                  type="button"
+                  draggable="false"
+                  class="memo-btn"
+                  :class="{ has: it.note }"
+                  :title="it.note ? `便签：${it.note}` : '加便签'"
+                  :aria-label="it.note ? '修改便签' : '加便签'"
+                  @click.stop="openNote(it)"
+                >
+                  <PxIcon name="pencil" :scale="1" />
+                </button>
                 <button
                   type="button"
                   draggable="false"
@@ -366,6 +496,20 @@ useHead(() => ({ title: `${menu.value?.title ?? "酒单"} · Shaker` }));
           </PxEmpty>
         </div>
       </section>
+
+      <!-- 便签 -->
+      <PxDialog v-model:open="noteOpen" :title="`便签 · ${noteRecipe?.name ?? ''}`" icon="pencil" size="sm">
+        <form id="menu-note-form" class="flex flex-col gap-1" @submit.prevent="saveNote.mutate()">
+          <span class="text-dim">为什么选这杯、做的时候注意什么（留空即删除）</span>
+          <PxTextarea v-model="noteText" maxlength="500" rows="4" />
+        </form>
+        <template #footer>
+          <PxButton @click="noteOpen = false">取消</PxButton>
+          <PxButton type="submit" form="menu-note-form" variant="primary" icon="save" :loading="saveNote.isPending.value">
+            保存
+          </PxButton>
+        </template>
+      </PxDialog>
 
       <!-- 编辑信息 -->
       <PxDialog v-model:open="editOpen" title="编辑信息" icon="pencil" size="sm">
@@ -506,6 +650,35 @@ useHead(() => ({ title: `${menu.value?.title ?? "酒单"} · Shaker` }));
 }
 .rm:hover { background: var(--red-lo); }
 .rm:active { translate: var(--p) var(--p); box-shadow: 0 0 0 var(--p) var(--ink); }
+
+/* 条目便签：卡片下方的一张小纸条，左侧序号 */
+.memo {
+  margin: 8px var(--p) var(--p);
+  padding: 6px 8px;
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--dim);
+  background: var(--panel-lo);
+  box-shadow: 0 0 0 var(--p) var(--ink), inset calc(var(--p) * 2) 0 0 0 var(--amber);
+}
+/* 便签键：左上角，有便签时亮成琥珀色 */
+.memo-btn {
+  position: absolute;
+  left: -4px;
+  top: -6px;
+  z-index: 10;
+  display: grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  background: var(--panel-hi);
+  color: var(--fg);
+  box-shadow: 0 0 0 var(--p) var(--ink), calc(var(--p) * 1) calc(var(--p) * 1) 0 var(--p) var(--shadow);
+  pointer-events: auto;
+}
+.memo-btn.has { background: var(--amber); color: var(--on-accent); }
+.memo-btn:active { translate: var(--p) var(--p); box-shadow: 0 0 0 var(--p) var(--ink); }
+.memo-demo { background: var(--amber); color: var(--on-accent); }
 
 /* TransitionGroup：重排时步进位移，移出时缩小消失并让位 */
 .menu-move,

@@ -38,6 +38,8 @@ type Menu struct {
 	CoverURL    *string
 	Visibility  string // private | public
 	ItemCount   int
+	SaveCount   int  // 被多少人收藏
+	Featured    bool // 官方精选（种子维护，featured_key 非空）
 	CreatedAt   time.Time
 	UpdatedAt   time.Time
 }
@@ -88,12 +90,13 @@ func NewStore(pool *pgxpool.Pool) *Store {
 	return &Store{pool: pool}
 }
 
-const menuCols = `id, owner_id, title, description, cover_url, visibility, item_count, created_at, updated_at`
+const menuCols = `id, owner_id, title, description, cover_url, visibility, item_count,
+	save_count, featured_key IS NOT NULL, created_at, updated_at`
 
 func scanMenu(row pgx.Row) (*Menu, error) {
 	m := &Menu{}
 	if err := row.Scan(&m.ID, &m.OwnerID, &m.Title, &m.Description, &m.CoverURL,
-		&m.Visibility, &m.ItemCount, &m.CreatedAt, &m.UpdatedAt); err != nil {
+		&m.Visibility, &m.ItemCount, &m.SaveCount, &m.Featured, &m.CreatedAt, &m.UpdatedAt); err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return nil, ErrNotFound
 		}
@@ -445,7 +448,8 @@ type MineSummary struct {
 // containsRecipe 非 nil 时附带每个酒单是否已含该配方（「加进酒单」弹层用）。
 func (s *Store) ListMine(ctx context.Context, ownerID uuid.UUID, containsRecipe *uuid.UUID) ([]MineSummary, error) {
 	rows, err := s.pool.Query(ctx, `
-		SELECT m.id, m.owner_id, m.title, m.description, m.cover_url, m.visibility, m.item_count, m.created_at, m.updated_at,
+		SELECT m.id, m.owner_id, m.title, m.description, m.cover_url, m.visibility, m.item_count,
+			m.save_count, m.featured_key IS NOT NULL, m.created_at, m.updated_at,
 			($2::uuid IS NULL OR EXISTS(SELECT 1 FROM menu_items mi
 				WHERE mi.menu_id = m.id AND mi.recipe_id = $2))
 		FROM menus m
@@ -460,7 +464,7 @@ func (s *Store) ListMine(ctx context.Context, ownerID uuid.UUID, containsRecipe 
 	for rows.Next() {
 		var ms MineSummary
 		if err := rows.Scan(&ms.ID, &ms.OwnerID, &ms.Title, &ms.Description, &ms.CoverURL,
-			&ms.Visibility, &ms.ItemCount, &ms.CreatedAt, &ms.UpdatedAt, &ms.ContainsRecipe); err != nil {
+			&ms.Visibility, &ms.ItemCount, &ms.SaveCount, &ms.Featured, &ms.CreatedAt, &ms.UpdatedAt, &ms.ContainsRecipe); err != nil {
 			return nil, fmt.Errorf("扫描我的酒单: %w", err)
 		}
 		out = append(out, ms)

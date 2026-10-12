@@ -299,6 +299,13 @@ GET /search?q=&type=recipe|user|ingredient|menu|all
 | `DELETE` | `/menus/:id/items/:recipeId` | 移出 |
 | `POST` | `/menus/:id/items/reorder` | `{recipeId, afterRecipeId?}` → 服务端算 `position` 中点 |
 | `GET` | `/me/menus` | 我的全部酒单（含私密），**带 `containsRecipe` 标记** |
+| `GET` | `/menus?sort=hot\|new&cursor=` | 酒单广场：他人公开、非空、非精选的酒单；hot 按收藏数，new 按 `updatedAt`（ADR-029） |
+| `GET` | `/menus/featured` | 官方精选（`seed.json` 的 `officialMenus`，按策划顺序） |
+| `PUT`/`DELETE` | `/menus/:id/save` | 收藏/取消收藏（幂等），返回 `{saved, saveCount}`；收藏自己的酒单 → 422 `menu.self_save` |
+| `POST` | `/menus/:id/fork` | 复制为我的私密酒单（保留顺序与 `note`），201 返回新酒单 |
+| `GET` | `/me/saved-menus?cursor=` | 我收藏的酒单（按收藏时间倒序；原酒单转私密或删除后自动消失） |
+
+酒单对象带 `saveCount`、`featured` 与 `viewerSaved`（未登录恒为 false）。收藏不刷新酒单的 `updatedAt`。
 
 `GET /me/menus?containsRecipe=<uuid>` 是"方便地把配方加进某个酒单"（需求 5）的关键接口：一次请求拿到我的所有酒单 + 每个酒单是否已含这个配方，弹层里直接渲染带勾选状态的列表。
 

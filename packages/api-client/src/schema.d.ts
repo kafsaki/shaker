@@ -533,6 +533,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/me/saved-menus": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * 我收藏的酒单
+         * @description 收藏时间倒序。酒单被主人转为私密或删除后不再出现。
+         */
+        get: operations["me-saved-menus"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/media/upload-url": {
         parameters: {
             query?: never;
@@ -580,10 +600,34 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get?: never;
+        /**
+         * 酒单广场
+         * @description 社区公开酒单（不含官方精选与空酒单）。sort=hot 按收藏数，sort=new 按最近更新。
+         */
+        get: operations["menus-plaza"];
         put?: never;
         /** 建酒单 */
         post: operations["menus-create"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/menus/featured": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * 官方精选酒单
+         * @description 由种子以官方账号维护（seed.json 的 officialMenus），按种子顺序，不分页。
+         */
+        get: operations["menus-featured"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -610,6 +654,26 @@ export interface paths {
         head?: never;
         /** 改标题/描述/可见性 */
         patch: operations["menus-update"];
+        trace?: never;
+    };
+    "/api/v1/menus/{id}/fork": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * 复制成我的酒单
+         * @description 把看得见的酒单复制成自己的私密酒单（条目顺序与笔记一并复制，已删配方跳过）。
+         */
+        post: operations["menus-fork"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
         trace?: never;
     };
     "/api/v1/menus/{id}/items/reorder": {
@@ -651,6 +715,30 @@ export interface paths {
          * @description 幂等。
          */
         delete: operations["menu-items-remove"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/menus/{id}/save": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * 收藏酒单
+         * @description 幂等。只能收藏别人的公开酒单（自己的 → 422 menu.self_save）。
+         */
+        put: operations["menus-save"];
+        post?: never;
+        /**
+         * 取消收藏酒单
+         * @description 幂等。
+         */
+        delete: operations["menus-unsave"];
         options?: never;
         head?: never;
         patch?: never;
@@ -1386,6 +1474,15 @@ export interface components {
             message: string;
             path?: string;
         };
+        FeaturedMenusOutputBody: {
+            /**
+             * Format: uri
+             * @description A URL to the JSON Schema for this object.
+             * @example https://example.com/schemas/FeaturedMenusOutputBody.json
+             */
+            readonly $schema?: string;
+            items: components["schemas"]["MenuBody"][] | null;
+        };
         FeedCard: {
             /** Format: double */
             abvEst: number | null;
@@ -1629,15 +1726,19 @@ export interface components {
             /** Format: date-time */
             createdAt: string;
             description: string | null;
+            featured: boolean;
             id: string;
             /** Format: int64 */
             itemCount: number;
             owner?: components["schemas"]["MenuOwnerBody"];
             recipeCards: components["schemas"]["MenuRecipeCardBody"][] | null;
+            /** Format: int64 */
+            saveCount: number;
             title: string;
             /** Format: date-time */
             updatedAt: string;
             viewerIsOwner: boolean;
+            viewerSaved: boolean;
             visibility: string;
         };
         MenuDetailOutputBody: {
@@ -1703,6 +1804,17 @@ export interface components {
             /** Format: uuid */
             recipeId: string;
         };
+        MenuSaveOutputBody: {
+            /**
+             * Format: uri
+             * @description A URL to the JSON Schema for this object.
+             * @example https://example.com/schemas/MenuSaveOutputBody.json
+             */
+            readonly $schema?: string;
+            /** Format: int64 */
+            saveCount: number;
+            saved: boolean;
+        };
         MenuUpdateInputBody: {
             /**
              * Format: uri
@@ -1738,15 +1850,19 @@ export interface components {
             /** Format: date-time */
             createdAt: string;
             description: string | null;
+            featured: boolean;
             id: string;
             /** Format: int64 */
             itemCount: number;
             owner?: components["schemas"]["MenuOwnerBody"];
             recipeCards: components["schemas"]["MenuRecipeCardBody"][] | null;
+            /** Format: int64 */
+            saveCount: number;
             title: string;
             /** Format: date-time */
             updatedAt: string;
             viewerIsOwner: boolean;
+            viewerSaved: boolean;
             visibility: string;
         };
         MyMenusOutputBody: {
@@ -3360,6 +3476,38 @@ export interface operations {
             };
         };
     };
+    "me-saved-menus": {
+        parameters: {
+            query?: {
+                cursor?: string;
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MenuListOutputBody"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+        };
+    };
     "media-upload-url": {
         parameters: {
             query?: never;
@@ -3424,6 +3572,39 @@ export interface operations {
             };
         };
     };
+    "menus-plaza": {
+        parameters: {
+            query?: {
+                sort?: "hot" | "new";
+                cursor?: string;
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MenuListOutputBody"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+        };
+    };
     "menus-create": {
         parameters: {
             query?: never;
@@ -3444,6 +3625,35 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["MenuBody"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+        };
+    };
+    "menus-featured": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FeaturedMenusOutputBody"];
                 };
             };
             /** @description Error */
@@ -3552,6 +3762,37 @@ export interface operations {
             };
         };
     };
+    "menus-fork": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MenuBody"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+        };
+    };
     "menu-items-reorder": {
         parameters: {
             query?: never;
@@ -3637,6 +3878,68 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+        };
+    };
+    "menus-save": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MenuSaveOutputBody"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+        };
+    };
+    "menus-unsave": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MenuSaveOutputBody"];
+                };
             };
             /** @description Error */
             default: {

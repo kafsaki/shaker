@@ -477,6 +477,25 @@ components:
         - code
         - message
       type: object
+    FeaturedMenusOutputBody:
+      additionalProperties: false
+      properties:
+        $schema:
+          description: A URL to the JSON Schema for this object.
+          examples:
+            - https://example.com/schemas/FeaturedMenusOutputBody.json
+          format: uri
+          readOnly: true
+          type: string
+        items:
+          items:
+            $ref: "#/components/schemas/MenuBody"
+          type:
+            - array
+            - "null"
+      required:
+        - items
+      type: object
     FeedCard:
       additionalProperties: false
       properties:
@@ -1070,6 +1089,8 @@ components:
           type:
             - string
             - "null"
+        featured:
+          type: boolean
         id:
           type: string
         itemCount:
@@ -1083,12 +1104,17 @@ components:
           type:
             - array
             - "null"
+        saveCount:
+          format: int64
+          type: integer
         title:
           type: string
         updatedAt:
           format: date-time
           type: string
         viewerIsOwner:
+          type: boolean
+        viewerSaved:
           type: boolean
         visibility:
           type: string
@@ -1099,6 +1125,9 @@ components:
         - coverUrl
         - visibility
         - itemCount
+        - saveCount
+        - featured
+        - viewerSaved
         - coverUrls
         - coverUrlsLight
         - viewerIsOwner
@@ -1265,6 +1294,25 @@ components:
       required:
         - recipeId
       type: object
+    MenuSaveOutputBody:
+      additionalProperties: false
+      properties:
+        $schema:
+          description: A URL to the JSON Schema for this object.
+          examples:
+            - https://example.com/schemas/MenuSaveOutputBody.json
+          format: uri
+          readOnly: true
+          type: string
+        saveCount:
+          format: int64
+          type: integer
+        saved:
+          type: boolean
+      required:
+        - saved
+        - saveCount
+      type: object
     MenuUpdateInputBody:
       additionalProperties: false
       properties:
@@ -1350,6 +1398,8 @@ components:
           type:
             - string
             - "null"
+        featured:
+          type: boolean
         id:
           type: string
         itemCount:
@@ -1363,12 +1413,17 @@ components:
           type:
             - array
             - "null"
+        saveCount:
+          format: int64
+          type: integer
         title:
           type: string
         updatedAt:
           format: date-time
           type: string
         viewerIsOwner:
+          type: boolean
+        viewerSaved:
           type: boolean
         visibility:
           type: string
@@ -1380,6 +1435,9 @@ components:
         - coverUrl
         - visibility
         - itemCount
+        - saveCount
+        - featured
+        - viewerSaved
         - coverUrls
         - coverUrlsLight
         - viewerIsOwner
@@ -4011,6 +4069,40 @@ paths:
       security:
         - bearerAuth: []
       summary: 修改密码
+  /api/v1/me/saved-menus:
+    get:
+      description: 收藏时间倒序。酒单被主人转为私密或删除后不再出现。
+      operationId: me-saved-menus
+      parameters:
+        - explode: false
+          in: query
+          name: cursor
+          schema:
+            type: string
+        - explode: false
+          in: query
+          name: limit
+          schema:
+            format: int64
+            maximum: 50
+            minimum: 1
+            type: integer
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MenuListOutputBody"
+          description: OK
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+          description: Error
+      security:
+        - bearerAuth: []
+      summary: 我收藏的酒单
   /api/v1/media/upload-url:
     post:
       description: 三步直传的第一步（§2.10）：签发 → 客户端 PUT 直传 MinIO → /media/{assetId}/commit 确认。key 服务端生成，客户端不能自选路径。
@@ -4065,6 +4157,46 @@ paths:
         - bearerAuth: []
       summary: 确认直传完成
   /api/v1/menus:
+    get:
+      description: 社区公开酒单（不含官方精选与空酒单）。sort=hot 按收藏数，sort=new 按最近更新。
+      operationId: menus-plaza
+      parameters:
+        - explode: false
+          in: query
+          name: sort
+          schema:
+            default: hot
+            enum:
+              - hot
+              - new
+            type: string
+        - explode: false
+          in: query
+          name: cursor
+          schema:
+            type: string
+        - explode: false
+          in: query
+          name: limit
+          schema:
+            format: int64
+            maximum: 50
+            minimum: 1
+            type: integer
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MenuListOutputBody"
+          description: OK
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+          description: Error
+      summary: 酒单广场
     post:
       operationId: menus-create
       requestBody:
@@ -4089,6 +4221,24 @@ paths:
       security:
         - bearerAuth: []
       summary: 建酒单
+  /api/v1/menus/featured:
+    get:
+      description: 由种子以官方账号维护（seed.json 的 officialMenus），按种子顺序，不分页。
+      operationId: menus-featured
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FeaturedMenusOutputBody"
+          description: OK
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+          description: Error
+      summary: 官方精选酒单
   /api/v1/menus/{id}:
     delete:
       operationId: menus-delete
@@ -4166,6 +4316,33 @@ paths:
       security:
         - bearerAuth: []
       summary: 改标题/描述/可见性
+  /api/v1/menus/{id}/fork:
+    post:
+      description: 把看得见的酒单复制成自己的私密酒单（条目顺序与笔记一并复制，已删配方跳过）。
+      operationId: menus-fork
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            format: uuid
+            type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MenuBody"
+          description: OK
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+          description: Error
+      security:
+        - bearerAuth: []
+      summary: 复制成我的酒单
   /api/v1/menus/{id}/items/reorder:
     post:
       description: "{recipeId, afterRecipeId?}——afterRecipeId 省略则移到最前；服务端取中点插值。"
@@ -4258,6 +4435,59 @@ paths:
       security:
         - bearerAuth: []
       summary: 配方加入酒单
+  /api/v1/menus/{id}/save:
+    delete:
+      description: 幂等。
+      operationId: menus-unsave
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            format: uuid
+            type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MenuSaveOutputBody"
+          description: OK
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+          description: Error
+      security:
+        - bearerAuth: []
+      summary: 取消收藏酒单
+    put:
+      description: 幂等。只能收藏别人的公开酒单（自己的 → 422 menu.self_save）。
+      operationId: menus-save
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            format: uuid
+            type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MenuSaveOutputBody"
+          description: OK
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+          description: Error
+      security:
+        - bearerAuth: []
+      summary: 收藏酒单
   /api/v1/notifications:
     get:
       description: created_at 倒序。unreadOnly=true 只取未读。

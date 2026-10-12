@@ -1,6 +1,6 @@
 <script setup lang="ts">
 /**
- * 酒单行（搜索结果 / 用户主页酒单分栏共用）：左侧卡叠封面，右侧标题 · 杯数 · 主人 · 描述，
+ * 酒单行（搜索结果 / 用户主页酒单分栏 / 酒单广场共用）：左侧卡叠封面，右侧标题 · 杯数 · 精选 · 收藏数 · 主人 · 描述，
  * 下方是酒单里配方的窄卡货架（横向滚动），「查看酒单」进详情页。
  * showOwner：用户主页里主人就是页面本人，不重复显示；showVisibility：本人视角才有私密酒单。
  */
@@ -34,6 +34,10 @@ const isPublic = computed(() => props.menu.visibility === "public");
             <p class="mt-1 flex flex-wrap items-center gap-1">
               <PxBadge tone="amber" icon="martini">
                 <span class="font-logo text-[8px]">{{ menu.itemCount }}</span> 杯
+              </PxBadge>
+              <PxBadge v-if="menu.featured" tone="gold" icon="crown">精选</PxBadge>
+              <PxBadge v-if="menu.saveCount" icon="bookmark" :title="`${menu.saveCount} 人收藏`">
+                <span class="font-logo text-[8px]">{{ menu.saveCount }}</span>
               </PxBadge>
               <PxBadge v-if="showVisibility" :tone="isPublic ? 'green' : 'plain'" :icon="isPublic ? 'globe' : 'lock'">
                 {{ isPublic ? "公开" : "私密" }}

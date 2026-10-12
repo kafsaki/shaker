@@ -11464,5 +11464,253 @@
         ]
       }
     }
+  ],
+  "officialMenus": [
+    {
+      "key": "beginner",
+      "title": "调酒新手入门",
+      "description": "第一次在家调酒也能成功的十杯。从「倒进杯里就完成」的直调开始，再到第一次摇和、第一次搅拌——按顺序做下来，三种基本手法和酸甜平衡就都摸到了。原料都是超市和酒类专柜常见的。",
+      "recipes": [
+        {
+          "classicKey": "cuba-libre",
+          "note": "朗姆、可乐、青柠——倒进杯里就完成。先练加冰和补满。"
+        },
+        {
+          "classicKey": "screwdriver",
+          "note": "伏特加加橙汁，比例好记，适合熟悉量酒器。"
+        },
+        {
+          "classicKey": "moscow-mule",
+          "note": "姜汁啤酒的辛辣盖住了烈度，第一次请朋友喝很稳。"
+        },
+        {
+          "classicKey": "tequila-sunrise",
+          "note": "红石榴糖浆比重大，慢慢倒会自己沉底，做出日出的渐变。"
+        },
+        {
+          "classicKey": "aperol-spritz",
+          "note": "阿佩罗 2 份、普罗塞克 3 份、苏打 1 份，度数低，下午就能喝。"
+        },
+        {
+          "classicKey": "americano",
+          "note": "Negroni 的温和版：苦味入门，用苏打水拉长。"
+        },
+        {
+          "classicKey": "gimlet",
+          "note": "第一杯摇和：只有三种原料，专心练摇壶和滤冰。"
+        },
+        {
+          "classicKey": "daiquiri",
+          "note": "酸酒的骨架：基酒 + 酸 + 甜。记住它就能变出一整个家族。"
+        },
+        {
+          "classicKey": "margarita",
+          "note": "把 Daiquiri 的朗姆换成龙舌兰、糖浆换成橙味利口酒，再练一次杯口蘸盐。"
+        },
+        {
+          "classicKey": "negroni",
+          "note": "第一杯搅拌：三种酒等份，不用记配比，练搅拌的手感。"
+        }
+      ]
+    },
+    {
+      "key": "summer-long",
+      "title": "夏日清爽长饮",
+      "description": "高杯、满冰、气泡——热天里一口下去就降温的长饮。大多是直调，适合聚会时一次做好几杯。",
+      "recipes": [
+        {
+          "classicKey": "mojito",
+          "note": "薄荷轻压就好，压碎了会发苦。"
+        },
+        {
+          "classicKey": "tom-collins",
+          "note": "柯林斯杯的名字就来自它。"
+        },
+        {
+          "classicKey": "paloma",
+          "note": "墨西哥人自己更常喝的龙舌兰长饮，西柚苏打是关键。"
+        },
+        {
+          "classicKey": "gin-fizz",
+          "note": "金酒酸酒摇好后补苏打——酸酒加气泡就是 Fizz。"
+        },
+        {
+          "classicKey": "dark-n-stormy",
+          "note": "黑朗姆配姜汁啤酒，比 Moscow Mule 更浓郁。"
+        },
+        {
+          "classicKey": "moscow-mule"
+        },
+        {
+          "classicKey": "bay-breeze",
+          "note": "菠萝加蔓越莓，几乎尝不出酒味——注意别喝过量。"
+        },
+        {
+          "classicKey": "caipirinha",
+          "note": "巴西国酒，青柠连皮一起压出油脂香。"
+        },
+        {
+          "classicKey": "aperol-spritz"
+        }
+      ]
+    },
+    {
+      "key": "sour-family",
+      "title": "酸酒家族：一个公式变十杯",
+      "description": "基酒 + 酸 + 甜，这是调酒里最大的家族。从 Daiquiri 出发，换基酒、换甜味来源、加蛋清、加一种利口酒，看同一个骨架怎样长出完全不同的味道。",
+      "recipes": [
+        {
+          "classicKey": "daiquiri",
+          "note": "骨架：朗姆 + 青柠 + 糖浆。"
+        },
+        {
+          "classicKey": "gimlet",
+          "note": "换成金酒。"
+        },
+        {
+          "classicKey": "whiskey-sour",
+          "note": "换成波本和柠檬，再加蛋清：先不加冰干摇打泡，再加冰摇。"
+        },
+        {
+          "classicKey": "margarita",
+          "note": "龙舌兰，甜味换成橙味利口酒。"
+        },
+        {
+          "classicKey": "sidecar",
+          "note": "白兰地 + 橙味利口酒，Margarita 的前辈。"
+        },
+        {
+          "classicKey": "pisco-sour",
+          "note": "秘鲁的国酒，同样用蛋清；泡沫上滴几滴苦精。"
+        },
+        {
+          "classicKey": "clover-club",
+          "note": "金酒 + 覆盆子 + 蛋清，粉色的那杯。"
+        },
+        {
+          "classicKey": "aviation",
+          "note": "紫罗兰利口酒带来花香和天空色。"
+        },
+        {
+          "classicKey": "last-word",
+          "note": "四种原料等份——酸酒和等份型的交叉点。"
+        },
+        {
+          "classicKey": "paper-plane",
+          "note": "现代经典：波本、阿佩罗、阿玛罗、柠檬各一份。"
+        }
+      ]
+    },
+    {
+      "key": "stirred-classics",
+      "title": "搅拌经典：烈酒的本味",
+      "description": "没有果汁遮掩，只有烈酒、加强酒和苦精。搅拌讲究的是稀释与温度——这是进阶玩家的试金石。",
+      "recipes": [
+        {
+          "classicKey": "old-fashioned",
+          "note": "鸡尾酒这个词最初指的就是它的配方：烈酒、糖、苦精、水。"
+        },
+        {
+          "classicKey": "manhattan",
+          "note": "黑麦威士忌 + 甜味美思，搅拌型的标杆。"
+        },
+        {
+          "classicKey": "dry-martini",
+          "note": "越干味美思越少；冰杯和充分搅拌比配比更重要。"
+        },
+        {
+          "classicKey": "vesper",
+          "note": "007 点的那杯——不过他要的是摇。"
+        },
+        {
+          "classicKey": "rob-roy",
+          "note": "苏格兰威士忌版的 Manhattan。"
+        },
+        {
+          "classicKey": "boulevardier",
+          "note": "Negroni 的金酒换成波本，更圆润。"
+        },
+        {
+          "classicKey": "old-pal",
+          "note": "黑麦 + 干味美思 + 金巴利，比 Boulevardier 更干更苦。"
+        },
+        {
+          "classicKey": "bijou",
+          "note": "金酒、甜味美思、绿查特，三种颜色叠成宝石。"
+        },
+        {
+          "classicKey": "sazerac",
+          "note": "苦艾酒洗杯，新奥尔良的官方鸡尾酒。"
+        }
+      ]
+    },
+    {
+      "key": "tiki-night",
+      "title": "提基之夜",
+      "description": "朗姆、热带果汁、香料和夸张的装饰。提基酒配方长、原料多，适合周末慢慢做，也最出片。",
+      "recipes": [
+        {
+          "classicKey": "pina-colada",
+          "note": "椰子 + 菠萝，用搅拌机打成冰沙。"
+        },
+        {
+          "classicKey": "mai-tai",
+          "note": "提基酒之王，杏仁糖浆 orgeat 是灵魂。"
+        },
+        {
+          "classicKey": "painkiller",
+          "note": "Piña Colada 的表亲：多了橙汁，摇和而不打冰沙。"
+        },
+        {
+          "classicKey": "jungle-bird",
+          "note": "提基里少见的苦：金巴利遇上菠萝。"
+        },
+        {
+          "classicKey": "hurricane",
+          "note": "新奥尔良狂欢节的派对酒。"
+        },
+        {
+          "classicKey": "planters-punch",
+          "note": "牙买加老配方：一酸二甜三烈四淡。"
+        },
+        {
+          "classicKey": "singapore-sling",
+          "note": "莱佛士酒店的招牌，原料清单最长的一杯。"
+        }
+      ]
+    },
+    {
+      "key": "after-dinner",
+      "title": "餐后一杯",
+      "description": "甜、浓、带咖啡或奶油——饭后代替甜点的那一杯。",
+      "recipes": [
+        {
+          "classicKey": "espresso-martini",
+          "note": "现萃浓缩摇出厚厚的泡沫。"
+        },
+        {
+          "classicKey": "white-russian",
+          "note": "直调就好：伏特加和咖啡利口酒在下，牛奶最后倒入。"
+        },
+        {
+          "classicKey": "irish-coffee",
+          "note": "热咖啡 + 爱尔兰威士忌，奶油最后漂在上面。"
+        },
+        {
+          "classicKey": "grasshopper",
+          "note": "薄荷巧克力冰淇淋的味道。"
+        },
+        {
+          "classicKey": "b-52",
+          "note": "三层分层子弹杯，用吧勺背慢慢倒。"
+        },
+        {
+          "classicKey": "manhattan"
+        },
+        {
+          "classicKey": "boulevardier"
+        }
+      ]
+    }
   ]
 }

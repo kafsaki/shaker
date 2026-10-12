@@ -22,6 +22,7 @@ const NAV: { to: string; label: string; icon: PixelIconName; match: (p: string) 
   { to: "/", label: "酒馆", icon: "home", match: (p) => p === "/" },
   { to: "/classics", label: "图鉴", icon: "book", match: (p) => p.startsWith("/classics") },
   { to: "/ingredients", label: "原料", icon: "bottle", match: (p) => p.startsWith("/ingredients") },
+  { to: "/menus", label: "酒单", icon: "list", match: (p) => p.startsWith("/menus") },
   { to: "/editor/new", label: "工坊", icon: "shaker", match: (p) => p.startsWith("/editor") },
 ];
 
@@ -115,11 +116,11 @@ const meActive = computed(() => !!auth.user && route.path.startsWith(`/u/${auth.
         </NuxtLink>
       </nav>
 
-      <div class="ml-auto flex items-center gap-1">
+      <div class="ml-auto flex min-w-0 items-center gap-1">
         <!-- 搜索 -->
         <button type="button" class="search-trigger hidden lg:flex" @click="searchOpen = true">
           <PxIcon name="search" :scale="1" />
-          <span class="flex-1 text-left">搜配方 / 原料 / 酒单…</span>
+          <span class="min-w-0 flex-1 truncate text-left">搜配方 / 原料 / 酒单…</span>
           <PxKbd>/</PxKbd>
         </button>
         <PxButton variant="ghost" square icon="search" class="lg:!hidden" title="搜索" @click="searchOpen = true" />
@@ -153,13 +154,14 @@ const meActive = computed(() => !!auth.user && route.path.startsWith(`/u/${auth.
         <!-- 玩家卡 -->
         <PxMenu v-if="auth.isAuthenticated && auth.user" v-model:open="menuOpen">
           <template #trigger>
-            <button type="button" class="player" :class="{ on: menuOpen || meActive }">
+            <!-- 名字与称号只在 lg 以上显示：md 档留给五个导航项 -->
+            <button type="button" class="player shrink-0" :class="{ on: menuOpen || meActive }">
               <PxAvatar :src="auth.user.avatarUrl" :seed="auth.user.handle" :size="28" />
-              <span class="hidden min-w-0 flex-col text-left leading-tight md:flex">
+              <span class="hidden min-w-0 flex-col text-left leading-tight lg:flex">
                 <span class="max-w-28 truncate text-fg">{{ auth.user.displayName }}</span>
-                <span class="text-faint"><span class="font-logo text-[8px] text-amber">LV.{{ level }}</span> {{ rank }}</span>
+                <span class="whitespace-nowrap text-faint"><span class="font-logo text-[8px] text-amber">LV.{{ level }}</span> {{ rank }}</span>
               </span>
-              <PxIcon name="chevron-down" :scale="1" class="hidden text-dim md:block" />
+              <PxIcon name="chevron-down" :scale="1" class="hidden text-dim lg:block" />
             </button>
           </template>
           <div class="flex items-center gap-3 px-3 pb-2 pt-3">
@@ -218,8 +220,10 @@ const meActive = computed(() => !!auth.user && route.path.startsWith(`/u/${auth.
   position: relative;
   display: flex;
   align-items: center;
+  flex-shrink: 0;
   gap: 6px;
   padding: 0 12px 0 6px;
+  white-space: nowrap;
   color: var(--dim);
 }
 .nav-item .cur { visibility: hidden; color: var(--amber); font-size: 10px; }
@@ -240,6 +244,8 @@ const meActive = computed(() => !!auth.user && route.path.startsWith(`/u/${auth.
   align-items: center;
   gap: 8px;
   width: 220px;
+  min-width: 0; /* 导航项不换行，空间不够时由搜索框让位 */
+  flex-shrink: 1;
   height: 30px;
   margin: 0 6px;
   padding: 0 6px 0 10px;
@@ -282,7 +288,7 @@ const meActive = computed(() => !!auth.user && route.path.startsWith(`/u/${auth.
   bottom: 0;
   z-index: 40;
   display: grid;
-  grid-template-columns: repeat(5, 1fr);
+  grid-template-columns: repeat(6, 1fr);
   height: 60px;
   padding-bottom: env(safe-area-inset-bottom);
   background: var(--panel);

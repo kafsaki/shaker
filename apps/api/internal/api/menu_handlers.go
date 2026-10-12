@@ -89,6 +89,8 @@ func (a *API) registerMenus(api huma.API) {
 		Summary:     "某人的酒单",
 		Description: "本人（携带 Bearer）可见全部含私密；他人仅公开。",
 	}, a.userMenusHandler)
+
+	a.registerMenuPlaza(api)
 }
 
 /* ────────────────────────── 响应体 ────────────────────────── */
@@ -110,7 +112,10 @@ type menuBody struct {
 	CoverURL       *string              `json:"coverUrl"`
 	Visibility     string               `json:"visibility"`
 	ItemCount      int                  `json:"itemCount"`
-	CoverURLs      []string             `json:"coverUrls"`       // position 前 3 条目的配方暗色封面（展示投影，可为空数组）
+	SaveCount      int                  `json:"saveCount"`   // 被多少人收藏
+	Featured       bool                 `json:"featured"`    // 官方精选（种子维护）
+	ViewerSaved    bool                 `json:"viewerSaved"` // 当前请求者是否已收藏
+	CoverURLs     []string             `json:"coverUrls"`       // position 前 3 条目的配方暗色封面（展示投影，可为空数组）
 	CoverURLsLight []string             `json:"coverUrlsLight"`  // 同上，亮色封面（缺失的版本不补，前端回落）
 	ViewerIsOwner  bool                 `json:"viewerIsOwner"`   // 当前请求者是否为酒单主人（前端以此判定属主 UI）
 	Owner          *menuOwnerBody       `json:"owner,omitempty"` // 酒单主人（列表/详情展示）
@@ -177,7 +182,8 @@ const menuPreviewLimit = 6
 func menuToBody(m *menu.Menu, isOwner bool) menuBody {
 	return menuBody{
 		ID: m.ID, Title: m.Title, Description: m.Description, CoverURL: m.CoverURL,
-		Visibility: m.Visibility, ItemCount: m.ItemCount, CoverURLs: []string{}, CoverURLsLight: []string{},
+		Visibility: m.Visibility, ItemCount: m.ItemCount, SaveCount: m.SaveCount, Featured: m.Featured,
+		CoverURLs: []string{}, CoverURLsLight: []string{},
 		ViewerIsOwner: isOwner, RecipeCards: []menuRecipeCardBody{},
 		CreatedAt: m.CreatedAt.UTC().Format(time.RFC3339Nano),
 		UpdatedAt: m.UpdatedAt.UTC().Format(time.RFC3339Nano),
@@ -253,9 +259,16 @@ func (a *API) menusToBodies(ctx context.Context, items []menu.Menu, isOwner bool
 	if err != nil {
 		return nil, menuErr(err)
 	}
+	saved := map[uuid.UUID]bool{}
+	if v := viewerID(ctx); v != nil {
+		if saved, err = a.menus.SavedSet(ctx, *v, ids); err != nil {
+			return nil, menuErr(err)
+		}
+	}
 	out := make([]menuBody, 0, len(items))
 	for i := range items {
 		mb := menuToBody(&items[i], isOwner)
+		mb.ViewerSaved = saved[items[i].ID]
 		if set := cov[items[i].ID]; set != nil {
 			if len(set.Dark) > 0 {
 				mb.CoverURLs = set.Dark
@@ -393,6 +406,13 @@ func (a *API) getMenuHandler(ctx context.Context, in *menuIDInput) (*menuDetailO
 	out := &menuDetailOutput{}
 	out.Body.Menu = menuToBody(m, viewer != nil && *viewer == m.OwnerID)
 	out.Body.Menu.Owner = ownerOut[m.ID]
+	if viewer != nil {
+		saved, err := a.menus.SavedSet(ctx, *viewer, []uuid.UUID{m.ID})
+		if err != nil {
+			return nil, menuErr(err)
+		}
+		out.Body.Menu.ViewerSaved = saved[m.ID]
+	}
 	out.Body.Menu.CoverURLs, out.Body.Menu.CoverURLsLight = itemCovers(items)
 	out.Body.Items = menuItemsOut(items)
 	return out, nil
@@ -521,7 +541,7 @@ func (a *API) userMenusHandler(ctx context.Context, in *struct {
 	isSelf := viewer != nil && *viewer == p.ID
 	res, err := a.menus.ListByUser(ctx, p.ID, in.Cursor, limitOf(in.Limit), !isSelf)
 	if err != nil {
-		return nil, listErr(err)
+		return nil, menuErr(err)
 	}
 	items, err := a.menusToBodies(ctx, res.Items, isSelf)
 	if err != nil {
@@ -565,6 +585,8 @@ func menuErr(err error) error {
 		return newErr(http.StatusNotFound, "menu.item_not_found", "配方不在酒单里")
 	case errors.Is(err, menu.ErrBadReorder):
 		return newErr(http.StatusUnprocessableEntity, "menu.bad_anchor", "锚点配方不在酒单里")
+	case errors.Is(err, menu.ErrSelfSave):
+		return newErr(http.StatusUnprocessableEntity, "menu.self_save", "不能收藏自己的酒单")
 	case errors.Is(err, menu.ErrBadCursor):
 		return newErr(http.StatusBadRequest, "cursor.invalid", "分页游标无效")
 	default:
