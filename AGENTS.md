@@ -1,6 +1,6 @@
 # Agent 工作约定
 
-面向在这个仓库里工作的 AI agent。产品与架构决策见 `README.md` 与 `docs/00-决策记录.md`。
+面向在这个仓库里工作的 AI agent。**这里只写规则**；怎么跑起来、测试与生成命令见 `README.md`「跑起来」，决策理由见 `docs/00-决策记录.md`。
 
 ## Git
 
@@ -32,58 +32,25 @@ cd D:/DEV/apps/shaker && D:/DevApps/Git/cmd/git.exe push
 
 这三条都还**没有** CI 检查，靠自觉。加上是好事。
 
-## 工具链约束
+## 数据与生成物
 
-- **禁用 TS 参数属性**（`constructor(private x: T)`）、enum、namespace —— `node --experimental-strip-types` 是 strip-only 模式，遇到会直接报错。这个约束换来"纯 TS 包可被 node 直接跑测试、不需构建"。
-- 本机路径：Node `D:\DevApps\NodeJS\node.exe`、Go `D:\DevApps\Go\bin\go.exe`、Git `D:\DevApps\Git\cmd\git.exe`
-- `pnpm` 经 corepack 启用；esbuild 的安装脚本已在根 `package.json` 的 `pnpm.onlyBuiltDependencies` 里显式放行
-- **Docker Desktop 已装**：`docker compose up -d` 起 Postgres 17 + MinIO（建桶 + 匿名读）。本机镜像源（轩辕）不支持 `latest` tag 之外的某些拉取——`minio/minio` 用带 `RELEASE.*` tag 的版本再补 `latest` 本地标签；`mc` 镜像拉不动，compose 里的 minio-init 已改用 minio 服务器镜像自带的 mc。
-- **OpenAPI 是 code-first 单向流向（ADR-017）**：改了端点代码必须 `go run ./cmd/gen-openapi > schema/openapi.yaml`，禁止手改 yaml。
+- **种子数据只改 `apps/api/internal/seed/data/seed.json`**（ADR-022）。`packages/fixtures` 是动画测试夹具，不是种子，两者互不同步。
+- **生成物禁止手改**：`schema/recipe-ir.schema.json`（改了 zod 必须重生成）、`schema/openapi.yaml`（改了端点必须重生成，ADR-017）。命令见 README「测试、类型检查与代码生成」。
 
 ## 改动后必须跑
 
-TS 侧：
-
-```bash
-# 逐包类型检查
-cd packages/<pkg> && ../../node_modules/.bin/tsc --noEmit
-
-# 测试（纯 TS，无需构建）
-cd packages/recipe-ir     && node --experimental-strip-types --test src/ir.test.ts
-cd packages/animator-core && node --experimental-strip-types --test src/compile.test.ts
-
-# 改了 zod schema 后必须重新生成，否则 Go 侧校验会漂移
-node --experimental-strip-types packages/recipe-ir/scripts/gen-schema.ts
-```
-
-Go 侧（`apps/api`）：
-
-```bash
-go build ./... && go vet ./... && go test ./...
-go run ./cmd/gen-openapi > ../../schema/openapi.yaml   # 改了端点就必须重生成
-```
-
-e2e（对运行中的 API，需先 `docker compose up -d` + `go run ./cmd/api`）：
-
-```bash
-pwsh -NoProfile -File scripts/e2e-<域>.ps1   # auth/vocab/recipes/feed/users/menus/notify/media
-```
+按改动范围跑 README「测试、类型检查与代码生成」里对应的命令；动了 API 行为再跑对应的 `scripts/e2e-<域>.ps1`（需先起 Postgres/MinIO 与 API）。
 
 坑：注册端点按 IP 限流 5 次/小时，反复跑 e2e 撞 429 属预期——限流器在内存里，重启 API 进程即重置。
 
-## 本地起 API（建议构建到固定路径）
+## 工具链约束
 
-`go run ./cmd/api` 每次都把二进制编译到新的 `%TEMP%\go-build<随机数>\b001\exe\api.exe`。
-Windows 防火墙按**程序路径**放行，路径每次都变 → 每次重启都会弹「是否允许此应用访问网络」。
-本地开发建议构建到固定路径再运行，防火墙规则只需放行一次，顺带省掉每次编译：
-
-```bash
-cd apps/api
-go build -o bin/api.exe ./cmd/api   # 改了 Go 代码才需要这一步
-./bin/api.exe                       # 只是重启：直接跑这个
-```
-
-`bin/` 已在 .gitignore 里，二进制不入库；CI 与一次性验证仍可用 `go run ./cmd/api`。
+- **禁用 TS 参数属性**（`constructor(private x: T)`）、enum、namespace —— `node --experimental-strip-types` 是 strip-only 模式，遇到会直接报错（ADR-021）。这个约束换来"纯 TS 包可被 node 直接跑测试、不需构建"。
+- 本机路径：Node `D:\DevApps\NodeJS\node.exe`、Go `D:\DevApps\Go\bin\go.exe`、Git `D:\DevApps\Git\cmd\git.exe`
+- `pnpm` 经 corepack 启用；esbuild 的安装脚本已在根 `package.json` 的 `pnpm.onlyBuiltDependencies` 里显式放行
+- **Docker Desktop 已装**：`docker compose up -d` 起 Postgres 17 + MinIO（建桶 + 匿名读）。本机镜像源（轩辕）不支持 `latest` tag 之外的某些拉取——`minio/minio` 用带 `RELEASE.*` tag 的版本再补 `latest` 本地标签；`mc` 镜像拉不动，compose 里的 minio-init 已改用 minio 服务器镜像自带的 mc。
+- **`nuxt typecheck` 目前跑不起来**（`@vue/language-core` 报 `ERR_PACKAGE_PATH_NOT_EXPORTED`，工具链版本问题，不是代码类型错误）。前端改动暂以 `nuxt build` 通过为准。
+- 本地起 API 要构建到固定路径，否则每次重启都弹防火墙（见 README）。
 
 ## 诚实汇报
 
@@ -92,3 +59,5 @@ go build -o bin/api.exe ./cmd/api   # 改了 Go 代码才需要这一步
 - 动画的**观感**没有经过人眼确认 —— 能验证的只有数学正确性、seek 幂等、编译确定性
 
 已经验证过、不用再打问号的：数据库迁移（goose 内嵌，启动自动执行）、全部 API 端点（8 套 e2e 脚本全绿）、媒体直传（真实 MinIO PUT/HEAD/匿名读）。改到这些时正常回归即可。
+
+v1 **没有实现**、别当成已有的：sqlc、river，以及计数对账、孤儿媒体清理、酒单序号重整三项周期任务（ADR-003 实施状态）。

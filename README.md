@@ -41,6 +41,16 @@ D:/DevApps/Go/bin/go.exe run ./cmd/api
 # 监听 :8080。启动时自动做：goose 迁移 → 幂等种子导入（词表为空才导）
 ```
 
+**反复重启时建议构建到固定路径。** `go run` 每次把二进制编到 `%TEMP%` 下的随机路径，而 Windows 防火墙按程序路径放行，于是每次重启都会弹「是否允许访问网络」。固定路径只需放行一次，还省掉每次编译：
+
+```bash
+cd apps/api
+go build -o bin/api.exe ./cmd/api   # 改了 Go 代码才需要这一步
+./bin/api.exe                       # 只是重启：直接跑这个
+```
+
+`bin/` 已在 .gitignore 里。
+
 e2e 验证（对运行中的 API，PowerShell，可反复执行——每次注册随机新用户）：
 
 ```bash
@@ -55,12 +65,6 @@ pwsh -NoProfile -File scripts/e2e-media.ps1     # 媒体预签名直传（需 Mi
 ```
 
 注意：注册端点按 IP 限流 5 次/小时（限流器在内存里，重启 API 进程即重置）；反复跑 e2e 撞上 429 时重启服务即可。
-
-改了端点代码后必须重新生成 spec（code-first 单向流向，禁止手改）：
-
-```bash
-cd apps/api && go run ./cmd/gen-openapi > ../../schema/openapi.yaml
-```
 
 ### 动画原型（验证装置）
 
@@ -90,21 +94,26 @@ pnpm --filter @shaker/web dev
 
 改代码后：`pnpm --filter @shaker/prototype watch` 自动重建。
 
-### 测试与类型检查
+### 测试、类型检查与代码生成
 
 ```bash
-# 纯 TS 包可以被 node 直接跑，不需要构建（见 ADR-021）
+# TS：纯 TS 包可以被 node 直接跑，不需要构建（见 ADR-021）
 cd packages/recipe-ir     && node --experimental-strip-types --test src/ir.test.ts
 cd packages/animator-core && node --experimental-strip-types --test src/compile.test.ts
+cd packages/<pkg> && ../../node_modules/.bin/tsc --noEmit     # 逐包类型检查
 
-# 逐包类型检查
-cd packages/<pkg> && ../../node_modules/.bin/tsc --noEmit
+# Go（在 apps/api 下）
+go build ./... && go vet ./... && go test ./...
 ```
 
-### 从 zod 重新生成 JSON Schema（供 Go 校验）
+两条生成链都是单向的，生成物禁止手改：
 
 ```bash
+# 改了 zod schema → 重新生成 JSON Schema（供 Go 校验），否则 Go 侧校验会漂移
 node --experimental-strip-types packages/recipe-ir/scripts/gen-schema.ts
+
+# 改了 API 端点 → 重新生成 OpenAPI（code-first，ADR-017）
+cd apps/api && go run ./cmd/gen-openapi > ../../schema/openapi.yaml
 ```
 
 ### 数据库（手动迁移，日常开发不需要）
