@@ -170,6 +170,8 @@ export interface Prop {
   vesselId?: string;
   /** 长杆道具（吧勺/搅棒/捣棒）尖端的舞台 y —— 杆身画到杯底附近。 */
   tipY?: number;
+  /** 斜置长杆（float_spoon）尖端的舞台 x；缺省 = x（竖直杆）。 */
+  tipX?: number;
   /** 倒注流。存在时渲染一条液流。 */
   stream?: {
     /** 液流起点（道具壶口，随倾角偏移）。缺省则从道具中心流出。 */
@@ -179,6 +181,8 @@ export interface Prop {
     toY: number;
     width: number;
     color: string;
+    /** 贴着落点的细流（FLOAT 倒在勺背上）：落点不画水花。 */
+    gentle?: boolean;
   };
 }
 

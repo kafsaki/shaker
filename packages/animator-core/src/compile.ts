@@ -858,10 +858,13 @@ function applyStep(step: Step, ctx: Ctx): void {
       c.agitation = 0.3; // 沿吧勺背面缓倒，扰动轻
       const meta = refs[0] ? vocab.ingredient(refs[0].ingredientId) : undefined;
       const color = meta?.viz.color ?? "#d8d2c4";
-      emit.at(0, { focus: c.id, props: [floatSpoonProp(c, color)] });
+      // 吧勺先就位（勺碗贴着液面），量酒器再倾倒；液面上升时勺子跟着上抬
+      emit.at(0, { focus: c.id, props: floatProps(c, refs, vocab, color, 0) });
+      emit.at(0.14, { focus: c.id, props: floatProps(c, refs, vocab, color, 1), ease: "easeOut" });
       // forceNewLayer：作者的显式意图优先于物理（规范 §7.3）
       addToContainer(c, refs, vocab, true);
-      emit.at(0.9, { focus: c.id, props: [floatSpoonProp(c, color)], ease: "easeOut" });
+      emit.at(0.84, { focus: c.id, props: floatProps(c, refs, vocab, color, 1) });
+      emit.at(0.93, { focus: c.id, props: floatProps(c, refs, vocab, color, 0), ease: "easeOut" });
       emit.at(1, { focus: c.id, props: [] });
       break;
     }
@@ -1077,26 +1080,30 @@ function surfaceStreamY(c: ContainerState): number {
 /**
  * 加料倒注：量酒器（pour_vessel，真容器旋转）贴着被倒方杯口上方倾斜，
  * 口沿对准液流起点倒出 —— 不再是固定位置的 sprite 量杯。
+ * `aim` 覆盖口沿与落点（FLOAT：口沿对准杯内的勺背，细流落在勺背上）。
  */
 function pourProp(
   c: ContainerState,
   refs: readonly IngredientRef[],
   vocab: ResolvedVocab,
   active: number,
+  aim?: { lipX: number; lipY: number; toX: number; toY: number; width: number },
 ): Prop {
   const meta = refs[0] ? vocab.ingredient(refs[0].ingredientId) : undefined;
   const color = meta?.viz.color ?? "#d8d2c4";
   const visc = meta?.viz.viscosity ?? "low";
-  const width = { low: 2.6, medium: 3.4, high: 4.6 }[visc];
+  const width = aim?.width ?? { low: 2.6, medium: 3.4, high: 4.6 }[visc];
   // 量酒器杯型（词表注册的 __jigger；产品前端未注册时用内置副本）
   const jigger = vocab.vessel("__jigger") ?? WORK_VESSELS.get("__jigger");
   const h = jigger ? jigger.scale * UNITS_PER_CM : 60;
   const rimR = jigger
     ? jigger.def.shape.profile[jigger.def.shape.profile.length - 1]!.r * h
     : 14;
-  // 口沿目标：被倒方杯口左上方一点（贴着杯口倒）
-  const lipX = MAIN_POS.x - rimR * 0.6;
-  const lipY = rimYOf(c) - 10;
+  // 口沿目标：被倒方杯口左上方一点（贴着杯口倒）；FLOAT 时改为对准勺背（aim）
+  const lipX = aim?.lipX ?? MAIN_POS.x - rimR * 0.6;
+  const lipY = aim?.lipY ?? rimYOf(c) - 10;
+  const toX = aim?.toX ?? MAIN_POS.x;
+  const toY = aim?.toY ?? surfaceStreamY(c);
   const ang = POUR_ROT * 2;
   // 与渲染端一致的旋转三角函数，由口沿位置反推量杯中心（px 系）
   const gh = h / STAGE_PX;
@@ -1114,7 +1121,7 @@ function pourProp(
     opacity: 0.95,
     stream:
       active > 0.5
-        ? { fromX: lipX, fromY: lipY, toX: MAIN_POS.x, toY: surfaceStreamY(c), width, color }
+        ? { fromX: lipX, fromY: lipY, toX, toY, width, color, gentle: aim !== undefined }
         : undefined,
   };
 }
@@ -1203,7 +1210,7 @@ function pourVesselProp(from: ContainerState, to: ContainerState, color: string)
   };
 }
 
-/** 杆长基准：吧勺/swizzle 从杯口上方伸入，尖端探到杯底附近。 */
+/** 杆长基准：吧勺/swizzle 从杯口上方伸入，尖端探到杯底附近；柄伸出杯口的长度按真实比例（≈ 30cm 吧勺）。 */
 function rodProp(
   kind: "barspoon" | "swizzle",
   c: ContainerState,
@@ -1214,7 +1221,7 @@ function rodProp(
   return {
     kind,
     x: MAIN_POS.x + 6,
-    y: bowlY - h - 26, // 杆顶在杯口上方（吧勺柄尾）
+    y: bowlY - h - (kind === "barspoon" ? BARSPOON_OVERHANG : 60), // 杆顶在杯口上方（吧勺柄尾）
     rot: active * 0.3,
     scale: 1,
     opacity: 1,
@@ -1236,7 +1243,7 @@ function muddlerProp(c: ContainerState, depth: number): Prop {
   return {
     kind: "muddler",
     x: MAIN_POS.x,
-    y: bowlY - h - 20 + depth * 10,
+    y: bowlY - h - 64 + depth * 10, // 捣棒 ≈ 22cm，柄伸出杯口一截
     rot: 0,
     scale: 1,
     opacity: 1,
@@ -1249,28 +1256,57 @@ function sprayProp(c: ContainerState): Prop {
 }
 
 /**
- * 浮注姿态：吧勺横在杯口上方、勺背朝上，液体沿勺背滑到头端再落入液面。
- * stream 用细流（width < 2.4，渲染端走逐滴下落）—— 表现"缓慢浮入"。
+ * 浮注姿态（考证：吧勺勺背朝上、勺碗压到贴近液面，柄斜靠杯口伸出杯外；
+ * 酒从量酒器细流倒在勺背上，沿勺缘溢下、在液面上铺开而不冲破下层）。
+ *
+ * 道具坐标：x/y = 柄尾（杯口外上方），tipX/tipY = 勺碗中心（液面上方一点）。
+ * 勺碗跟随液面：首帧取旧液面、末帧取新液面，插值即"边倒边上抬"。
+ * active=0 是入场/退场姿态（整把勺抬高一截，量酒器不出液）。
  */
-function floatSpoonProp(c: ContainerState, color: string): Prop {
+function floatProps(
+  c: ContainerState,
+  refs: readonly IngredientRef[],
+  vocab: ResolvedVocab,
+  color: string,
+  active: number,
+): Prop[] {
+  const h = c.vessel.scale * UNITS_PER_CM;
+  const profile = c.vessel.def.shape.profile;
+  const rimR = profile[profile.length - 1]!.r * h;
   const rimY = rimYOf(c);
-  return {
+  const surfY = surfaceStreamY(c) + 2; // 液面
+  const bowlX = MAIN_POS.x + 2;
+  const bowlY = Math.min(surfY - 6, rimY + h * 0.92);
+  // 柄从勺碗斜向右上，在杯口内侧 3/4 半径处出杯 —— 深杯几乎竖直，浅杯更斜（≤ 0.6 rad）
+  const depth = Math.max(12, bowlY - rimY);
+  const ang = Math.min(0.6, Math.atan2(rimR * 0.75 - 2, depth));
+  const len = depth / Math.cos(ang) + BARSPOON_OVERHANG;
+  const lift = (1 - active) * 18; // 入场/退场：整把勺抬高
+  const spoon: Prop = {
     kind: "float_spoon",
-    x: MAIN_POS.x, // 勺头在杯中心上方
-    y: rimY - 10, // 勺背高度（杯口上方）
-    rot: 0,
+    x: bowlX + Math.sin(ang) * len,
+    y: bowlY - Math.cos(ang) * len - lift,
+    tipX: bowlX,
+    tipY: bowlY - lift,
+    rot: ang,
     scale: 1,
     opacity: 1,
-    stream: {
-      fromX: MAIN_POS.x,
-      fromY: rimY - 8, // 勺头下沿
-      toX: MAIN_POS.x,
-      toY: surfaceStreamY(c),
-      width: 1.6,
-      color,
-    },
+    // 勺缘溢下的薄流：勺碗 → 液面（渲染端画成勺缘滴落 + 液面铺开的波纹）
+    stream:
+      active > 0.5 ? { fromX: bowlX, fromY: bowlY, toX: bowlX, toY: surfY, width: 1.6, color } : undefined,
   };
+  const jigger = pourProp(c, refs, vocab, active, {
+    lipX: bowlX - 10,
+    lipY: Math.min(rimY - 10, bowlY - 28),
+    toX: bowlX - 1,
+    toY: bowlY - 4, // 落在勺背上
+    width: 2, // 渲染端 gentle 细线：浮注刻意倒得慢
+  });
+  return [jigger, spoon];
 }
+
+/** 吧勺柄伸出杯口之外的长度（舞台单位）—— 真实吧勺 30cm 上下，柄总是远高于杯口（STIR 与 FLOAT 共用）。 */
+const BARSPOON_OVERHANG = 104;
 
 /**
  * RINSE 的涮杯姿态：杯子本身轻微摇动（幅度小、频率低）—— 区别于摇酒，

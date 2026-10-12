@@ -888,20 +888,9 @@ function drawProp(b: PCtx, p: Prop, theme: RenderTheme, fxMs: number, opts: Rend
     return;
   }
 
-  // 浮注姿态：吧勺横在杯口上方，液体沿勺背滑到头端再落入液面
-  //（液流先画，勺压在流上；沿背滑行段由 drawFloatSpoon 自绘）
+  // 浮注姿态：吧勺斜插入杯、勺背朝上贴近液面，柄伸出杯口；
+  // 量酒器的细流是另一个 pour_vessel 道具，落在勺背上（勺缘溢流由 drawFloatSpoon 自绘）
   if (p.kind === "float_spoon") {
-    if (p.stream) {
-      drawStream(
-        b,
-        Math.round((p.stream.fromX ?? p.x) / PS),
-        Math.round((p.stream.fromY ?? p.y) / PS),
-        p.stream,
-        theme,
-        fxMs,
-        p.opacity,
-      );
-    }
     drawFloatSpoon(b, p, theme, fxMs);
     return;
   }
@@ -967,29 +956,64 @@ function drawProp(b: PCtx, p: Prop, theme: RenderTheme, fxMs: number, opts: Rend
 }
 
 /**
- * 浮注姿态的横置吧勺：勺背朝上架在杯口上方，液体沿勺背滑到头端落入液面。
- * 沿背滑行 = 背上一层薄液 + fxMs 驱动的滚动亮纹（确定性，可 seek）。
+ * 浮注吧勺：柄尾 (x, y) → 勺碗 (tipX, tipY) 的斜杆 + 倒扣的勺碗（勺背朝上）。
+ * 杆身是 drawRodProp 同款螺旋杆（tick 沿杆静止 —— 浮注时手不转勺），柄尾一枚圆片。
+ * 出液时（p.stream）：勺背铺一层酒 + 沿背滚动亮纹，两侧勺缘滴落到液面，
+ * 液面上一圈圈向外铺开的波纹 —— 表现"沿勺背缓缓浮上去"。全部是 fxMs 纯函数。
  */
 function drawFloatSpoon(b: PCtx, p: Prop, theme: RenderTheme, fxMs: number): void {
-  const hx = Math.round(p.x / PS); // 勺头（杯中心上方）
-  const hy = Math.round(p.y / PS); // 勺背高度（杯口上方）
-  const tailX = hx - 9; // 杆尾伸出杯口左沿
-  // 杆身（横放）
-  hline(b, tailX, hx + 1, hy, theme.metalHi);
-  hline(b, tailX, hx + 1, hy + 1, theme.metalLo);
-  // 勺碗：头端小勺（背朝上）
-  rectPx(b, hx - 1, hy - 1, 4, 2, theme.metalLo);
-  dot(b, hx - 1, hy - 1, theme.metalHi);
-  dot(b, hx + 2, hy - 1, theme.metalHi);
-  // 勺背薄液 + 沿背滚动的流动亮纹（fxMs 纯函数）
-  const rp = p.stream ? rampOf(p.stream.color) : null;
-  if (rp) {
-    for (let x = tailX + 1; x <= hx - 2; x++) dot(b, x, hy - 1, rp.base);
-    const span = hx - 2 - (tailX + 1);
-    for (let i = 0; i < 2; i++) {
-      const ph = frac(fxMs / 900 + i * 0.5);
-      dot(b, tailX + 1 + Math.round(ph * span), hy - 2, rp.light);
-    }
+  const ex = Math.round(p.x / PS); // 柄尾
+  const ey = Math.round(p.y / PS);
+  const bx = Math.round((p.tipX ?? p.x) / PS); // 勺碗中心
+  const by = Math.round((p.tipY ?? p.y) / PS);
+
+  // 杆身：从勺碗顶到柄尾逐行取点（近竖直的斜杆按 y 步进，不会断线）
+  const top = by - 2;
+  const steps = Math.max(1, top - ey);
+  for (let i = 0; i <= steps; i++) {
+    const yy = top - i;
+    const xx = bx + Math.round(((ex - bx) * i) / steps);
+    dot(b, xx, yy, theme.metalHi);
+    if (i % 3 === 1) dot(b, xx + 1, yy, theme.metalLo); // 螺旋扭纹
+  }
+  // 柄尾圆片（吧勺常见的平头/捣头）
+  hline(b, ex - 1, ex + 1, ey - 1, theme.metalHi);
+  hline(b, ex - 1, ex + 1, ey, theme.metalLo);
+
+  // 勺碗（倒扣）：顶 5 宽、底 7 宽，底沿一行暗色
+  hline(b, bx - 2, bx + 2, by - 1, theme.metalHi);
+  hline(b, bx - 3, bx + 3, by, theme.metalLo);
+  dot(b, bx - 1, by - 1, theme.hi);
+
+  const s = p.stream;
+  if (!s) return;
+  const rp = rampOf(s.color);
+  // 勺背薄酒 + 沿背向两侧滚动的亮纹
+  hline(b, bx - 2, bx + 2, by - 2, rp.base);
+  const ph = frac(fxMs / 520);
+  const off = Math.round(ph * 3);
+  dot(b, bx - off, by - 2, rp.light);
+  dot(b, bx + off, by - 2, rp.light);
+  // 勺缘两侧滴落到液面（错相，初速 0 加速下坠）
+  const sy = Math.round(s.toY / PS);
+  const fall = Math.max(1, sy - by);
+  for (const [side, k] of [
+    [-1, 0],
+    [1, 0.5],
+  ] as const) {
+    const dp = frac(fxMs / 360 + k);
+    const x = bx + side * 4;
+    dot(b, x, by + Math.round(dp * dp * fall), rp.light);
+    dot(b, bx + side * 3, by + 1, rp.base); // 勺缘挂着的一滴
+  }
+  // 液面铺开：两道错相的外扩波纹（越外越暗），中心常亮
+  hline(b, bx - 2, bx + 2, sy, rp.light);
+  for (let i = 0; i < 2; i++) {
+    const wp = frac(fxMs / 900 + i * 0.5);
+    const r = 3 + Math.round(wp * 7);
+    const col = wp < 0.5 ? rp.light : rp.base;
+    dot(b, bx - r, sy, col);
+    dot(b, bx + r, sy, col);
   }
 }
 
@@ -1212,6 +1236,10 @@ function drawRodProp(b: PCtx, p: Prop, theme: RenderTheme, fxMs: number): void {
   }
 
   if (p.kind === "barspoon") {
+    // 柄尾圆片（与 drawFloatSpoon 一致），随画圈横移
+    const ex = gx + swayAt(gy);
+    hline(b, ex - 1, ex + 1, gy - 1, theme.metalHi);
+    hline(b, ex - 1, ex + 1, gy, theme.metalLo);
     // 勺头：小圆勺，画圈时横移
     const hx = gx + swayAt(tip - 1);
     const rows = PROP_SPRITES["barspoon_head"]!;
@@ -1245,7 +1273,9 @@ function drawRodProp(b: PCtx, p: Prop, theme: RenderTheme, fxMs: number): void {
       dot(b, hx, ty - 4, theme.metalLo);
     }
   } else {
-    // 捣棒头：宽扁捣头（3px 宽）
+    // 捣棒（木/钢杵，比吧勺粗）：杆身补一道暗边成 2px
+    vline(b, gx + 1, gy + 4, tip - 4, theme.metalLo);
+    // 捣头：宽扁捣头（3px 宽）
     vline(b, gx - 1, tip - 3, tip, theme.metalLo);
     vline(b, gx, tip - 3, tip, theme.metalHi);
     vline(b, gx + 1, tip - 3, tip, theme.metalLo);
@@ -1275,7 +1305,14 @@ function drawStream(
   const rp = rampOf(s.color);
   const topW = s.width >= 4.4 ? 3 : s.width >= 2.4 ? 2 : 1;
 
-  if (s.width < 2.4) {
+  if (s.gentle) {
+    // 贴着勺背的 1px 细线：浮注的"缓缓倒"，条纹下行表现流动
+    for (let y = gy; y <= ty; y++) {
+      const t = (y - gy) / Math.max(1, ty - gy);
+      const x = gx + Math.round((tx - gx) * t * t);
+      dot(b, x, y, (y + Math.floor(fxMs / 90)) % 3 === 0 ? rp.light : rp.base);
+    }
+  } else if (s.width < 2.4) {
     // 小剂量：3 滴错相下落的像素滴（初速 0、加速下坠）
     for (let i = 0; i < 3; i++) {
       const ph = frac(fxMs / 640 + i / 3);
@@ -1303,7 +1340,8 @@ function drawStream(
     }
   }
 
-  // 落点：水花 + 扩散环（像素阶梯）
+  // 落点：水花 + 扩散环（像素阶梯）；gentle（倒在勺背上）不溅
+  if (s.gentle) return;
   const ph = frac(fxMs / 420);
   const rw = 1 + Math.round(ph * 3);
   hline(b, tx - rw, tx + rw, ty, ph > 0.6 ? rp.dark : theme.hi);

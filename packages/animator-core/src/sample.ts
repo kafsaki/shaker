@@ -304,6 +304,7 @@ function lerpProp(a: Prop, b: Prop, t: number): Prop {
     scale: n(a.scale, b.scale, t),
     opacity: n(a.opacity, b.opacity, t),
     tipY: a.tipY !== undefined && b.tipY !== undefined ? n(a.tipY, b.tipY, t) : (b.tipY ?? a.tipY),
+    tipX: a.tipX !== undefined && b.tipX !== undefined ? n(a.tipX, b.tipX, t) : (b.tipX ?? a.tipX),
     vesselId: b.vesselId ?? a.vesselId,
     stream:
       a.stream && b.stream
@@ -314,6 +315,7 @@ function lerpProp(a: Prop, b: Prop, t: number): Prop {
             toY: n(a.stream.toY, b.stream.toY, t),
             width: n(a.stream.width, b.stream.width, t),
             color: color(a.stream.color, b.stream.color, t),
+            gentle: b.stream.gentle,
           }
         : (b.stream ?? a.stream),
   };
