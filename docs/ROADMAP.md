@@ -19,6 +19,14 @@
 部署产物、孤儿媒体清理、CI 三项已完成（2026-10-12）：Dockerfile ×2 与全栈 compose 在 `deploy/`，
 清理任务在 `apps/api/internal/media/cleanup.go`，CI 在 `.github/workflows/ci.yml`。
 
+## 实验分支 `exp/pixel-ui`（像素游戏化 UI，ADR-026）
+
+| 项 | 说明 |
+| --- | --- |
+| 人眼验收 | 整站游戏化界面的观感与交互，作者确认后决定是否并入 `main` |
+| 真机检查 | 只在桌面 Edge（1366 宽）与 390 宽模拟视口截图验证过；未在真实手机、Safari、Firefox 上看过 |
+| 长文本可读性 | 正文统一 12px 像素字；长描述/评论在高分屏以外的可读性待确认 |
+
 ## v1 之后（按触发条件做）
 
 | 项 | 触发条件 | 说明 |

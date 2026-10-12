@@ -9,10 +9,8 @@ export default defineNuxtConfig({
 
   modules: ["@pinia/nuxt"],
 
-  // 只扫 .vue：shadcn-vue 的每个 ui/<name>/ 都带 index.ts barrel（具名导出 +
-  // buttonVariants 之类的非组件导出），Nuxt 默认把 .ts 也当候选组件，
-  // 于是 ui/button/index.ts 与 ui/button/Button.vue 都命名成 UiButton 而告警 24 条。
-  // barrel 只做入口，不参与组件注册，限定扩展名后自动导入形态不变。
+  // 只扫 .vue：components/ 下的 .ts 不是组件，不参与自动注册。
+  // components/px/Button.vue 自动注册为 <PxButton>（目录名作前缀）。
   components: [{ path: "~/components", extensions: ["vue"] }],
 
   css: ["~/assets/css/main.css"],

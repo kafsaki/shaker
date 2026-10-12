@@ -144,7 +144,7 @@ goose -dir apps/api/db/migrations postgres "$DSN" down   # Down 也要验，写�
 
 ```
 apps/
-  web/       Nuxt 4 SPA + Tailwind v4 + shadcn-vue + Pinia + vue-query
+  web/       Nuxt 4 SPA + Tailwind v4 + 自研像素组件（reka-ui 原语，ADR-026）+ Pinia + vue-query
   api/       Go + chi + huma + pgx + goose + MinIO 预签名
              internal/seed/data/seed.json  ★ 种子数据唯一真相源（词表 + 经典配方，直接编辑，ADR-022）
   mobile/    二期，消费优先，框架待原型实测定
@@ -200,7 +200,7 @@ docs/             设计文档 00~03、ROADMAP（进度与待办）、archive/�
 | 项 | 结论 | ADR |
 | --- | --- | --- |
 | 后端 | Go 1.27 + chi + huma + pgx（v1 未引入 sqlc / river） | 003 |
-| 前端 | Nuxt 4 + Vue 3 + Tailwind + shadcn-vue | 004 |
+| 前端 | Nuxt 4 + Vue 3 + Tailwind + 像素组件库（取代 shadcn-vue） | 004 / 026 |
 | 移动端 | 二期，独立 UI，消费优先，框架待实测 | 005 |
 | 基础设施 | v1 仅 Postgres + MinIO，无 Redis | 006 |
 | AI（需求 6/7） | 二期，平台默认额度 + BYOK | 008 |
