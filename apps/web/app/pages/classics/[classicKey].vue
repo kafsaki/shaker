@@ -1,24 +1,10 @@
 <script setup lang="ts">
-/** 经典条目：权威配方 + 社区变体 + 规格分布图（IR 白拿的产品亮点，ADR-013）。
- *  hero 用琥珀金档案氛围 + 衬线大字，与 /r/{code} 的 UGC 页一眼可辨。 */
+/** 图鉴条目：权威配方 + 社区变体 + 规格分布图（IR 白拿的产品亮点，ADR-013）。
+ *  hero 是金色「档案卡」：标题、IBA 徽章、摘要读数、迷你共识分布与创作入口，
+ *  与 /r/{code} 的 UGC 页一眼可辨。经典配方的唯一地址是 /classics/{key}，只有这一种呈现。 */
 import { useQuery } from "@tanstack/vue-query";
-import { Plus } from "lucide-vue-next";
 import type { components } from "@shaker/api-client";
 import type { RecipeIR } from "@shaker/recipe-ir/core";
-import RecipeCard from "@/components/RecipeCard.vue";
-import RecipeDetail from "@/components/RecipeDetail.vue";
-import { Alert, AlertDescription } from "@/components/ui/alert";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
-import { Skeleton } from "@/components/ui/skeleton";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { FAMILY_ZH, IBA_ZH, METHOD_ZH } from "@/lib/labels";
 
 type Recipe = components["schemas"]["RecipeBody"];
@@ -26,34 +12,10 @@ type Dist = components["schemas"]["DistributionOutputBody"];
 type VariantPage = components["schemas"]["RecipeListOutputBody"];
 
 const route = useRoute();
-const router = useRouter();
 const api = useApi();
 const vocab = useVocabStore();
 const key = computed(() => String(route.params.classicKey ?? ""));
 const tab = ref("variants");
-
-/** 显示模式：archive = 经典档案（hero + 变体/分布）；plain = 与 /r/{code} 同款。
- * 经典配方的唯一地址是 /classics/{key}，模式存 URL ?view= 以便分享与刷新保持。 */
-const view = ref<"archive" | "plain">(
-  route.query.view === "plain" ? "plain" : "archive",
-);
-watch(view, (v) => {
-  const query = { ...route.query };
-  if (v === "plain") query.view = "plain";
-  else delete query.view;
-  void router.replace({ query });
-});
-// 前进/后退时以地址栏为准
-watch(
-  () => route.query.view,
-  (v) => {
-    view.value = v === "plain" ? "plain" : "archive";
-  },
-);
-
-function setView(v: string): void {
-  view.value = v === "plain" ? "plain" : "archive";
-}
 
 // 权威条目不带 viz，RecipeDetail 回退到全量词表编译动画
 onMounted(() => void vocab.ensure().catch(() => {}));
@@ -69,7 +31,7 @@ const { data: canonical, isLoading, error } = useQuery({
   },
 });
 
-const { data: variants } = useQuery({
+const { data: variants, isLoading: variantsLoading } = useQuery({
   queryKey: computed(() => ["classic-variants", key.value] as const),
   queryFn: async (): Promise<VariantPage> => {
     const { data, error } = await api.GET(
@@ -79,10 +41,10 @@ const { data: variants } = useQuery({
     if (error) throw error;
     return data;
   },
-  enabled: computed(() => view.value === "archive" && tab.value === "variants"),
+  enabled: computed(() => tab.value === "variants"),
 });
 
-// hero 摘要需要分布数据（变体数 / ABV 中位 / 迷你区间条），仅档案模式加载
+// hero 摘要需要分布数据（变体数 / ABV 中位 / 迷你区间条），进页即加载
 const { data: dist } = useQuery({
   queryKey: computed(() => ["classic-dist", key.value] as const),
   queryFn: async (): Promise<Dist> => {
@@ -93,20 +55,25 @@ const { data: dist } = useQuery({
     if (error) throw error;
     return data;
   },
-  enabled: computed(() => view.value === "archive"),
 });
 
 useHead(() => ({ title: `${canonical.value?.title ?? key.value} · Shaker` }));
 
 const ir = computed(() => canonical.value?.ir as RecipeIR | undefined);
+const variantCount = computed(() => dist.value?.variantCount ?? 0);
 
 /** hero 摘要的 ABV：优先社区中位，无变体时退回权威条目自己的估计。 */
 const abv = computed(() => dist.value?.abvEst?.median ?? canonical.value?.abvEst ?? null);
 
+/** 区间条的满刻度：所有原料 p90 的最大值（分布页底下的标尺也用它）。 */
+const maxP90 = computed(() =>
+  Math.max(1, ...(dist.value?.ingredients ?? []).map((i) => i.amountMl.p90 ?? 0)),
+);
+
 /** 分布图行：名字 + p10~p90 区间条 + median 刻度。 */
 const distRows = computed(() => {
   const ings = dist.value?.ingredients ?? [];
-  const maxP90 = Math.max(1, ...ings.map((i) => i.amountMl.p90 ?? 0));
+  const max = maxP90.value;
   return ings
     .slice()
     .sort((a, b) => (b.amountMl.median ?? 0) - (a.amountMl.median ?? 0))
@@ -115,6 +82,7 @@ const distRows = computed(() => {
       return {
         id: i.ingredientId,
         name: m ? `${m.nameZh}` : i.ingredientId,
+        color: (m?.viz as { color?: string } | undefined)?.color,
         role: i.role,
         presentIn: i.presentIn,
         variantCount: dist.value?.variantCount ?? 1,
@@ -123,15 +91,29 @@ const distRows = computed(() => {
         median: i.amountMl.median,
         p75: i.amountMl.p75,
         p90: i.amountMl.p90,
-        left: ((i.amountMl.p10 ?? 0) / maxP90) * 100,
-        width: (((i.amountMl.p90 ?? 0) - (i.amountMl.p10 ?? 0)) / maxP90) * 100,
-        medianLeft: ((i.amountMl.median ?? 0) / maxP90) * 100,
+        left: ((i.amountMl.p10 ?? 0) / max) * 100,
+        width: (((i.amountMl.p90 ?? 0) - (i.amountMl.p10 ?? 0)) / max) * 100,
+        medianLeft: ((i.amountMl.median ?? 0) / max) * 100,
       };
     });
 });
 
+/** 用量读数；盐边、装饰之类不计 ml 的原料没有中位数。 */
+function ml(v: number | null): string {
+  return v === null ? "—" : `${v.toFixed(1)}ml`;
+}
+
 /** hero 迷你共识：用量中位前 3 的原料。 */
 const heroDistRows = computed(() => distRows.value.slice(0, 3));
+
+const tabs = computed(() => [
+  { value: "variants", label: "社区变体", icon: "branch" as const, count: variantCount.value },
+  { value: "distribution", label: "规格分布", icon: "list" as const },
+]);
+
+const createTo = computed(() =>
+  canonical.value ? `/editor/new?classicKey=${key.value}&derivedFrom=${canonical.value.id}` : "",
+);
 
 /** hero「查看完整分布」：切 Tab 并平滑滚到分布区。 */
 async function goDistribution(): Promise<void> {
@@ -144,198 +126,199 @@ async function goDistribution(): Promise<void> {
 </script>
 
 <template>
-  <div v-if="isLoading" class="flex flex-col gap-6">
-    <Skeleton class="h-44 w-full rounded-sm" />
-    <div class="grid items-start gap-8 lg:grid-cols-[400px_minmax(0,1fr)]">
-      <Skeleton class="aspect-[400/520] w-full rounded-xl" />
-      <div class="flex flex-col gap-4">
-        <Skeleton class="h-6 w-1/2" />
-        <Skeleton class="h-40 w-full rounded-xl" />
+  <div>
+    <div v-if="isLoading" class="flex flex-col gap-6">
+      <PxSkeleton class="h-56 w-full" />
+      <div class="grid items-start gap-6 lg:grid-cols-[430px_minmax(0,1fr)]">
+        <PxSkeleton class="aspect-[400/520] w-full" />
+        <div class="flex flex-col gap-4">
+          <PxSkeleton class="h-6 w-1/2" />
+          <PxSkeleton class="h-40 w-full" />
+        </div>
       </div>
     </div>
-  </div>
 
-  <Alert v-else-if="error" variant="destructive">
-    <AlertDescription>{{ apiErrorMessage(error) }}</AlertDescription>
-  </Alert>
+    <PxEmpty v-else-if="error" icon="warn" tone="red" :title="apiErrorMessage(error)">
+      <PxButton icon="book" to="/classics">回经典图鉴</PxButton>
+    </PxEmpty>
 
-  <div v-else-if="canonical" class="flex flex-col gap-6">
-    <!-- 显示模式工具条：链接不变，只切换呈现（档案 / 简洁） -->
-    <div class="flex items-center justify-between gap-3">
-      <Tabs :model-value="view" @update:model-value="(v) => setView(String(v))">
-        <TabsList>
-          <TabsTrigger value="archive">档案</TabsTrigger>
-          <TabsTrigger value="plain">简洁</TabsTrigger>
-        </TabsList>
-      </Tabs>
-      <p class="hidden text-xs text-muted-foreground sm:block">
-        {{ view === "archive" ? "档案：经典档案 + 社区共识" : "简洁：只看配方本身" }}
-      </p>
-    </div>
+    <div v-else-if="canonical" class="flex flex-col gap-8">
+      <!-- 档案卡 hero -->
+      <PxPanel variant="glow" tone="amber" :padded="false" class="hero">
+        <div class="hero-in px-stripes">
+          <div class="flex min-w-0 flex-col gap-3">
+            <p class="font-logo text-[8px] tracking-[0.3em] text-gold">★ CLASSIC ARCHIVE ★</p>
+            <div>
+              <h1 class="text-3xl text-fg text-shadow-px">{{ canonical.title }}</h1>
+              <p v-if="canonical.subtitle" class="text-dim">{{ canonical.subtitle }}</p>
+            </div>
 
-    <!-- 经典档案 hero：像素酒馆招牌 —— 旋转烛光光束 + 招牌扫光 -->
-    <section
-      v-if="view === 'archive'"
-      class="relative overflow-hidden rounded-sm border-2 border-amber-500/40 bg-gradient-to-b from-amber-50 to-transparent p-6 pixel-shadow sm:p-8 dark:border-amber-400/30 dark:from-amber-950/40"
-    >
-      <!-- 放射状旋转光线（烛光轮盘，缓慢旋转） -->
-      <div
-        class="tavern-rays animate-rays-spin pointer-events-none absolute -right-24 -top-24 size-[480px] opacity-[0.07] dark:opacity-[0.12]"
-        aria-hidden="true"
-      />
-      <p
-        class="font-pixel text-[10px] uppercase tracking-widest text-amber-700 dark:text-amber-400"
-      >
-        ★ Classic Archive ★
-      </p>
-      <h1
-        class="relative mt-3 w-fit overflow-hidden font-classic text-4xl font-bold leading-tight sm:text-5xl"
-      >
-        {{ canonical.title }}
-        <!-- 招牌扫光：斜向高光周期性掠过标题 -->
-        <span
-          class="animate-sign-shine pointer-events-none absolute inset-y-0 w-1/3 bg-gradient-to-r from-transparent via-white/50 to-transparent dark:via-amber-100/30"
-          aria-hidden="true"
-        />
-      </h1>
-      <p v-if="canonical.subtitle" class="mt-2 text-sm text-muted-foreground">
-        {{ canonical.subtitle }}
-      </p>
+            <!-- IBA 分档（金）· 家族 · 做法 -->
+            <div class="flex flex-wrap items-center gap-1">
+              <PxBadge
+                v-if="canonical.ibaCategory && IBA_ZH[canonical.ibaCategory]"
+                tone="gold"
+                variant="solid"
+                icon="crown"
+              >
+                {{ IBA_ZH[canonical.ibaCategory] }}
+              </PxBadge>
+              <PxBadge v-if="canonical.family && FAMILY_ZH[canonical.family]">{{ FAMILY_ZH[canonical.family] }}</PxBadge>
+              <PxBadge v-if="ir && METHOD_ZH[ir.method]">{{ METHOD_ZH[ir.method] }}</PxBadge>
+              <span class="ml-1 font-logo text-[8px] tracking-[0.15em] text-faint" title="配方 ID">No.{{ canonical.code }}</span>
+            </div>
 
-      <!-- IBA 分档（琥珀）· 家族 · 做法 -->
-      <div class="mt-4 flex flex-wrap items-center gap-1.5">
-        <Badge
-          v-if="canonical.ibaCategory && IBA_ZH[canonical.ibaCategory]"
-          class="border-amber-600/40 bg-amber-500/10 text-amber-800 dark:text-amber-300"
-        >
-          IBA · {{ IBA_ZH[canonical.ibaCategory] }}
-        </Badge>
-        <Badge v-if="canonical.family && FAMILY_ZH[canonical.family]" variant="secondary">
-          {{ FAMILY_ZH[canonical.family] }}
-        </Badge>
-        <Badge v-if="ir && METHOD_ZH[ir.method]" variant="secondary">
-          {{ METHOD_ZH[ir.method] }}
-        </Badge>
-      </div>
+            <!-- 摘要读数 -->
+            <div class="grid grid-cols-3 gap-2">
+              <div class="read">
+                <span class="text-faint">社区变体</span>
+                <span class="val">{{ variantCount }}</span>
+              </div>
+              <div class="read">
+                <span class="text-faint">ABV 中位</span>
+                <span class="val">{{ abv !== null ? `${abv.toFixed(1)}%` : "—" }}</span>
+              </div>
+              <div class="read">
+                <span class="text-faint">难度</span>
+                <PxStars v-if="canonical.difficulty" :model-value="canonical.difficulty" :max="5" readonly />
+                <span v-else class="val">—</span>
+              </div>
+            </div>
 
-      <p
-        class="mt-4 flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-muted-foreground"
-      >
-        <span>{{ dist?.variantCount ?? 0 }} 个社区变体</span>
-        <span v-if="abv !== null">ABV 中位 {{ abv.toFixed(1) }}%</span>
-        <span v-if="canonical.difficulty">
-          难度 {{ "★".repeat(canonical.difficulty) }}
-        </span>
-      </p>
-
-      <!-- 迷你共识分布：主原料用量中位前 3 的 p10~p90 区间 -->
-      <div v-if="heroDistRows.length" class="mt-5 flex max-w-md flex-col gap-2">
-        <div v-for="r in heroDistRows" :key="r.id" class="flex flex-col gap-1">
-          <div class="flex items-baseline justify-between gap-3 text-xs">
-            <span class="truncate">{{ r.name }}</span>
-            <span class="shrink-0 tabular-nums text-muted-foreground">
-              {{ r.median?.toFixed(1) }} ml
-            </span>
+            <!-- 从经典进入创作：编辑器据此自动关联 classicKey + derivedFrom，
+                 发布后就会出现在下面的「社区变体」里 -->
+            <PxButton variant="primary" size="lg" icon="shaker" :to="createTo" sfx="start" class="mt-1 self-start">
+              创作我的版本
+            </PxButton>
           </div>
-          <div class="relative h-2 rounded-full bg-secondary">
-            <div
-              class="absolute inset-y-0 rounded-full bg-amber-500/40"
-              :style="{ left: `${r.left}%`, width: `${Math.max(r.width, 1)}%` }"
-            />
-            <div
-              class="absolute inset-y-[-2px] w-0.5 rounded bg-amber-600"
-              :style="{ left: `${r.medianLeft}%` }"
-            />
+
+          <!-- 迷你共识分布：主原料用量中位前 3 的 p10~p90 区间 -->
+          <div class="consensus">
+            <p class="flex items-center justify-between gap-2">
+              <span class="flex items-center gap-2 text-fg"><PxIcon name="users" :scale="1" class="text-gold" />社区共识</span>
+              <span class="font-logo text-[8px] text-faint">TOP 3</span>
+            </p>
+            <template v-if="heroDistRows.length">
+              <div v-for="r in heroDistRows" :key="r.id" class="flex flex-col gap-1">
+                <p class="flex items-baseline justify-between gap-3">
+                  <span class="truncate text-dim">{{ r.name }}</span>
+                  <span class="shrink-0 font-logo text-[8px] text-amber">{{ ml(r.median) }}</span>
+                </p>
+                <CodexRangeBar :left="r.left" :width="r.width" :median="r.medianLeft" :empty="r.median === null" />
+              </div>
+              <PxButton size="sm" variant="ghost" class="self-start" @click="goDistribution">
+                查看完整分布 ↓
+              </PxButton>
+            </template>
+            <p v-else class="py-3 text-faint">还没有社区变体，共识数据等你来写第一笔。</p>
           </div>
         </div>
-        <button
-          class="mt-1 self-start text-xs text-amber-700 underline-offset-4 hover:underline dark:text-amber-400"
-          @click="goDistribution"
-        >
-          查看完整分布 ↓
-        </button>
-      </div>
+      </PxPanel>
 
-      <!-- 从经典进入创作：编辑器据此自动关联 classicKey + derivedFrom，
-           发布后就会出现在下面的「社区变体」里 -->
-      <Button as-child class="mt-6 bg-amber-600 text-white hover:bg-amber-700">
-        <NuxtLink :to="`/editor/new?classicKey=${key}&derivedFrom=${canonical.id}`">
-          <Plus class="size-4" /> 创作我的版本
-        </NuxtLink>
-      </Button>
-    </section>
+      <!-- 权威配方本体（动画 + 原料 + 步骤）；hero 已承载标题与徽章 -->
+      <RecipeDetail :recipe="canonical" hide-header />
 
-    <!-- 权威配方本体（动画 + 原料 + 步骤）；
-         档案模式由 hero 承载标题与徽章，简洁模式与 /r/{code} 完全同款 -->
-    <RecipeDetail :recipe="canonical" :hide-header="view === 'archive'" />
+      <!-- 变体 / 分布 -->
+      <section id="classic-tabs" class="flex scroll-mt-20 flex-col gap-4">
+        <PxSegmented v-model="tab" variant="tabs" :items="tabs" />
 
-    <!-- 变体 / 分布（仅档案模式） -->
-    <div v-if="view === 'archive'" id="classic-tabs">
-      <Tabs v-model="tab">
-        <TabsList>
-          <TabsTrigger value="variants">
-            社区变体（{{ dist?.variantCount ?? 0 }}）
-          </TabsTrigger>
-          <TabsTrigger value="distribution">规格分布</TabsTrigger>
-        </TabsList>
-
-        <TabsContent value="variants" class="mt-4">
-          <div
-            v-if="(variants?.items ?? []).length"
-            class="grid gap-4 sm:grid-cols-2 lg:grid-cols-3"
-          >
+        <template v-if="tab === 'variants'">
+          <div v-if="variantsLoading" class="grid grid-cols-2 gap-x-3 gap-y-4 sm:grid-cols-3 lg:grid-cols-4">
+            <PxSkeleton v-for="i in 4" :key="i" class="aspect-[3/4]" />
+          </div>
+          <div v-else-if="(variants?.items ?? []).length" class="grid grid-cols-2 gap-x-3 gap-y-4 sm:grid-cols-3 lg:grid-cols-4">
             <RecipeCard v-for="r in variants?.items ?? []" :key="r.id" :recipe="r" />
           </div>
-          <p v-else class="py-10 text-center text-sm text-muted-foreground">
-            还没有社区变体 —— 点上面的
-            <span class="text-foreground">「创作我的版本」</span>
-            写下第一个。
+          <PxEmpty v-else icon="branch" title="还没有社区变体 —— 照着经典调一杯，写下你的版本，它就是这里的第一张卡。">
+            <PxButton variant="primary" icon="shaker" :to="createTo" sfx="start">创作我的版本</PxButton>
+          </PxEmpty>
+        </template>
+
+        <PxPanel v-else title="社区共识落点" icon="list" tone="amber">
+          <p class="mb-5 text-dim">
+            {{ variantCount }} 个变体的用量分布（色块为 p10~p90 区间，竖刻度为中位数）—— 看看你的配方偏甜还是偏酸。
           </p>
-        </TabsContent>
 
-        <TabsContent value="distribution" class="mt-4">
-          <Card>
-            <CardHeader>
-              <CardTitle class="text-base">社区共识落点</CardTitle>
-              <CardDescription>
-                {{ dist?.variantCount ?? 0 }} 个变体的用量分布（p10~p90 区间，刻度线为中位数）
-                —— 看看你的配方偏甜还是偏酸。
-              </CardDescription>
-            </CardHeader>
-            <CardContent class="flex flex-col gap-4">
-              <div v-for="r in distRows" :key="r.id" class="flex flex-col gap-1">
-                <div class="flex items-baseline justify-between gap-3 text-sm">
+          <div v-if="distRows.length" class="flex flex-col gap-5">
+            <div v-for="r in distRows" :key="r.id" class="flex flex-col gap-2">
+              <div class="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
+                <NuxtLink :to="`/ingredients/${r.id}`" class="flex min-w-0 items-center gap-2 text-fg hover:text-amber">
+                  <span class="swatch" :style="r.color ? { background: r.color } : undefined" />
                   <span class="truncate">{{ r.name }}</span>
-                  <span class="shrink-0 text-xs tabular-nums text-muted-foreground">
-                    中位 {{ r.median?.toFixed(1) }} ml · {{ r.presentIn }}/{{ r.variantCount }} 变体在用
+                </NuxtLink>
+                <span class="flex shrink-0 items-baseline gap-3">
+                  <span class="text-faint">
+                    <span class="font-logo text-[8px] text-dim">{{ r.presentIn }}/{{ r.variantCount }}</span> 变体在用
                   </span>
-                </div>
-                <div class="relative h-3 rounded-full bg-secondary">
-                  <div
-                    class="absolute inset-y-0 rounded-full bg-primary/40"
-                    :style="{ left: `${r.left}%`, width: `${Math.max(r.width, 1)}%` }"
-                  />
-                  <div
-                    class="absolute inset-y-[-2px] w-0.5 rounded bg-primary"
-                    :style="{ left: `${r.medianLeft}%` }"
-                  />
-                </div>
-              </div>
-
-              <div v-if="dist?.abvEst?.median" class="text-sm text-muted-foreground">
-                ABV 估计：中位 {{ dist.abvEst.median.toFixed(1) }}%
-                <span v-if="dist.abvEst.p10 !== null && dist.abvEst.p90 !== null">
-                  （{{ dist.abvEst.p10.toFixed(1) }}% ~ {{ dist.abvEst.p90.toFixed(1) }}%）
+                  <span class="text-faint">中位 <span class="font-logo text-[8px] text-amber">{{ ml(r.median) }}</span></span>
                 </span>
               </div>
+              <CodexRangeBar :left="r.left" :width="r.width" :median="r.medianLeft" :empty="r.median === null" size="lg" />
+            </div>
+            <p class="flex justify-between font-logo text-[8px] text-faint" aria-hidden="true">
+              <span>0</span><span>{{ (maxP90 / 2).toFixed(0) }}</span><span>{{ maxP90.toFixed(0) }}ml</span>
+            </p>
+          </div>
+          <PxEmpty v-else icon="list" title="暂无分布数据" />
 
-              <p v-if="distRows.length === 0" class="py-6 text-center text-sm text-muted-foreground">
-                暂无分布数据
-              </p>
-            </CardContent>
-          </Card>
-        </TabsContent>
-      </Tabs>
+          <div v-if="dist?.abvEst?.median" class="abv">
+            <PxIcon name="fire" :scale="2" class="text-pink" />
+            <span class="text-dim">ABV 估计</span>
+            <span class="text-faint">中位 <span class="font-logo text-[8px] text-amber">{{ dist.abvEst.median.toFixed(1) }}%</span></span>
+            <span v-if="dist.abvEst.p10 !== null && dist.abvEst.p90 !== null" class="font-logo text-[8px] text-faint">
+              {{ dist.abvEst.p10.toFixed(1) }}% ~ {{ dist.abvEst.p90.toFixed(1) }}%
+            </span>
+          </div>
+        </PxPanel>
+      </section>
     </div>
   </div>
 </template>
+
+<style scoped>
+.hero { --stripe: color-mix(in srgb, var(--gold) 6%, transparent); }
+.hero-in {
+  display: grid;
+  gap: 20px;
+  padding: 20px;
+}
+@media (min-width: 1024px) {
+  .hero-in { grid-template-columns: minmax(0, 1fr) 340px; align-items: start; padding: 24px; }
+}
+.read {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+  padding: 8px 10px;
+  margin: var(--p);
+  background: var(--panel-lo);
+  box-shadow: 0 0 0 var(--p) var(--ink), inset var(--p) var(--p) 0 0 var(--lo);
+}
+.read .val { font-family: var(--font-logo); font-size: 16px; line-height: 24px; color: var(--amber); }
+.consensus {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 12px 14px;
+  margin: var(--p);
+  background: var(--deep);
+  box-shadow: 0 0 0 var(--p) var(--ink), inset var(--p) var(--p) 0 0 var(--lo);
+}
+.swatch {
+  flex-shrink: 0;
+  width: 12px;
+  height: 12px;
+  background: var(--dim);
+  box-shadow: 0 0 0 var(--p) var(--ink);
+}
+.abv {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  margin-top: 20px;
+  padding-top: 14px;
+  border-top: var(--p) dashed var(--line);
+}
+</style>

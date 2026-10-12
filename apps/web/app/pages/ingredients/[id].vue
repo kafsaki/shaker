@@ -1,21 +1,8 @@
 <script setup lang="ts">
-/** 原料详情：物理/视觉数据 + 反查「用到它的配方」（需求 1）。 */
+/** 物品详情（原料）：大号物品格 + 说明 + 物性属性格 + 反查「用到它的配方」（需求 1）。 */
 import { useInfiniteQuery, useQuery } from "@tanstack/vue-query";
 import type { components } from "@shaker/api-client";
 import { CATEGORY_ZH } from "@/lib/labels";
-import InfiniteLoader from "@/components/InfiniteLoader.vue";
-import RecipeCard from "@/components/RecipeCard.vue";
-import { Alert, AlertDescription } from "@/components/ui/alert";
-import { Badge } from "@/components/ui/badge";
-import {
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
-import { Separator } from "@/components/ui/separator";
-import { Skeleton } from "@/components/ui/skeleton";
-import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 type Detail = components["schemas"]["IngredientDetailBody"];
 type SearchOut = components["schemas"]["SearchOutputBody"];
@@ -36,12 +23,22 @@ const { data: ing, error, isLoading } = useQuery({
 });
 
 const sort = ref<"hot" | "new">("hot");
+// PxSegmented 的 v-model 是 string，这里收窄回排序类型
+const sortModel = computed({
+  get: () => sort.value,
+  set: (v: string) => (sort.value = v === "new" ? "new" : "hot"),
+});
+const SORTS = [
+  { value: "hot", label: "热门", icon: "fire" as const },
+  { value: "new", label: "最新", icon: "sparkle" as const },
+];
 
 // 反查「用到它的配方」：文档 §2.2 的 /ingredients/:id/recipes 端点后端未实现，
 // 用 /search?type=recipe&ingredient= 等价替代（数据同源：recipe_ingredients 投影，
 // 筛选条件与 hot/new 排序一致）。接上游标分页，避免高频原料被首页上限截断。
 const {
   data: recipePages,
+  isLoading: recipesLoading,
   isError: recipesError,
   fetchNextPage,
   hasNextPage,
@@ -74,99 +71,180 @@ const recipes = computed(
 useHead(() => ({ title: `${ing.value?.nameZh ?? id.value} · Shaker` }));
 
 const viz = computed(() => ing.value?.viz as Record<string, unknown> | undefined);
+const color = computed(() => (viz.value?.color as string | undefined) ?? null);
 const viscosity = computed(() => String(viz.value?.viscosity ?? "—"));
 const texture = computed(() => String(viz.value?.texture ?? "—"));
+
+/** 物性属性格：数值走 font-logo 读数；密度没有就不显示这一格。 */
+const stats = computed(() => {
+  const out = [
+    { key: "viscosity", label: "粘度", en: "VISCOSITY", value: viscosity.value },
+    { key: "texture", label: "质地", en: "TEXTURE", value: texture.value },
+  ];
+  if (ing.value?.density) out.push({ key: "density", label: "密度", en: "DENSITY", value: `${ing.value.density} g/ml` });
+  return out;
+});
 </script>
 
 <template>
-  <div v-if="isLoading" class="flex flex-col gap-4">
-    <Skeleton class="h-10 w-64" />
-    <Skeleton class="h-40 w-full" />
-    <Skeleton class="h-64 w-full" />
-  </div>
-
-  <Alert v-else-if="error" variant="destructive">
-    <AlertDescription>
-      {{ apiErrorMessage(error) }}
-      <NuxtLink to="/ingredients" class="underline underline-offset-4">回百科</NuxtLink>
-    </AlertDescription>
-  </Alert>
-
-  <div v-else-if="ing" class="flex flex-col gap-6">
-    <div class="flex flex-col gap-2">
-      <div class="flex items-center gap-3">
-        <span
-          class="inline-block size-10 rounded-lg border border-border"
-          :style="{ background: (viz as { color?: string } | undefined)?.color ?? 'transparent' }"
-        />
-        <div>
-          <h1 class="text-2xl font-bold">
-            {{ ing.nameZh }}
-            <span class="text-base font-normal text-muted-foreground">{{ ing.nameEn }}</span>
-          </h1>
-          <div class="mt-1 flex flex-wrap gap-1.5">
-            <Badge variant="secondary">{{ CATEGORY_ZH[ing.category] ?? ing.category }}</Badge>
-            <Badge v-if="ing.subcategory" variant="outline">{{ ing.subcategory }}</Badge>
-            <Badge v-if="ing.abv" variant="outline">{{ ing.abv }}% ABV</Badge>
-            <Badge v-if="ing.recipeCount" variant="outline">{{ ing.recipeCount }} 个配方</Badge>
-          </div>
+  <div>
+    <div v-if="isLoading" class="flex flex-col gap-6">
+      <div class="grid gap-6 md:grid-cols-[200px_minmax(0,1fr)]">
+        <PxSkeleton class="aspect-square w-full max-w-[200px]" />
+        <div class="flex flex-col gap-3">
+          <PxSkeleton class="h-8 w-64" />
+          <PxSkeleton class="h-32 w-full" />
         </div>
       </div>
-      <p
-        v-if="ing.descriptionZh"
-        class="max-w-2xl whitespace-pre-wrap text-sm leading-relaxed text-muted-foreground"
-      >
-        {{ ing.descriptionZh }}
-      </p>
-      <p v-if="ing.descriptionEn" class="max-w-2xl text-xs text-muted-foreground/70">
-        {{ ing.descriptionEn }}
-      </p>
-      <p v-if="(ing.aliases ?? []).length" class="text-xs text-muted-foreground">
-        又名：{{ (ing.aliases ?? []).join(" · ") }}
-      </p>
+      <PxSkeleton class="h-64 w-full" />
     </div>
 
-    <Card>
-      <CardHeader><CardTitle class="text-base">物性</CardTitle></CardHeader>
-      <CardContent class="flex flex-wrap gap-x-8 gap-y-2 text-sm">
-        <div>
-          <span class="text-muted-foreground">粘度</span>：{{ viscosity }}
-        </div>
-        <div>
-          <span class="text-muted-foreground">质地</span>：{{ texture }}
-        </div>
-        <div v-if="ing.density">
-          <span class="text-muted-foreground">密度</span>：{{ ing.density }} g/ml
-        </div>
-      </CardContent>
-    </Card>
+    <PxEmpty v-else-if="error" icon="warn" tone="red" :title="apiErrorMessage(error)">
+      <PxButton icon="bottle" to="/ingredients">回原料库</PxButton>
+    </PxEmpty>
 
-    <Separator />
+    <div v-else-if="ing" class="flex flex-col gap-8">
+      <NuxtLink to="/ingredients" class="flex w-fit items-center gap-1 text-dim hover:text-amber">
+        <PxIcon name="chevron-left" :scale="1" />原料库
+        <template v-if="CATEGORY_ZH[ing.category]">
+          <span class="text-faint">/</span>
+          <span>{{ CATEGORY_ZH[ing.category] }}</span>
+        </template>
+      </NuxtLink>
 
-    <div class="flex flex-col gap-3">
-      <h2 class="text-base font-medium">用到它的配方</h2>
-      <Tabs v-model="sort">
-        <TabsList>
-          <TabsTrigger value="hot">热门</TabsTrigger>
-          <TabsTrigger value="new">最新</TabsTrigger>
-        </TabsList>
-      </Tabs>
-      <div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-        <RecipeCard v-for="r in recipes" :key="r.id" :recipe="r" />
-      </div>
-      <p
-        v-if="recipes.length === 0"
-        class="py-8 text-center text-sm text-muted-foreground"
-      >
-        还没有配方用到它。
-      </p>
-      <InfiniteLoader
-        :has-next-page="hasNextPage"
-        :is-fetching-next-page="isFetchingNextPage"
-        :error="recipesError"
-        ended-text=""
-        @load="fetchNextPage()"
-      />
+      <section class="grid items-start gap-6 md:grid-cols-[200px_minmax(0,1fr)]">
+        <!-- 左：物品格 + 色票 -->
+        <div class="flex flex-col items-center gap-3 md:items-stretch">
+          <div class="frame">
+            <IngredientSlot :category="ing.category" :color="color" :scale="8" :size="180" />
+          </div>
+          <div class="chip">
+            <span class="swatch" :style="color ? { background: color } : undefined" />
+            <span class="font-logo text-[8px] uppercase text-dim">{{ color ?? "NO COLOR" }}</span>
+          </div>
+        </div>
+
+        <!-- 右：名牌 + 说明 -->
+        <div class="flex min-w-0 flex-col gap-4">
+          <div>
+            <p class="font-logo text-[8px] tracking-[0.3em] text-amber">ITEM</p>
+            <h1 class="text-2xl text-fg text-shadow-px">{{ ing.nameZh }}</h1>
+            <p class="text-faint">{{ ing.nameEn }}</p>
+          </div>
+
+          <div class="flex flex-wrap items-center gap-1">
+            <NuxtLink :to="`/ingredients?category=${ing.category}`" class="hover:brightness-125">
+              <PxBadge tone="amber" variant="solid">{{ CATEGORY_ZH[ing.category] ?? ing.category }}</PxBadge>
+            </NuxtLink>
+            <PxBadge v-if="ing.subcategory">{{ ing.subcategory }}</PxBadge>
+            <PxBadge v-if="ing.abv" tone="pink" icon="fire">{{ ing.abv }}% ABV</PxBadge>
+            <PxBadge v-if="ing.recipeCount" tone="cyan" icon="martini">{{ ing.recipeCount }} 个配方</PxBadge>
+          </div>
+
+          <PxPanel v-if="ing.descriptionZh || ing.descriptionEn" title="物品说明" icon="book" tone="plain" variant="inset">
+            <p v-if="ing.descriptionZh" class="whitespace-pre-wrap leading-[2] text-fg">{{ ing.descriptionZh }}</p>
+            <p v-if="ing.descriptionEn" class="mt-2 text-faint">{{ ing.descriptionEn }}</p>
+          </PxPanel>
+
+          <p v-if="(ing.aliases ?? []).length" class="flex flex-wrap items-center gap-x-2 text-faint">
+            <span>又名</span>
+            <span v-for="a in ing.aliases ?? []" :key="a" class="alias">{{ a }}</span>
+          </p>
+        </div>
+      </section>
+
+      <!-- 物性 -->
+      <PxPanel title="物性" icon="drop" tone="cyan">
+        <div class="grid grid-cols-2 gap-2 sm:grid-cols-3">
+          <div v-for="s in stats" :key="s.key" class="stat">
+            <span class="flex items-baseline justify-between gap-2">
+              <span class="text-faint">{{ s.label }}</span>
+              <span class="font-logo text-[8px] text-faint">{{ s.en }}</span>
+            </span>
+            <span class="val">{{ s.value }}</span>
+          </div>
+        </div>
+      </PxPanel>
+
+      <!-- 用到它的配方 -->
+      <section class="flex flex-col gap-4">
+        <div class="flex flex-wrap items-center justify-between gap-3">
+          <h2 class="flex items-center gap-2 text-fg">
+            <PxIcon name="martini" :scale="2" class="text-amber" />用到它的配方
+          </h2>
+          <PxSegmented v-model="sortModel" :items="SORTS" size="sm" />
+        </div>
+
+        <div v-if="recipesLoading" class="grid grid-cols-2 gap-x-3 gap-y-4 sm:grid-cols-3 lg:grid-cols-4">
+          <PxSkeleton v-for="i in 4" :key="i" class="aspect-[3/4]" />
+        </div>
+        <PxEmpty v-else-if="recipesError && recipes.length === 0" icon="warn" tone="red" title="配方列表加载失败" />
+        <PxEmpty v-else-if="recipes.length === 0" icon="martini" title="还没有配方用到它。" />
+        <div v-else class="grid grid-cols-2 gap-x-3 gap-y-4 sm:grid-cols-3 lg:grid-cols-4">
+          <RecipeCard v-for="r in recipes" :key="r.id" :recipe="r" />
+        </div>
+        <InfiniteLoader
+          :has-next-page="hasNextPage"
+          :is-fetching-next-page="isFetchingNextPage"
+          :error="recipesError"
+          ended-text=""
+          @load="fetchNextPage()"
+        />
+      </section>
     </div>
   </div>
 </template>
+
+<style scoped>
+/* 物品格外再套一圈金框：详情页里它是「当前查看的物品」 */
+.frame {
+  padding: 8px;
+  margin: calc(var(--p) * 2);
+  background: var(--panel);
+  box-shadow:
+    0 0 0 var(--p) var(--gold),
+    0 0 0 calc(var(--p) * 2) var(--ink),
+    inset var(--p) var(--p) 0 0 var(--hi),
+    calc(var(--p) * 4) calc(var(--p) * 4) 0 calc(var(--p) * 2) var(--shadow);
+}
+.chip {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 196px;
+  padding: 6px 8px;
+  margin: var(--p) calc(var(--p) * 2);
+  background: var(--deep);
+  box-shadow: 0 0 0 var(--p) var(--ink), inset var(--p) var(--p) 0 0 var(--lo);
+}
+.swatch {
+  flex-shrink: 0;
+  width: 24px;
+  height: 16px;
+  background: var(--panel-lo);
+  box-shadow: 0 0 0 var(--p) var(--ink), inset var(--p) var(--p) 0 0 rgb(255 255 255 / 0.25);
+}
+.alias {
+  padding: 0 6px;
+  background: var(--panel-lo);
+  color: var(--dim);
+  box-shadow: 0 0 0 var(--p) var(--line);
+}
+.stat {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 10px 12px;
+  margin: var(--p);
+  background: var(--panel-lo);
+  box-shadow: 0 0 0 var(--p) var(--ink), inset var(--p) var(--p) 0 0 var(--lo);
+}
+.stat .val {
+  font-family: var(--font-logo);
+  font-size: 16px;
+  line-height: 24px;
+  color: var(--cyan);
+  text-transform: uppercase;
+  overflow-wrap: anywhere;
+}
+</style>
