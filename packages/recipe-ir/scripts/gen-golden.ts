@@ -13,8 +13,8 @@ import { writeFileSync, mkdirSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { RecipeIR, compileVessel, estimateAbv, type VocabLookup } from "../src/index.ts";
-// seed 依赖 recipe-ir（不是反向），这里用相对路径避免 workspace 循环依赖
-import { INGREDIENTS, VESSEL_LIST } from "../../seed/src/index.ts";
+// fixtures 依赖 recipe-ir（不是反向），这里用相对路径避免 workspace 循环依赖
+import { INGREDIENTS, VESSEL_LIST } from "../../fixtures/src/index.ts";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const outPath = resolve(here, "../../../apps/api/internal/irv/testdata/golden.json");
