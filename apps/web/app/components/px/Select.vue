@@ -35,6 +35,8 @@ const props = withDefaults(
   { size: "md" },
 );
 const model = defineModel<string>();
+// SelectRoot 不渲染 DOM，class / title 等属性要落到触发器上，调用方才能定宽
+defineOptions({ inheritAttrs: false });
 const { play } = useSfx();
 
 const groups = computed(() => {
@@ -54,7 +56,7 @@ const groups = computed(() => {
     :disabled="disabled"
     @update:open="(o) => play(o ? 'open' : 'close')"
   >
-    <SelectTrigger class="px-sel-trigger" :class="`s-${size}`">
+    <SelectTrigger v-bind="$attrs" class="px-sel-trigger" :class="`s-${size}`">
       <PxIcon v-if="icon" :name="icon" :scale="1" class="text-faint" />
       <span class="min-w-0 flex-1 truncate text-left">
         <SelectValue :placeholder="placeholder" />

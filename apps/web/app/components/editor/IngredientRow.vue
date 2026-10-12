@@ -1,28 +1,19 @@
 <script setup lang="ts">
-/** 编辑器原料行：词表选择 + 角色 + 单位（discriminated union 约束）+ 用量。 */
-import { Trash2 } from "lucide-vue-next";
+/**
+ * 编辑器原料行（一个「材料格」）：小瓶按原料色上色 + 词表选择 + slot 代号 +
+ * 角色 + 单位（discriminated union 约束）+ 用量 + 可选。
+ */
 import type { IngredientRef } from "@shaker/recipe-ir";
 import { UNIT_GROUPS, ROLE_OPTIONS } from "@shaker/recipe-ir";
 import IngredientPicker from "./IngredientPicker.vue";
-import { Button } from "@/components/ui/button";
-import { Checkbox } from "@/components/ui/checkbox";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import {
-  Select,
-  SelectContent,
-  SelectGroup,
-  SelectItem,
-  SelectLabel,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 
 const props = defineProps<{ modelValue: IngredientRef }>();
 const emit = defineEmits<{
   "update:modelValue": [value: IngredientRef];
   remove: [];
 }>();
+
+const vocab = useVocabStore();
 
 function patch(p: Record<string, unknown>): void {
   emit("update:modelValue", {
@@ -49,105 +40,143 @@ const currentKind = computed(
 );
 
 const roleValue = computed(() => props.modelValue.role ?? "base");
+
+const KIND_ZH: Record<string, string> = {
+  volume: "体积",
+  spoon: "勺量",
+  quasi: "准体积",
+  count: "计数",
+  none: "无量",
+};
+// UNIT_GROUPS 已按 kind 连续排列，PxSelect 按相邻 group 插标题
+const unitOptions = UNIT_GROUPS.map((u) => ({
+  value: u.value,
+  label: u.label,
+  group: KIND_ZH[u.kind] ?? u.kind,
+}));
+const roleOptions = ROLE_OPTIONS.map((r) => ({ value: r.value, label: r.label }));
+
+/** 小瓶液色：取词表 viz.color，未选原料时是空瓶。 */
+const liquid = computed(() => {
+  const meta = vocab.ingMap.get(props.modelValue.ingredientId);
+  return (meta?.viz as { color?: string } | undefined)?.color ?? "transparent";
+});
 </script>
 
 <template>
-  <div class="grid gap-2 rounded-xl border border-border bg-card p-3 sm:grid-cols-[minmax(0,1fr)_120px]">
-    <div class="flex flex-col gap-2">
-      <div class="flex items-start gap-2">
+  <div class="cell">
+    <span
+      class="vial"
+      :class="{ blank: !modelValue.ingredientId }"
+      :style="{ '--px-icon-2': liquid, '--px-icon-2-alpha': 1 }"
+    >
+      <PxIcon name="bottle" :scale="3" />
+    </span>
+
+    <div class="flex min-w-0 flex-1 flex-col gap-2">
+      <div class="flex items-center gap-2">
         <div class="min-w-0 flex-1">
           <IngredientPicker
             :model-value="modelValue.ingredientId"
             @update:model-value="patch({ ingredientId: $event ?? '' })"
           />
         </div>
-        <Button
+        <span class="slot font-logo" title="原料代号（步骤里引用它）">{{ modelValue.slot }}</span>
+        <PxButton
+          square
+          size="sm"
           variant="ghost"
-          size="icon"
-          class="mt-0.5 size-8 shrink-0 text-destructive"
+          icon="trash"
           title="删除原料"
+          class="del"
+          sfx="cancel"
           @click="emit('remove')"
-        >
-          <Trash2 class="size-4" />
-        </Button>
+        />
       </div>
 
-      <div class="flex flex-wrap items-center gap-2">
-        <code class="rounded bg-secondary px-1.5 py-0.5 text-xs text-secondary-foreground">
-          {{ modelValue.slot }}
-        </code>
+      <div class="flex flex-wrap items-center gap-x-2 gap-y-1">
+        <div class="sel w-28" title="角色">
+          <PxSelect
+            :model-value="roleValue"
+            :options="roleOptions"
+            size="sm"
+            placeholder="角色"
+            @update:model-value="patch({ role: String($event) })"
+          />
+        </div>
+        <div class="sel w-24" title="单位">
+          <PxSelect
+            :model-value="modelValue.unit"
+            :options="unitOptions"
+            size="sm"
+            placeholder="单位"
+            @update:model-value="setUnit(String($event))"
+          />
+        </div>
 
-        <Select :model-value="roleValue" @update:model-value="patch({ role: String($event) })">
-          <SelectTrigger class="h-8 w-28 text-xs">
-            <SelectValue placeholder="角色" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem v-for="r in ROLE_OPTIONS" :key="r.value" :value="r.value">
-              {{ r.label }}
-            </SelectItem>
-          </SelectContent>
-        </Select>
-
-        <Select :model-value="modelValue.unit" @update:model-value="setUnit(String($event))">
-          <SelectTrigger class="h-8 w-24 text-xs">
-            <SelectValue placeholder="单位" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectGroup>
-              <SelectLabel>体积</SelectLabel>
-              <SelectItem v-for="u in UNIT_GROUPS.filter((g) => g.kind === 'volume')" :key="u.value" :value="u.value">
-                {{ u.label }}
-              </SelectItem>
-            </SelectGroup>
-            <SelectGroup>
-              <SelectLabel>勺量</SelectLabel>
-              <SelectItem v-for="u in UNIT_GROUPS.filter((g) => g.kind === 'spoon')" :key="u.value" :value="u.value">
-                {{ u.label }}
-              </SelectItem>
-            </SelectGroup>
-            <SelectGroup>
-              <SelectLabel>准体积</SelectLabel>
-              <SelectItem v-for="u in UNIT_GROUPS.filter((g) => g.kind === 'quasi')" :key="u.value" :value="u.value">
-                {{ u.label }}
-              </SelectItem>
-            </SelectGroup>
-            <SelectGroup>
-              <SelectLabel>计数</SelectLabel>
-              <SelectItem v-for="u in UNIT_GROUPS.filter((g) => g.kind === 'count')" :key="u.value" :value="u.value">
-                {{ u.label }}
-              </SelectItem>
-            </SelectGroup>
-            <SelectGroup>
-              <SelectLabel>无量</SelectLabel>
-              <SelectItem v-for="u in UNIT_GROUPS.filter((g) => g.kind === 'none')" :key="u.value" :value="u.value">
-                {{ u.label }}
-              </SelectItem>
-            </SelectGroup>
-          </SelectContent>
-        </Select>
-
-        <div v-if="currentKind !== 'none'" class="flex items-center gap-1.5">
-          <Label class="sr-only" for="amt">用量</Label>
-          <Input
-            id="amt"
+        <div v-if="currentKind !== 'none'" class="amt flex items-center gap-1">
+          <PxInput
             type="number"
-            class="h-8 w-20 text-xs tabular-nums"
+            size="sm"
+            class="w-16"
+            aria-label="用量"
             :min="currentKind === 'count' ? 1 : 0.1"
             :step="currentKind === 'count' ? 1 : 'any'"
             :model-value="('amount' in modelValue ? modelValue.amount : 1) ?? ''"
             @update:model-value="patch({ amount: Number($event) })"
           />
-          <span class="text-xs text-muted-foreground">{{ modelValue.unit }}</span>
+          <span class="text-faint">{{ modelValue.unit }}</span>
         </div>
 
-        <label class="ml-auto flex items-center gap-1.5 text-xs text-muted-foreground">
-          <Checkbox
-            :model-value="modelValue.optional ?? false"
-            @update:model-value="patch({ optional: $event === true })"
-          />
+        <PxCheckbox
+          class="ml-auto text-dim"
+          :model-value="modelValue.optional ?? false"
+          @update:model-value="patch({ optional: $event === true })"
+        >
           可选
-        </label>
+        </PxCheckbox>
       </div>
     </div>
   </div>
 </template>
+
+<style scoped>
+.cell {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 10px;
+  margin: var(--p);
+  background: var(--panel-lo);
+  box-shadow: 0 0 0 var(--p) var(--ink), inset var(--p) var(--p) 0 0 var(--lo);
+}
+.cell:hover { box-shadow: 0 0 0 var(--p) var(--amber-lo), inset var(--p) var(--p) 0 0 var(--lo); }
+.vial {
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  width: 44px;
+  height: 44px;
+  margin-top: var(--p);
+  background: var(--deep);
+  color: var(--dim);
+  box-shadow: 0 0 0 var(--p) var(--ink), inset var(--p) var(--p) 0 0 var(--lo);
+}
+.vial.blank { color: var(--faint); }
+.slot {
+  flex-shrink: 0;
+  padding: 3px 5px;
+  font-size: 8px;
+  color: var(--cyan);
+  background: var(--deep);
+  box-shadow: 0 0 0 var(--p) var(--ink);
+}
+.del:hover { color: var(--red); }
+/* PxSelect 不透传 class（reka SelectRoot 吞掉 attrs），宽度由外层 div 定、触发器撑满 */
+.sel :deep(.px-sel-trigger) { width: calc(100% - var(--p) * 2); }
+/* 用量读数用招牌字体（PxInput 的 class 会透传到 <input> 上，压不过它的 font: inherit，只能穿透写） */
+.amt :deep(input) { font-family: var(--font-logo); font-size: 8px; color: var(--amber); }
+@media (max-width: 479px) {
+  .vial { width: 32px; height: 32px; }
+}
+</style>

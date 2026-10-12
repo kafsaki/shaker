@@ -1,46 +1,19 @@
 <script setup lang="ts">
 /**
- * 结构化编辑器（ADR-001 创作区）：左表单 / 右实时预览 + 诊断。
+ * 结构化编辑器（ADR-001 创作区）——「调酒工坊」：左配方卡 / 材料 / 工序，右试饮预览 + 诊断。
  * 草稿宽松（错误不阻止保存），发布严格（本地完整校验通过才允许）。
  * 发布流程：保存 → 封面截帧 → 预签名三步直传（ADR-015）→ PATCH coverUrl → publish。
  */
 import { useMutation, useQuery, useQueryClient } from "@tanstack/vue-query";
-import { FolderOpen, Plus, Save, Send, Trash2 } from "lucide-vue-next";
-import { toast } from "vue-sonner";
+import { toast } from "@/lib/toast";
 import type { components } from "@shaker/api-client";
 import { validateRecipeIR, type RecipeIR } from "@shaker/recipe-ir";
 import { FAMILY_ZH, METHOD_ZH } from "@/lib/labels";
 import { familySkeleton } from "@shaker/recipe-ir";
 import IngredientRow from "@/components/editor/IngredientRow.vue";
 import StepCard from "@/components/editor/StepCard.vue";
+import TasteMeter from "@/components/editor/TasteMeter.vue";
 import VizPlayer from "@/components/VizPlayer.vue";
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import {
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import { Separator } from "@/components/ui/separator";
-import { Skeleton } from "@/components/ui/skeleton";
-import { Textarea } from "@/components/ui/textarea";
 
 type DraftPage = components["schemas"]["RecipeListOutputBody"];
 
@@ -57,7 +30,7 @@ const player = ref<{ captureCover: () => Promise<{ dark: Blob; light: Blob } | n
 const isNew = computed(() => route.params.id === "new");
 const recipeId = computed(() => (isNew.value ? null : String(route.params.id)));
 
-useHead({ title: "创作 · Shaker" });
+useHead({ title: "调酒工坊 · Shaker" });
 
 /* ── 已有草稿载入 ── */
 const { data: existing, isLoading } = useQuery({
@@ -200,6 +173,8 @@ const slotLabels = computed(() =>
     return {
       slot: i.slot,
       label: meta ? `${meta.nameZh} (${i.slot})` : `${i.slot}（未选原料）`,
+      // 工序卡材料 chip 的色点（纯展示）
+      color: (meta?.viz as { color?: string } | undefined)?.color,
     };
   }),
 );
@@ -450,6 +425,18 @@ async function onPublish(): Promise<void> {
 /* ── 读取草稿：列出我的草稿，可载入编辑器或删除 ── */
 const draftsOpen = ref(false);
 
+// HUD 玩家菜单的「草稿箱」入口是 /editor/new?drafts=1：进来即打开对话框。
+// 打开后把 drafts 从地址栏摘掉（只改 query 不会重建页面），这样关掉后再点菜单还能再次打开
+watch(
+  () => route.query.drafts,
+  (d) => {
+    if (d !== "1") return;
+    draftsOpen.value = true;
+    void router.replace({ query: { ...route.query, drafts: undefined } });
+  },
+  { immediate: true },
+);
+
 const { data: drafts, isLoading: draftsLoading } = useQuery({
   queryKey: ["my-drafts"] as const,
   queryFn: async (): Promise<DraftPage> => {
@@ -523,297 +510,378 @@ function formatDraftTime(iso: string): string {
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
 }
 
-const tasteKeys: Array<{ key: keyof typeof taste.value; label: string }> = [
-  { key: "sweet", label: "甜" },
-  { key: "sour", label: "酸" },
-  { key: "bitter", label: "苦" },
-  { key: "strength", label: "烈" },
+const tasteKeys: Array<{
+  key: keyof typeof taste.value;
+  label: string;
+  tone: "pink" | "green" | "cyan" | "red";
+}> = [
+  { key: "sweet", label: "甜", tone: "pink" },
+  { key: "sour", label: "酸", tone: "green" },
+  { key: "bitter", label: "苦", tone: "cyan" },
+  { key: "strength", label: "烈", tone: "red" },
 ];
+
+/* ── 下拉选项（PxSelect 扁平 options） ── */
+const familyOptions = Object.entries(FAMILY_ZH).map(([value, label]) => ({ value, label }));
+const methodOptions = Object.entries(METHOD_ZH).map(([value, label]) => ({ value, label }));
+const glassOptions = computed(() =>
+  vocab.glassware.map((g) => ({ value: g.id, label: `${g.nameZh}（${g.capacityMl}ml）` })),
+);
+const classicSelectOptions = computed(() => [
+  ...(classicKey.value ? [] : [{ value: "none", label: "不关联" }]),
+  ...classicChoices.value.map((c) => ({ value: c.key, label: c.title })),
+]);
+
+/** 难度保持 1..3：PxStars 再点同一颗会清零，这里兜住下限。 */
+function setDifficulty(v: number): void {
+  difficulty.value = Math.max(1, v);
+}
 </script>
 
 <template>
-  <!-- 新建配方保存后 router.replace 会改路由参数，useQuery 随之重新加载；此时 savedId
-       已有值，不能再回落到骨架屏——否则编辑器（含预览播放器）被整块卸载，接着的封面截帧就没有播放器可用。 -->
-  <div v-if="!isNew && isLoading && !savedId" class="flex flex-col gap-4">
-    <Skeleton class="h-10 w-64" />
-    <Skeleton class="h-96 w-full" />
-  </div>
-
-  <div v-else class="grid items-start gap-8 lg:grid-cols-[minmax(0,1fr)_400px]">
-    <!-- 左：表单 -->
-    <div class="flex min-w-0 flex-col gap-5">
-      <div class="flex flex-wrap items-center justify-between gap-3">
-        <h1 class="text-xl font-bold">{{ isNew ? "写一杯新酒" : "编辑配方" }}</h1>
-        <div class="flex items-center gap-2">
-          <Button variant="outline" @click="draftsOpen = true">
-            <FolderOpen class="size-4" /> 读取草稿
-          </Button>
-          <Button variant="outline" :disabled="saving" @click="onSave()">
-            <Save class="size-4" /> {{ saving ? "保存中…" : "保存草稿" }}
-          </Button>
-          <Button :disabled="publishing" @click="onPublish()">
-            <Send class="size-4" /> {{ publishing ? "发布中…" : "发布" }}
-          </Button>
-        </div>
+  <div>
+    <!-- 新建配方保存后 router.replace 会改路由参数，useQuery 随之重新加载；此时 savedId
+         已有值，不能再回落到骨架屏——否则编辑器（含预览播放器）被整块卸载，接着的封面截帧就没有播放器可用。 -->
+    <div v-if="!isNew && isLoading && !savedId" class="flex flex-col gap-4">
+      <PxSkeleton class="h-14 w-72" />
+      <div class="grid gap-6 lg:grid-cols-[minmax(0,1fr)_420px]">
+        <PxSkeleton class="h-[560px]" />
+        <PxSkeleton class="aspect-[400/560]" />
       </div>
+    </div>
 
-      <!-- 基本信息 -->
-      <Card>
-        <CardHeader><CardTitle class="text-base">基本信息</CardTitle></CardHeader>
-        <CardContent class="grid gap-3 sm:grid-cols-2">
-          <div class="flex flex-col gap-1.5 sm:col-span-2">
-            <Label for="title">标题 *</Label>
-            <Input id="title" v-model="title" maxlength="80" placeholder="Daiquiri" />
-          </div>
-          <div class="flex flex-col gap-1.5 sm:col-span-2">
-            <Label for="subtitle">副标题</Label>
-            <Input id="subtitle" v-model="subtitle" maxlength="120" placeholder="白朗姆 · 青柠 · 糖浆" />
-          </div>
-          <div class="flex flex-col gap-1.5">
-            <Label>家族（决定步骤骨架）</Label>
-            <div class="flex gap-2">
-              <Select v-model="family">
-                <SelectTrigger class="w-full">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem v-for="(zh, f) in FAMILY_ZH" :key="f" :value="f">
-                    {{ zh }}
-                  </SelectItem>
-                </SelectContent>
-              </Select>
-              <Button variant="outline" size="sm" class="shrink-0" @click="applyFamily()">
-                铺骨架
-              </Button>
-            </div>
-          </div>
-          <div class="flex flex-col gap-1.5">
-            <Label for="method">手法标记</Label>
-            <Select id="method" v-model="method">
-              <SelectTrigger><SelectValue /></SelectTrigger>
-              <SelectContent>
-                <SelectItem v-for="(zh, m) in METHOD_ZH" :key="m" :value="m">{{ zh }}</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-          <div class="flex flex-col gap-1.5">
-            <Label for="glass">成品杯型</Label>
-            <Select id="glass" v-model="glass">
-              <SelectTrigger><SelectValue /></SelectTrigger>
-              <SelectContent>
-                <SelectItem v-for="g in vocab.glassware" :key="g.id" :value="g.id">
-                  {{ g.nameZh }}（{{ g.capacityMl }}ml）
-                </SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-          <div class="flex flex-col gap-1.5">
-            <Label for="servings">份</Label>
-            <Input id="servings" v-model.number="servings" type="number" min="1" max="50" class="tabular-nums" />
-          </div>
-          <div class="flex flex-col gap-1.5 sm:col-span-2">
-            <Label>标签（可多选，用于筛选与推荐）</Label>
-            <div v-if="vocab.tags.length" class="flex flex-wrap gap-1.5">
-              <button
-                v-for="t in vocab.tags"
-                :key="t.id"
-                type="button"
-                class="rounded-sm border px-2 py-1 text-xs transition-colors"
-                :class="
-                  tags.includes(t.id)
-                    ? 'border-primary bg-primary text-primary-foreground'
-                    : 'border-border text-muted-foreground hover:border-primary/50 hover:text-foreground'
-                "
-                @click="toggleTag(t.id)"
-              >
-                {{ t.nameZh }}
-              </button>
-            </div>
-            <p v-else class="text-xs text-muted-foreground">标签词表加载中…</p>
-          </div>
-          <div class="flex flex-col gap-1.5 sm:col-span-2">
-            <Label>关联经典</Label>
-            <Select v-model="classicSel">
-              <SelectTrigger><SelectValue placeholder="不关联" /></SelectTrigger>
-              <SelectContent>
-                <SelectItem v-if="!classicKey" value="none">不关联</SelectItem>
-                <SelectItem
-                  v-for="c in classicChoices"
-                  :key="c.key"
-                  :value="c.key"
-                >
-                  {{ c.title }}
-                </SelectItem>
-              </SelectContent>
-            </Select>
-            <p class="text-xs text-muted-foreground">
-              关联后这杯酒会出现在该经典的「社区变体」列表；从经典页「创作我的版本」进入时自动关联。
+    <div v-else class="flex flex-col gap-6">
+      <!-- 页头：工坊招牌 + 存档状态 + 操作 -->
+      <header class="flex flex-wrap items-end justify-between gap-4">
+        <div class="flex items-center gap-3">
+          <span class="sign"><PxIcon name="shaker" :scale="3" /></span>
+          <div>
+            <h1 class="flex items-baseline gap-3 text-2xl text-fg text-shadow-px">
+              调酒工坊
+              <span class="font-logo text-[8px] tracking-[0.25em] text-amber">WORKSHOP</span>
+            </h1>
+            <p class="flex flex-wrap items-center gap-x-2 text-dim">
+              <PxBadge :tone="isNew && !savedId ? 'pink' : 'cyan'" variant="solid">
+                {{ isNew && !savedId ? "新配方" : "编辑中" }}
+              </PxBadge>
+              <span v-if="savedId" class="flex items-center gap-1 text-green">
+                <PxIcon name="save" :scale="1" /> 已存档
+                <span v-if="savedVersion !== null" class="font-logo text-[8px] text-faint">v{{ savedVersion }}</span>
+              </span>
+              <span v-else class="flex items-center gap-1 text-faint">
+                <span class="animate-blink">●</span> 尚未存档
+              </span>
             </p>
           </div>
-          <div class="flex flex-col gap-1.5 sm:col-span-2">
-            <Label>难度（{{ difficulty }}/3）与口味</Label>
-            <div class="flex flex-wrap items-center gap-4">
-              <input
-                type="range" min="1" max="3" step="1"
-                class="h-1.5 w-28 cursor-pointer appearance-none rounded-full bg-secondary accent-primary"
-                v-model.number="difficulty"
-              />
-              <div v-for="t in tasteKeys" :key="t.key" class="flex items-center gap-1.5 text-xs text-muted-foreground">
-                <span class="w-4">{{ t.label }}</span>
-                <input
-                  type="range" min="0" max="5" step="1"
-                  class="h-1.5 w-16 cursor-pointer appearance-none rounded-full bg-secondary accent-primary"
-                  :value="taste[t.key]"
-                  @input="taste[t.key] = Number(($event.target as HTMLInputElement).value)"
-                />
-                <span class="w-3 tabular-nums">{{ taste[t.key] }}</span>
+        </div>
+        <div class="flex flex-wrap items-center gap-2">
+          <PxButton icon="folder" @click="draftsOpen = true">读取草稿</PxButton>
+          <PxButton icon="save" :loading="saving" @click="onSave()">
+            {{ saving ? "保存中…" : "保存草稿" }}
+          </PxButton>
+          <PxButton variant="primary" icon="send" sfx="start" :loading="publishing" @click="onPublish()">
+            {{ publishing ? "发布中…" : "发布" }}
+          </PxButton>
+        </div>
+      </header>
+
+      <div class="grid items-start gap-6 lg:grid-cols-[minmax(0,1fr)_420px]">
+        <!-- 左：表单 -->
+        <div class="flex min-w-0 flex-col gap-6">
+          <!-- 配方卡 -->
+          <PxPanel title="配方卡" icon="pencil">
+            <div class="grid gap-x-5 gap-y-4 sm:grid-cols-2">
+              <div class="field sm:col-span-2">
+                <span class="lbl">标题 <span class="text-red">*</span></span>
+                <PxInput v-model="title" size="lg" maxlength="80" placeholder="Daiquiri" />
+              </div>
+              <div class="field sm:col-span-2">
+                <span class="lbl">副标题</span>
+                <PxInput v-model="subtitle" maxlength="120" placeholder="白朗姆 · 青柠 · 糖浆" />
+              </div>
+              <div class="field">
+                <span class="lbl">家族（决定步骤骨架）</span>
+                <div class="flex items-center gap-2">
+                  <div class="sel min-w-0 flex-1">
+                    <PxSelect v-model="family" :options="familyOptions" />
+                  </div>
+                  <PxButton icon="list" title="按家族铺好步骤模板（会替换现有步骤）" @click="applyFamily()">铺骨架</PxButton>
+                </div>
+              </div>
+              <div class="field">
+                <span class="lbl">手法标记</span>
+                <div class="sel"><PxSelect v-model="method" :options="methodOptions" /></div>
+              </div>
+              <div class="field">
+                <span class="lbl">成品杯型</span>
+                <div class="sel"><PxSelect v-model="glass" :options="glassOptions" placeholder="词表加载中…" /></div>
+              </div>
+              <div class="field">
+                <span class="lbl">份数</span>
+                <PxInput v-model.number="servings" type="number" min="1" max="50" />
+              </div>
+
+              <div class="field sm:col-span-2">
+                <span class="lbl">标签（可多选，用于筛选与推荐）</span>
+                <div v-if="vocab.tags.length" class="flex flex-wrap items-center gap-x-1 gap-y-1">
+                  <button
+                    v-for="t in vocab.tags"
+                    :key="t.id"
+                    type="button"
+                    class="chip"
+                    :class="{ on: tags.includes(t.id) }"
+                    :aria-pressed="tags.includes(t.id)"
+                    @click="toggleTag(t.id)"
+                  >
+                    {{ t.nameZh }}
+                  </button>
+                </div>
+                <p v-else class="text-faint">标签词表加载中…</p>
+              </div>
+
+              <div class="field sm:col-span-2">
+                <span class="lbl">关联经典</span>
+                <div class="sel"><PxSelect v-model="classicSel" :options="classicSelectOptions" placeholder="不关联" /></div>
+                <p class="text-faint">
+                  关联后这杯酒会出现在该经典的「社区变体」列表；从经典页「创作我的版本」进入时自动关联。
+                </p>
+              </div>
+
+              <div class="field">
+                <span class="lbl">难度 <span class="font-logo text-[8px] text-amber">{{ difficulty }}/3</span></span>
+                <PxStars :model-value="difficulty" :max="3" label="难度" @update:model-value="setDifficulty" />
+              </div>
+              <div class="field">
+                <span class="lbl">口味（点格子设定，再点最高格减一）</span>
+                <div class="flex flex-col gap-1.5">
+                  <TasteMeter
+                    v-for="t in tasteKeys"
+                    :key="t.key"
+                    v-model="taste[t.key]"
+                    :label="t.label"
+                    :tone="t.tone"
+                  />
+                </div>
+              </div>
+
+              <div class="field sm:col-span-2">
+                <span class="lbl">描述</span>
+                <PxTextarea v-model="descriptionMd" :maxlength="4000" placeholder="这杯酒的故事、灵感、风味……" />
               </div>
             </div>
-          </div>
-          <div class="flex flex-col gap-1.5 sm:col-span-2">
-            <Label for="desc">描述</Label>
-            <Textarea id="desc" v-model="descriptionMd" :maxlength="4000" class="min-h-20" placeholder="这杯酒的故事、灵感、风味……" />
-          </div>
-        </CardContent>
-      </Card>
+          </PxPanel>
 
-      <!-- 原料 -->
-      <Card>
-        <CardHeader class="flex-row items-center justify-between">
-          <CardTitle class="text-base">原料（{{ ir.ingredients.length }}）</CardTitle>
-          <Button variant="outline" size="sm" @click="addIngredient()">
-            <Plus class="size-3.5" /> 加原料
-          </Button>
-        </CardHeader>
-        <CardContent class="flex flex-col gap-2.5">
-          <Alert v-if="ir.ingredients.length === 0" variant="default">
-            <AlertDescription>还没有原料。先加基酒、酸、甜。</AlertDescription>
-          </Alert>
-          <IngredientRow
-            v-for="(ing, i) in ir.ingredients"
-            :key="ing.slot"
-            :model-value="ing"
-            @update:model-value="ir.ingredients[i] = $event"
-            @remove="removeIngredient(i)"
-          />
-        </CardContent>
-      </Card>
+          <!-- 材料 -->
+          <PxPanel icon="bottle" tone="green" :padded="false">
+            <template #title>
+              材料 <span class="ml-1 font-logo text-[8px] text-faint">×{{ ir.ingredients.length }}</span>
+            </template>
+            <template #actions>
+              <PxButton size="sm" variant="success" icon="plus" @click="addIngredient()">加原料</PxButton>
+            </template>
+            <div class="flex flex-col gap-2 p-3">
+              <p v-if="ir.ingredients.length === 0" class="hint">
+                <PxIcon name="info" :scale="1" class="text-green" /> 还没有原料。先加基酒、酸、甜。
+              </p>
+              <IngredientRow
+                v-for="(ing, i) in ir.ingredients"
+                :key="ing.slot"
+                :model-value="ing"
+                @update:model-value="ir.ingredients[i] = $event"
+                @remove="removeIngredient(i)"
+              />
+            </div>
+          </PxPanel>
 
-      <!-- 步骤 -->
-      <Card>
-        <CardHeader class="flex-row items-center justify-between">
-          <CardTitle class="text-base">步骤（{{ ir.steps.length }}）</CardTitle>
-          <Button variant="outline" size="sm" @click="addStep()">
-            <Plus class="size-3.5" /> 加步骤
-          </Button>
-        </CardHeader>
-        <CardContent class="flex flex-col gap-2.5">
-          <StepCard
-            v-for="(s, i) in ir.steps"
-            :key="s.id"
-            :model-value="s"
-            :index="i"
-            :slots="slotLabels"
-            @update:model-value="ir.steps[i] = $event"
-            @remove="ir.steps.splice(i, 1)"
-            @move="moveStep(i, $event)"
-          />
-        </CardContent>
-      </Card>
-    </div>
-
-    <!-- 右：预览 + 诊断（sticky） -->
-    <div class="flex flex-col gap-4 lg:sticky lg:top-20">
-      <div>
-        <div class="mb-2 flex items-center justify-between">
-          <h2 class="text-sm font-medium">实时预览</h2>
-          <Badge variant="secondary" class="text-xs">
-            {{ diagnosis.ok ? "结构合法" : `${diagnosis.errors.length} 个错误` }}
-          </Badge>
+          <!-- 工序 -->
+          <PxPanel icon="list" tone="cyan" :padded="false">
+            <template #title>
+              工序 <span class="ml-1 font-logo text-[8px] text-faint">×{{ ir.steps.length }}</span>
+            </template>
+            <template #actions>
+              <PxButton size="sm" icon="plus" @click="addStep()">加步骤</PxButton>
+            </template>
+            <div class="flex flex-col gap-2 p-3">
+              <p v-if="ir.steps.length === 0" class="hint">
+                <PxIcon name="info" :scale="1" class="text-cyan" /> 还没有步骤。在配方卡选好家族点「铺骨架」，或手动加步骤。
+              </p>
+              <StepCard
+                v-for="(s, i) in ir.steps"
+                :key="s.id"
+                :model-value="s"
+                :index="i"
+                :last="i === ir.steps.length - 1"
+                :slots="slotLabels"
+                @update:model-value="ir.steps[i] = $event"
+                @remove="ir.steps.splice(i, 1)"
+                @move="moveStep(i, $event)"
+              />
+            </div>
+          </PxPanel>
         </div>
-        <div
-          v-if="!vocab.loaded"
-          class="flex aspect-[400/520] items-center justify-center rounded-xl border border-dashed border-border text-sm text-muted-foreground"
-        >
-          词表加载中…
-        </div>
-        <VizPlayer v-else ref="player" :ir="previewIr" :vocab="vocabLookup" />
+
+        <!-- 右：试饮预览 + 诊断（sticky） -->
+        <aside class="flex flex-col gap-5 lg:sticky lg:top-20">
+          <div class="flex flex-col gap-2">
+            <div class="flex items-center justify-between gap-2">
+              <h2 class="flex items-center gap-2 text-fg">
+                <PxIcon name="eye" :scale="2" class="text-amber" /> 试饮预览
+              </h2>
+              <PxBadge v-if="diagnosis.ok" tone="green" variant="solid" icon="check">结构合法</PxBadge>
+              <PxBadge v-else tone="red" variant="solid" icon="warn">{{ diagnosis.errors.length }} 个错误</PxBadge>
+            </div>
+            <div v-if="!vocab.loaded" class="grid aspect-[400/520] place-items-center bg-deep px-ring">
+              <PxLoader text="TUNING" />
+            </div>
+            <VizPlayer v-else ref="player" :ir="previewIr" :vocab="vocabLookup" :hotkeys="false" />
+          </div>
+
+          <PxPanel title="诊断" icon="info" tone="plain" :padded="false">
+            <template #actions>
+              <span class="font-logo text-[8px] text-faint">SYSTEM</span>
+            </template>
+            <ul v-if="diagnosis.errors.length || diagnosis.warnings.length" class="flex flex-col gap-1 p-2">
+              <li v-for="d in diagnosis.errors" :key="d.code + d.path" class="diag err">
+                <span class="mark text-red">✖</span>
+                <span class="min-w-0 flex-1">
+                  <span class="code text-red">{{ d.code }}</span>
+                  <span class="text-fg">{{ d.message }}</span>
+                  <span v-if="d.path" class="path">{{ d.path }}</span>
+                </span>
+              </li>
+              <li v-for="d in diagnosis.warnings.slice(0, 6)" :key="d.code + d.path" class="diag warn">
+                <span class="mark text-amber">⚠</span>
+                <span class="min-w-0 flex-1">
+                  <span class="text-fg">{{ d.message }}</span>
+                  <span v-if="d.path" class="path">{{ d.path }}</span>
+                </span>
+              </li>
+            </ul>
+            <p v-else class="flex items-center gap-2 p-3 text-green">
+              <PxIcon name="check" :scale="1" /> 一切正常，没有诊断问题。
+            </p>
+            <p class="border-t-2 border-dashed border-line px-3 py-2 text-faint">
+              草稿阶段错误不阻止保存；发布前必须清掉全部错误。
+            </p>
+          </PxPanel>
+        </aside>
       </div>
 
-      <Card v-if="diagnosis.errors.length || diagnosis.warnings.length">
-        <CardHeader><CardTitle class="text-base">诊断</CardTitle></CardHeader>
-        <CardContent class="flex flex-col gap-1.5">
-          <Alert v-for="d in diagnosis.errors" :key="d.code + d.path" variant="destructive" class="py-2">
-            <AlertTitle class="text-xs">{{ d.code }}</AlertTitle>
-            <AlertDescription class="text-xs">
-              {{ d.message }}<code v-if="d.path" class="ml-1 opacity-70">{{ d.path }}</code>
-            </AlertDescription>
-          </Alert>
-          <Alert v-for="d in diagnosis.warnings.slice(0, 6)" :key="d.code + d.path" class="py-2">
-            <AlertDescription class="text-xs">
-              ⚠ {{ d.message }}<code v-if="d.path" class="ml-1 opacity-70">{{ d.path }}</code>
-            </AlertDescription>
-          </Alert>
-          <p class="text-xs text-muted-foreground">
-            草稿阶段错误不阻止保存；发布前必须清掉全部错误。
-          </p>
-        </CardContent>
-      </Card>
-    </div>
-
-    <!-- 读取草稿：草稿列表卡片，点卡片载入，右上角删除 -->
-    <Dialog v-model:open="draftsOpen">
-      <DialogContent class="sm:max-w-2xl">
-        <DialogHeader>
-          <DialogTitle>读取草稿</DialogTitle>
-        </DialogHeader>
-
+      <!-- 读取草稿：存档槽列表，点槽位载入，右上角删除 -->
+      <PxDialog v-model:open="draftsOpen" title="读取草稿" icon="folder" size="lg">
         <div v-if="draftsLoading" class="grid gap-3 sm:grid-cols-2">
-          <Skeleton v-for="i in 4" :key="i" class="h-20 w-full rounded-sm" />
+          <PxSkeleton v-for="i in 4" :key="i" class="h-20" />
         </div>
 
         <div
           v-else-if="(drafts?.items ?? []).length"
-          class="grid max-h-[60vh] gap-3 overflow-y-auto pr-1 sm:grid-cols-2"
+          class="grid max-h-[60vh] gap-3 overflow-y-auto p-1 sm:grid-cols-2"
         >
           <div
-            v-for="d in drafts?.items ?? []"
+            v-for="(d, n) in drafts?.items ?? []"
             :key="d.id"
-            class="relative rounded-sm border-2 border-border bg-card p-3 transition-all pixel-shadow-sm hover:-translate-y-0.5 hover:border-primary/60"
+            class="slot"
+            :class="{ cur: d.id === recipeId }"
           >
-            <button
-              type="button"
-              class="flex w-full flex-col gap-1 pr-7 text-left"
-              @click="loadDraft(d.id)"
-            >
-              <span class="truncate text-sm font-medium">{{ d.title }}</span>
-              <span class="text-xs text-muted-foreground">
-                更新于 {{ formatDraftTime(d.updatedAt) }}
+            <button type="button" class="flex w-full flex-col gap-1 p-3 pr-10 text-left" @click="loadDraft(d.id)">
+              <span class="flex items-center gap-2">
+                <span class="font-logo text-[8px] text-faint">SLOT {{ String(n + 1).padStart(2, "0") }}</span>
+                <PxBadge v-if="d.id === recipeId" tone="amber">正在编辑</PxBadge>
               </span>
-              <span
-                v-if="d.id === recipeId"
-                class="text-xs text-primary"
-              >
-                · 正在编辑
+              <span class="truncate text-fg">{{ d.title }}</span>
+              <span class="flex items-center gap-1 text-faint">
+                <PxIcon name="clock" :scale="1" /> 更新于 {{ formatDraftTime(d.updatedAt) }}
               </span>
             </button>
-            <Button
-              variant="ghost"
-              size="icon-xs"
-              class="absolute right-2 top-2 text-destructive hover:bg-destructive/10"
+            <PxButton
+              square
+              size="sm"
+              variant="danger"
+              icon="trash"
               title="删除草稿"
+              class="del"
+              sfx="cancel"
               :disabled="deleteDraft.isPending.value"
               @click="deleteDraft.mutate(d.id)"
-            >
-              <Trash2 class="size-3.5" />
-            </Button>
+            />
           </div>
         </div>
 
-        <p v-else class="py-10 text-center text-sm text-muted-foreground">
-          还没有草稿。写好一杯酒后点「保存草稿」。
-        </p>
-      </DialogContent>
-    </Dialog>
+        <PxEmpty v-else icon="folder" title="还没有草稿。写好一杯酒后点「保存草稿」。" />
+      </PxDialog>
+    </div>
   </div>
 </template>
+
+<style scoped>
+.sign {
+  display: grid;
+  place-items: center;
+  width: 52px;
+  height: 52px;
+  margin: var(--p);
+  background: var(--amber);
+  color: var(--on-accent);
+  box-shadow:
+    0 0 0 var(--p) var(--ink),
+    inset var(--p) var(--p) 0 0 rgb(255 255 255 / 0.35),
+    inset calc(var(--p) * -1) calc(var(--p) * -1) 0 0 rgb(0 0 0 / 0.25),
+    calc(var(--p) * 2) calc(var(--p) * 2) 0 0 var(--shadow);
+}
+.field { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.lbl { color: var(--dim); }
+/* PxSelect 不透传 class（reka SelectRoot 吞掉 attrs），宽度由外层 .sel 定、触发器撑满 */
+.sel :deep(.px-sel-trigger) { width: calc(100% - var(--p) * 2); }
+
+.field :deep(input[type="number"]) { font-family: var(--font-logo); font-size: 8px; color: var(--amber); }
+.chip {
+  height: 22px;
+  margin: 2px;
+  padding: 0 7px;
+  background: var(--panel-lo);
+  color: var(--dim);
+  box-shadow: 0 0 0 var(--p) var(--line);
+}
+.chip:hover { color: var(--fg); box-shadow: 0 0 0 var(--p) var(--amber); }
+.chip.on {
+  background: var(--amber);
+  color: var(--on-accent);
+  box-shadow: 0 0 0 var(--p) var(--ink), inset var(--p) var(--p) 0 0 rgb(255 255 255 / 0.35);
+}
+.hint {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 12px;
+  margin: var(--p);
+  color: var(--dim);
+  background: var(--panel-lo);
+  box-shadow: 0 0 0 var(--p) var(--line);
+
+}
+.diag {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 6px 8px;
+  background: var(--deep);
+  box-shadow: inset calc(var(--p) * 2) 0 0 0 var(--c, var(--line));
+}
+.diag.err { --c: var(--red); }
+.diag.warn { --c: var(--amber); }
+.diag .mark { flex-shrink: 0; width: 12px; text-align: center; }
+.diag .code { margin-right: 6px; font-family: var(--font-logo); font-size: 8px; }
+.diag .path { margin-left: 6px; color: var(--faint); word-break: break-all; }
+.slot {
+  position: relative;
+  margin: var(--p);
+  background: var(--panel-lo);
+  box-shadow: 0 0 0 var(--p) var(--ink), inset var(--p) var(--p) 0 0 var(--lo);
+}
+.slot:hover {
+  background: var(--panel-hi);
+  box-shadow: 0 0 0 var(--p) var(--amber), var(--p) var(--p) 0 var(--p) var(--shadow);
+}
+.slot.cur { box-shadow: 0 0 0 var(--p) var(--amber), inset calc(var(--p) * 2) 0 0 0 var(--amber); }
+.slot .del { position: absolute; top: 8px; right: 8px; }
+</style>

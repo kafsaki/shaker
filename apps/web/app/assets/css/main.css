@@ -41,6 +41,7 @@ html.dark {
   --hi: rgb(255 255 255 / 0.1);
   --lo: rgb(0 0 0 / 0.35);
   --scan: rgb(0 0 0 / 0.16);
+  --txt-shadow: var(--ink);
 }
 
 /* ── 日班 ── */
@@ -73,6 +74,7 @@ html.dark {
   --hi: rgb(255 255 255 / 0.65);
   --lo: rgb(58 42 30 / 0.18);
   --scan: rgb(58 42 30 / 0.05);
+  --txt-shadow: var(--line);
 
   --cursor-arrow: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='32' shape-rendering='crispEdges'%3E%3Cpath fill='%2307040c' d='M0 0h2v2h-2zM0 2h2v2h-2zM2 2h2v2h-2zM0 4h2v2h-2zM4 4h2v2h-2zM0 6h2v2h-2zM6 6h2v2h-2zM0 8h2v2h-2zM8 8h2v2h-2zM0 10h2v2h-2zM10 10h2v2h-2zM0 12h2v2h-2zM12 12h2v2h-2zM0 14h2v2h-2zM14 14h2v2h-2zM0 16h2v2h-2zM16 16h2v2h-2zM0 18h2v2h-2zM12 18h2v2h-2zM14 18h2v2h-2zM16 18h2v2h-2zM18 18h2v2h-2zM0 20h2v2h-2zM6 20h2v2h-2zM12 20h2v2h-2zM0 22h2v2h-2zM4 22h2v2h-2zM8 22h2v2h-2zM14 22h2v2h-2zM0 24h2v2h-2zM2 24h2v2h-2zM8 24h2v2h-2zM14 24h2v2h-2zM0 26h2v2h-2zM10 26h2v2h-2zM16 26h2v2h-2zM10 28h2v2h-2zM16 28h2v2h-2zM12 30h2v2h-2zM14 30h2v2h-2z'/%3E%3Cpath fill='%23f4ead5' d='M2 4h2v2h-2zM2 6h2v2h-2zM4 6h2v2h-2zM2 8h2v2h-2zM4 8h2v2h-2zM6 8h2v2h-2zM2 10h2v2h-2zM4 10h2v2h-2zM6 10h2v2h-2zM8 10h2v2h-2zM2 12h2v2h-2zM4 12h2v2h-2zM6 12h2v2h-2zM8 12h2v2h-2zM10 12h2v2h-2zM2 14h2v2h-2zM4 14h2v2h-2zM6 14h2v2h-2zM8 14h2v2h-2zM10 14h2v2h-2zM12 14h2v2h-2zM2 16h2v2h-2zM4 16h2v2h-2zM6 16h2v2h-2zM8 16h2v2h-2zM10 16h2v2h-2zM12 16h2v2h-2zM14 16h2v2h-2zM2 18h2v2h-2zM4 18h2v2h-2zM6 18h2v2h-2zM8 18h2v2h-2zM10 18h2v2h-2zM2 20h2v2h-2zM4 20h2v2h-2zM8 20h2v2h-2zM10 20h2v2h-2zM2 22h2v2h-2zM10 22h2v2h-2zM12 22h2v2h-2zM10 24h2v2h-2zM12 24h2v2h-2zM12 26h2v2h-2zM14 26h2v2h-2zM12 28h2v2h-2zM14 28h2v2h-2z'/%3E%3C/svg%3E") 1 1, auto;
   --cursor-hand: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='32' height='32' shape-rendering='crispEdges'%3E%3Cpath fill='%2307040c' d='M8 0h2v2h-2zM10 0h2v2h-2zM6 2h2v2h-2zM12 2h2v2h-2zM6 4h2v2h-2zM12 4h2v2h-2zM6 6h2v2h-2zM12 6h2v2h-2zM6 8h2v2h-2zM12 8h2v2h-2zM14 8h2v2h-2zM16 8h2v2h-2zM6 10h2v2h-2zM12 10h2v2h-2zM18 10h2v2h-2zM20 10h2v2h-2zM22 10h2v2h-2zM0 12h2v2h-2zM2 12h2v2h-2zM6 12h2v2h-2zM12 12h2v2h-2zM18 12h2v2h-2zM24 12h2v2h-2zM26 12h2v2h-2zM0 14h2v2h-2zM4 14h2v2h-2zM6 14h2v2h-2zM24 14h2v2h-2zM28 14h2v2h-2zM0 16h2v2h-2zM6 16h2v2h-2zM28 16h2v2h-2zM2 18h2v2h-2zM28 18h2v2h-2zM4 20h2v2h-2zM28 20h2v2h-2zM4 22h2v2h-2zM26 22h2v2h-2zM6 24h2v2h-2zM26 24h2v2h-2zM6 26h2v2h-2zM24 26h2v2h-2zM8 28h2v2h-2zM24 28h2v2h-2zM8 30h2v2h-2zM10 30h2v2h-2zM12 30h2v2h-2zM14 30h2v2h-2zM16 30h2v2h-2zM18 30h2v2h-2zM20 30h2v2h-2zM22 30h2v2h-2zM24 30h2v2h-2z'/%3E%3Cpath fill='%23ffd9a0' d='M8 2h2v2h-2zM10 2h2v2h-2zM8 4h2v2h-2zM10 4h2v2h-2zM8 6h2v2h-2zM10 6h2v2h-2zM8 8h2v2h-2zM10 8h2v2h-2zM8 10h2v2h-2zM10 10h2v2h-2zM14 10h2v2h-2zM16 10h2v2h-2zM8 12h2v2h-2zM10 12h2v2h-2zM14 12h2v2h-2zM16 12h2v2h-2zM20 12h2v2h-2zM22 12h2v2h-2zM2 14h2v2h-2zM8 14h2v2h-2zM10 14h2v2h-2zM12 14h2v2h-2zM14 14h2v2h-2zM16 14h2v2h-2zM18 14h2v2h-2zM20 14h2v2h-2zM22 14h2v2h-2zM26 14h2v2h-2zM2 16h2v2h-2zM4 16h2v2h-2zM8 16h2v2h-2zM10 16h2v2h-2zM12 16h2v2h-2zM14 16h2v2h-2zM16 16h2v2h-2zM18 16h2v2h-2zM20 16h2v2h-2zM22 16h2v2h-2zM24 16h2v2h-2zM26 16h2v2h-2zM4 18h2v2h-2zM6 18h2v2h-2zM8 18h2v2h-2zM10 18h2v2h-2zM12 18h2v2h-2zM14 18h2v2h-2zM16 18h2v2h-2zM18 18h2v2h-2zM20 18h2v2h-2zM22 18h2v2h-2zM24 18h2v2h-2zM26 18h2v2h-2zM6 20h2v2h-2zM8 20h2v2h-2zM10 20h2v2h-2zM12 20h2v2h-2zM14 20h2v2h-2zM16 20h2v2h-2zM18 20h2v2h-2zM20 20h2v2h-2zM22 20h2v2h-2zM24 20h2v2h-2zM26 20h2v2h-2zM6 22h2v2h-2zM8 22h2v2h-2zM10 22h2v2h-2zM12 22h2v2h-2zM14 22h2v2h-2zM16 22h2v2h-2zM18 22h2v2h-2zM20 22h2v2h-2zM22 22h2v2h-2zM24 22h2v2h-2zM8 24h2v2h-2zM10 24h2v2h-2zM12 24h2v2h-2zM14 24h2v2h-2zM16 24h2v2h-2zM18 24h2v2h-2zM20 24h2v2h-2zM22 24h2v2h-2zM24 24h2v2h-2zM8 26h2v2h-2zM10 26h2v2h-2zM12 26h2v2h-2zM14 26h2v2h-2zM16 26h2v2h-2zM18 26h2v2h-2zM20 26h2v2h-2zM22 26h2v2h-2zM10 28h2v2h-2zM12 28h2v2h-2zM14 28h2v2h-2zM16 28h2v2h-2zM18 28h2v2h-2zM20 28h2v2h-2zM22 28h2v2h-2z'/%3E%3C/svg%3E") 9 1, pointer;
@@ -276,12 +278,12 @@ html.dark {
   font-family: var(--font-pixel);
 }
 
-/* 文字硬投影（招牌字） */
+/* 文字硬投影（招牌字）。日班的字本身就是深色，投影改用浅色描边线，否则糊成一团 */
 @utility text-shadow-px {
-  text-shadow: var(--p) var(--p) 0 var(--ink);
+  text-shadow: var(--p) var(--p) 0 var(--txt-shadow, var(--ink));
 }
 @utility text-shadow-glow {
-  text-shadow: var(--p) var(--p) 0 var(--ink), 0 0 12px color-mix(in srgb, var(--amber) 55%, transparent);
+  text-shadow: var(--p) var(--p) 0 var(--txt-shadow, var(--ink)), 0 0 12px color-mix(in srgb, var(--amber) 55%, transparent);
 }
 
 /* ══════════════════ 动效（一律 steps，不做平滑插值） ══════════════════ */
