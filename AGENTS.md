@@ -30,7 +30,7 @@ cd D:/DEV/apps/shaker && D:/DevApps/Git/cmd/git.exe push
 2. **`animator-core` / `animator-web` 只许引 `@shaker/recipe-ir/core`**，不许引 barrel 入口。实测差 7.5 倍 bundle 体积（107 KB → 14.3 KB gzip）。
 3. **`compile()` 是纯函数。** 无 IO、无随机、无 `Date.now()`。任何"随机"必须来自显式 seed。配套：关键帧是完整场景快照（seek 为 O(1)）；粒子是 `t` 的纯函数（否则 seek 会跳变）。
 
-这三条都还**没有** CI 检查，靠自觉（CI 已列入 ROADMAP）。
+这三条已进 CI（`pnpm check:architecture` / `scripts/check-architecture.mjs`），改到相关包时本地先跑一遍。
 
 ## 数据与生成物
 

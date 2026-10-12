@@ -15,9 +15,9 @@
 | 项 | 说明 |
 | --- | --- |
 | 人眼验收 | 前端整体与动画观感，作者确认。这是唯一只能人做的一项 |
-| 部署产物 | `apps/api`、`apps/web` 的 Dockerfile；全栈 compose；`.env.example`；同域反代配置（前端假定 `/api` 同域） |
-| 孤儿媒体清理 | 未 commit 的 `media_assets` 连对象一起删。**不依赖 river**：单实例用进程内定时任务即可，`media_assets_orphan_idx` 已就位。不做的话，放弃的上传会在对象存储里无限堆积 |
-| CI | 三条架构纪律、`recipe-ir.schema.json` / `openapi.yaml` 漂移检查、TS 与 Go 测试 |
+
+部署产物、孤儿媒体清理、CI 三项已完成（2026-10-12）：Dockerfile ×2 与全栈 compose 在 `deploy/`，
+清理任务在 `apps/api/internal/media/cleanup.go`，CI 在 `.github/workflows/ci.yml`。
 
 ## v1 之后（按触发条件做）
 
@@ -28,10 +28,6 @@
 | 酒单序号重整 | 随 river 一起 | 分数序号同点插入约 30 次后精度耗尽；单个酒单极少触发 |
 | 移动端框架定型 | 原型在中端安卓 WebView 实测帧率后 | 稳 60fps → Capacitor + Ionic Vue；掉帧 → Expo + Skia（ADR-005） |
 | sqlc | 手写 SQL 维护成本明显上升时 | v1 用 pgx 手写 SQL（ADR-003） |
-
-## 小的遗留
-
-- `apps/api/internal/irv/testdata/golden.json` 落后于 `packages/fixtures`（重新生成会多出 `lemon-peel`、`__jigger`）。Go 测试目前仍通过；重生成后看 diff 再提交。
 
 ## 尚未验证
 

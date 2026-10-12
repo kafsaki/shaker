@@ -86,6 +86,23 @@ pnpm --filter @shaker/web dev
 
 改代码后：`pnpm --filter @shaker/prototype watch` 自动重建。
 
+### 部署（v1.0.0）
+
+全栈部署产物在 `deploy/`：Postgres + MinIO + API + 前端 + Caddy 反代，一条命令起完整站点（需要 80/443）。
+
+```bash
+cd D:/DEV/apps/shaker
+cp deploy/.env.example deploy/.env      # 改掉里面所有 change-me
+docker compose -f deploy/docker-compose.yml --env-file deploy/.env up -d --build
+# 浏览器打开 https://<SHAKER_DOMAIN>/（填 localhost 时 Caddy 用内部 CA，浏览器会提示证书不受信任）
+```
+
+三个容易踩的点：
+
+- **一个域收三件事**：`/api` → API，`/shaker-media` → MinIO，其余 → 前端。前端 `api-client` 的 baseUrl 是空串（同源相对路径），所以不能拆成两个域，也因此不需要 CORS。
+- **反代必须原样透传 Host**（Caddy 默认如此）：预签名 URL 的 SigV4 签名覆盖 Host 头，改写 Host 会让 MinIO 验签失败。同理，API 用 `SHAKER_S3_PRESIGN_ENDPOINT` 单独指定签发给浏览器的地址——容器解析不了自己的公网域名。
+- **卷与开发栈分开**：部署 compose 的项目名是 `shaker-deploy`，与根目录那份开发用的 compose 各自持有 `pgdata`/`miniodata`。
+
 ### 测试、类型检查与代码生成
 
 ```bash
@@ -107,6 +124,8 @@ node --experimental-strip-types packages/recipe-ir/scripts/gen-schema.ts
 # 改了 API 端点 → 重新生成 OpenAPI（code-first，ADR-017）
 cd apps/api && go run ./cmd/gen-openapi > ../../schema/openapi.yaml
 ```
+
+忘了重生成不必等 CI 发现，`pnpm check` 一次跑完三条架构纪律与两条生成链的漂移检查（CI 里也是这些）。
 
 ### 数据库（手动迁移，日常开发不需要）
 
@@ -142,6 +161,9 @@ schema/
 scripts/
   e2e-*.ps1             对运行中 API 的端到端验证（8 套）
   classic-covers/       经典配方封面批量截帧导入（一次性工具，可幂等重跑）
+  check-*.mjs           架构纪律与生成物漂移检查（CI 与 pnpm check 共用）
+deploy/           全栈部署：compose + Caddyfile + .env.example（Dockerfile 在 apps/*/ 下）
+.github/          CI：三条架构纪律、生成物漂移、TS 与 Go 测试
 prototype/        动画验证装置
 docs/             设计文档 00~03、ROADMAP（进度与待办）、archive/（一次性过程文档）
 ```
@@ -169,7 +191,7 @@ docs/             设计文档 00~03、ROADMAP（进度与待办）、archive/�
 - **关键帧是完整场景快照，不是增量** → seek 是 O(1)，不需重放历史
 - **粒子是 `t` 的纯函数** → 否则 seek 回退时粒子位置会跳变，拖时间轴的体验立刻崩坏
 
-这三条都应该在 CI 里加检查（见 ROADMAP）。
+这三条已进 CI（`scripts/check-architecture.mjs`），本地用 `pnpm check:architecture` 单独跑。
 
 ---
 
