@@ -2,6 +2,7 @@
   "name": "@shaker/visual-assets",
   "version": "0.0.0",
   "private": true,
+  "license": "AGPL-3.0-only",
   "type": "module",
   "description": "视觉素材的唯一来源：像素 sprite（装饰/道具）与容器剖面。纯数据，零渲染依赖；素材维护走 GitHub PR。",
   "exports": { ".": "./src/index.ts" },

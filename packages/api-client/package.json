@@ -2,6 +2,7 @@
   "name": "@shaker/api-client",
   "version": "0.0.0",
   "private": true,
+  "license": "AGPL-3.0-only",
   "type": "module",
   "description": "openapi-typescript 从 schema/openapi.yaml 生成的类型 + openapi-fetch 封装（ADR-017：Go → TS 单向流向）。",
   "exports": {

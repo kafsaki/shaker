@@ -2,6 +2,7 @@
   "name": "@shaker/web",
   "version": "0.0.0",
   "private": true,
+  "license": "AGPL-3.0-only",
   "type": "module",
   "description": "Shaker 前端 SPA（ADR-004：Nuxt 4 + Vue 3 + Tailwind + shadcn-vue + Pinia + vue-query）。",
   "scripts": {

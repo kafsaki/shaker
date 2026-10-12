@@ -198,3 +198,15 @@ docs/             设计文档
 | bundle | `recipe-ir/core` 零 zod 子入口 | 020 |
 
 完整理由见 `docs/00-决策记录.md`。**理由比结论重要** —— 要推翻某条决策，先驳倒它的理由。
+
+---
+
+## 许可证
+
+Copyright (C) 2026 kafsaki
+
+本项目以 [GNU Affero General Public License v3.0](LICENSE)（`AGPL-3.0-only`）发布。
+
+简言之：可以自由使用、修改、再分发，**包括把它部署成对外提供服务的网站** —— 但这种情况下必须以 AGPL-3.0 向该服务的用户公开完整的对应源代码（含修改）。
+
+如需在不履行上述开源义务的前提下使用（闭源集成、商业授权），请联系作者：kafsaki.moe@outlook.com。
