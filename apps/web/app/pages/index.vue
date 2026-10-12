@@ -26,6 +26,7 @@ const auth = useAuthStore();
 const api = useApi();
 const route = useRoute();
 const router = useRouter();
+const agentEnabled = useAgentStatus();
 
 /* ── 酒保对白 ── */
 function greeting(): string {
@@ -188,6 +189,9 @@ const items = computed(() => feedQuery.data.value?.pages.flatMap((p) => p.items 
             随便来一杯
           </PxButton>
           <PxButton icon="book" to="/classics">翻翻经典图鉴</PxButton>
+          <PxButton v-if="auth.isAuthenticated && agentEnabled" variant="accent" icon="sparkle" to="/editor/new?agent=1">
+            帮我想一杯
+          </PxButton>
           <PxButton v-if="auth.isAuthenticated" icon="shaker" to="/editor/new">我自己调一杯</PxButton>
           <PxButton v-else variant="accent" icon="play" to="/register" sfx="start">开始新游戏</PxButton>
           </template>

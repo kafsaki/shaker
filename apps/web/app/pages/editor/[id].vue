@@ -16,8 +16,10 @@ import IngredientRow from "@/components/editor/IngredientRow.vue";
 import StepCard from "@/components/editor/StepCard.vue";
 import TasteMeter from "@/components/editor/TasteMeter.vue";
 import VizPlayer from "@/components/VizPlayer.vue";
+import BartenderAgent from "@/components/editor/BartenderAgent.vue";
 
 type DraftPage = components["schemas"]["RecipeListOutputBody"];
+type AgentDraft = components["schemas"]["AgentDraftOutputBody"];
 
 definePageMeta({ middleware: "auth" });
 
@@ -572,6 +574,54 @@ function formatDraftTime(iso: string): string {
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
 }
 
+/* ── 酒保助手（ADR-028）：自然语言生成草稿，过目后填入表单 ── */
+const agentOpen = ref(false);
+
+const agentEnabled = useAgentStatus();
+
+// HUD 菜单入口 /editor/new?agent=1，与 ?drafts=1 同样的打开即摘掉
+watch(
+  () => route.query.agent,
+  (a) => {
+    if (a !== "1") return;
+    agentOpen.value = true;
+    void router.replace({ query: { ...route.query, agent: undefined } });
+  },
+  { immediate: true },
+);
+
+/** 表单为空时不带 current，助手就从零写 */
+const agentCurrent = computed(() => {
+  if (!title.value.trim() && ir.value.ingredients.length === 0) return null;
+  return {
+    title: title.value,
+    subtitle: subtitle.value,
+    descriptionMd: descriptionMd.value,
+    family: family.value,
+    difficulty: difficulty.value,
+    tasteProfile: { ...taste.value },
+    tags: tags.value,
+    ir: ir.value,
+  };
+});
+
+function applyAgentDraft(d: AgentDraft): void {
+  const next = JSON.parse(JSON.stringify(d.ir)) as RecipeIR;
+  title.value = d.title;
+  subtitle.value = d.subtitle;
+  descriptionMd.value = d.descriptionMd;
+  if (d.family) family.value = d.family;
+  difficulty.value = Math.min(3, Math.max(1, d.difficulty));
+  taste.value = { ...d.tasteProfile };
+  tags.value = [...(d.tags ?? [])];
+  ir.value = next;
+  glass.value = next.glass;
+  method.value = next.method ?? method.value;
+  servings.value = next.servings ?? 1;
+  snapshotPreview();
+  toast.success(`「${d.title}」已填入工坊，检查一下再保存`);
+}
+
 const tasteKeys: Array<{
   key: keyof typeof taste.value;
   label: string;
@@ -648,6 +698,7 @@ function setDifficulty(v: number): void {
           </PxButton>
         </div>
         <div v-else class="flex flex-wrap items-center gap-2">
+          <PxButton v-if="agentEnabled" variant="accent" icon="sparkle" @click="agentOpen = true">酒保助手</PxButton>
           <PxButton icon="folder" @click="draftsOpen = true">读取草稿</PxButton>
           <PxButton icon="save" :loading="saving" @click="onSave()">
             {{ saving ? "保存中…" : "保存草稿" }}
@@ -889,6 +940,13 @@ function setDifficulty(v: number): void {
 
         <PxEmpty v-else icon="folder" title="还没有草稿。写好一杯酒后点「保存草稿」。" />
       </PxDialog>
+
+      <BartenderAgent
+        v-if="agentEnabled && !wikiMode"
+        v-model:open="agentOpen"
+        :current="agentCurrent"
+        @apply="applyAgentDraft"
+      />
     </div>
   </div>
 </template>

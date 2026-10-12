@@ -1,5 +1,138 @@
 components:
   schemas:
+    AgentDraftInputBody:
+      additionalProperties: false
+      properties:
+        $schema:
+          description: A URL to the JSON Schema for this object.
+          examples:
+            - https://example.com/schemas/AgentDraftInputBody.json
+          format: uri
+          readOnly: true
+          type: string
+        current:
+          $ref: "#/components/schemas/AgentRecipeBody"
+          description: 编辑器里的当前配方；带上即为修改模式
+        prompt:
+          description: 想要的酒，或对 current 的修改要求
+          maxLength: 2000
+          minLength: 1
+          type: string
+      required:
+        - prompt
+      type: object
+    AgentDraftOutputBody:
+      additionalProperties: false
+      properties:
+        $schema:
+          description: A URL to the JSON Schema for this object.
+          examples:
+            - https://example.com/schemas/AgentDraftOutputBody.json
+          format: uri
+          readOnly: true
+          type: string
+        attempts:
+          format: int64
+          type: integer
+        descriptionMd:
+          type: string
+        difficulty:
+          format: int64
+          type: integer
+        family:
+          type:
+            - string
+            - "null"
+        ir: {}
+        issues:
+          description: 修复轮用完后残留的业务规则问题
+          items:
+            $ref: "#/components/schemas/ErrorDetailBody"
+          type:
+            - array
+            - "null"
+        reply:
+          description: 助手给用户的说明（替代原料、取舍等）
+          type: string
+        subtitle:
+          type: string
+        tags:
+          items:
+            type: string
+          type:
+            - array
+            - "null"
+        tasteProfile:
+          $ref: "#/components/schemas/TasteProfileInput"
+        title:
+          type: string
+      required:
+        - title
+        - subtitle
+        - descriptionMd
+        - family
+        - difficulty
+        - tasteProfile
+        - tags
+        - ir
+        - reply
+        - issues
+        - attempts
+      type: object
+    AgentRecipeBody:
+      additionalProperties: false
+      properties:
+        descriptionMd:
+          maxLength: 20000
+          type: string
+        difficulty:
+          format: int64
+          maximum: 5
+          minimum: 1
+          type: integer
+        family:
+          maxLength: 64
+          type: string
+        ir: {}
+        subtitle:
+          maxLength: 120
+          type: string
+        tags:
+          items:
+            type: string
+          maxItems: 20
+          type:
+            - array
+            - "null"
+        tasteProfile:
+          $ref: "#/components/schemas/TasteProfileInput"
+        title:
+          maxLength: 120
+          type: string
+      required:
+        - title
+        - subtitle
+        - descriptionMd
+        - difficulty
+        - tasteProfile
+        - tags
+        - ir
+      type: object
+    AgentStatusOutputBody:
+      additionalProperties: false
+      properties:
+        $schema:
+          description: A URL to the JSON Schema for this object.
+          examples:
+            - https://example.com/schemas/AgentStatusOutputBody.json
+          format: uri
+          readOnly: true
+          type: string
+        enabled:
+          type: boolean
+      required:
+        - enabled
+      type: object
     ApiError:
       additionalProperties: false
       properties:
@@ -2717,6 +2850,50 @@ paths:
       security:
         - bearerAuth: []
       summary: 授予/撤销编辑身份
+  /api/v1/agent/recipe-draft:
+    post:
+      description: 需要登录，每用户 20 次/小时。带 current 时在当前配方基础上按 prompt 修改。服务端会用 irv 校验并让模型自我修复（最多 3 轮），一次调用通常 5–40 秒。返回的 ir 结构一定合法；残留的业务规则问题放在 issues 里。草稿不落库。
+      operationId: agent-recipe-draft
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AgentDraftInputBody"
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AgentDraftOutputBody"
+          description: OK
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+          description: Error
+      security:
+        - bearerAuth: []
+      summary: 用自然语言生成配方草稿
+  /api/v1/agent/status:
+    get:
+      description: 部署未配置模型密钥时 enabled 为 false，前端据此隐藏入口。
+      operationId: agent-status
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AgentStatusOutputBody"
+          description: OK
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+          description: Error
+      summary: 酒保助手是否可用
   /api/v1/auth/login:
     post:
       description: identifier 接受 handle 或 email。

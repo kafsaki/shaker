@@ -13,6 +13,7 @@ import (
 	"github.com/go-chi/chi/v5/middleware"
 	"github.com/jackc/pgx/v5/pgxpool"
 
+	"github.com/kafsaki/shaker/apps/api/internal/agent"
 	"github.com/kafsaki/shaker/apps/api/internal/auth"
 	"github.com/kafsaki/shaker/apps/api/internal/config"
 	"github.com/kafsaki/shaker/apps/api/internal/interact"
@@ -48,6 +49,9 @@ type API struct {
 	writeLimiter *ratelimit.Limiter
 	// publishLimiter 发布动作单独收紧（每用户 10 次/小时）。
 	publishLimiter *ratelimit.Limiter
+	// agentLimiter 酒保助手（每用户 20 次/小时，ADR-028）。
+	agentLimiter *ratelimit.Limiter
+	agent        *agent.Service
 }
 
 // New 构建 chi 路由。所有业务路由由各 handler 文件里的 register* 注册。
@@ -95,6 +99,11 @@ func setupRouter(pool *pgxpool.Pool, cfg config.Config) (*chi.Mux, huma.API) {
 	}
 	a.writeLimiter = ratelimit.New(60, time.Minute)
 	a.publishLimiter = ratelimit.New(10, time.Hour)
+	a.agentLimiter = ratelimit.New(20, time.Hour)
+	a.agent = agent.NewService(agent.NewClient(agent.Config{
+		BaseURL: cfg.LLMBaseURL, Model: cfg.LLMModel, Keys: cfg.LLMKeys,
+		Effort: cfg.LLMEffort, Timeout: cfg.LLMTimeout,
+	}), a.vocab)
 
 	api.UseMiddleware(a.middleware)
 
@@ -113,6 +122,7 @@ func setupRouter(pool *pgxpool.Pool, cfg config.Config) (*chi.Mux, huma.API) {
 	a.registerReports(api)
 	a.registerMedia(api)
 	a.registerWiki(api)
+	a.registerAgent(api)
 	return r, api
 }
 
