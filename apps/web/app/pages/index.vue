@@ -199,7 +199,7 @@ const items = computed(() => feedQuery.data.value?.pages.flatMap((p) => p.items 
     <!-- 酒单墙 -->
     <section class="flex flex-col gap-4">
       <div class="flex flex-wrap items-end justify-between gap-3">
-        <PxSegmented v-model="tab" variant="tabs" :items="TABS" class="min-w-0 flex-1" />
+        <PxSegmented v-model="tab" variant="tabs" :items="TABS" class="w-full !flex-nowrap sm:w-auto sm:flex-1" />
         <PxSegmented v-if="tab === 'hot'" v-model="hotWindow" :items="WINDOWS" size="sm" />
       </div>
 

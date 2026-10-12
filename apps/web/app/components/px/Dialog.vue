@@ -35,7 +35,12 @@ watch(open, (o, prev) => {
   <DialogRoot v-model:open="open">
     <DialogPortal>
       <DialogOverlay class="px-dlg-overlay" />
-      <DialogContent class="px-dlg" :class="[`s-${size}`, `t-${tone}`]">
+      <!-- 没有描述时显式声明 aria-describedby=undefined（reka 的约定，否则会告警） -->
+      <DialogContent
+        class="px-dlg"
+        :class="[`s-${size}`, `t-${tone}`]"
+        v-bind="description ? {} : { 'aria-describedby': undefined }"
+      >
         <header class="px-dlg-bar">
           <PxIcon v-if="icon" :name="icon" :scale="2" class="tone" />
           <DialogTitle class="px-dlg-title">{{ title }}</DialogTitle>
