@@ -4,6 +4,66 @@
  */
 
 export interface paths {
+    "/api/v1/admin/users/{handle}/role": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * 授予/撤销编辑身份
+         * @description 仅管理员。只在 user 与 editor 之间切换；管理员由部署配置 SHAKER_ADMIN_HANDLES 产生。
+         */
+        put: operations["admin-set-role"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/agent/recipe-draft": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * 用自然语言生成配方草稿
+         * @description 需要登录，每用户 20 次/小时。带 current 时在当前配方基础上按 prompt 修改。服务端会用 irv 校验并让模型自我修复（最多 3 轮），一次调用通常 5–40 秒。返回的 ir 结构一定合法；残留的业务规则问题放在 issues 里。草稿不落库。
+         */
+        post: operations["agent-recipe-draft"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/agent/status": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * 酒保助手是否可用
+         * @description 部署未配置模型密钥时 enabled 为 false，前端据此隐藏入口。
+         */
+        get: operations["agent-status"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/auth/login": {
         parameters: {
             query?: never;
@@ -348,6 +408,47 @@ export interface paths {
         delete?: never;
         options?: never;
         head?: never;
+        /**
+         * 修订原料词条
+         * @description 仅编辑/管理员。整表提交名称、别名与介绍；If-Match 为当前 wikiVersion。ABV、品类与视觉样式 v1 不开放修订。
+         */
+        patch: operations["ingredients-update"];
+        trace?: never;
+    };
+    "/api/v1/ingredients/{id}/revisions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * 原料词条修订历史
+         * @description 新→旧，含每一版的完整快照。第 0 版是种子原文（首次修订时存档）。
+         */
+        get: operations["ingredients-revisions"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/ingredients/{id}/revisions/{version}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** 原料词条的某一版 */
+        get: operations["ingredients-revision-get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
         patch?: never;
         trace?: never;
     };
@@ -432,6 +533,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/me/saved-menus": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * 我收藏的酒单
+         * @description 收藏时间倒序。酒单被主人转为私密或删除后不再出现。
+         */
+        get: operations["me-saved-menus"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/media/upload-url": {
         parameters: {
             query?: never;
@@ -479,10 +600,34 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get?: never;
+        /**
+         * 酒单广场
+         * @description 社区公开酒单（不含官方精选与空酒单）。sort=hot 按收藏数，sort=new 按最近更新。
+         */
+        get: operations["menus-plaza"];
         put?: never;
         /** 建酒单 */
         post: operations["menus-create"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/menus/featured": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * 官方精选酒单
+         * @description 由种子以官方账号维护（seed.json 的 officialMenus），按种子顺序，不分页。
+         */
+        get: operations["menus-featured"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -509,6 +654,26 @@ export interface paths {
         head?: never;
         /** 改标题/描述/可见性 */
         patch: operations["menus-update"];
+        trace?: never;
+    };
+    "/api/v1/menus/{id}/fork": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * 复制成我的酒单
+         * @description 把看得见的酒单复制成自己的私密酒单（条目顺序与笔记一并复制，已删配方跳过）。
+         */
+        post: operations["menus-fork"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
         trace?: never;
     };
     "/api/v1/menus/{id}/items/reorder": {
@@ -550,6 +715,30 @@ export interface paths {
          * @description 幂等。
          */
         delete: operations["menu-items-remove"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/menus/{id}/save": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * 收藏酒单
+         * @description 幂等。只能收藏别人的公开酒单（自己的 → 422 menu.self_save）。
+         */
+        put: operations["menus-save"];
+        post?: never;
+        /**
+         * 取消收藏酒单
+         * @description 幂等。
+         */
+        delete: operations["menus-unsave"];
         options?: never;
         head?: never;
         patch?: never;
@@ -1022,6 +1211,43 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/wiki/changes": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * 最近修订
+         * @description 经典配方与原料词条的修订动态，新→旧。
+         */
+        get: operations["wiki-changes"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/wiki/editors": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** 编辑名册 */
+        get: operations["wiki-editors"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/healthz": {
         parameters: {
             query?: never;
@@ -1043,6 +1269,61 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        AgentDraftInputBody: {
+            /**
+             * Format: uri
+             * @description A URL to the JSON Schema for this object.
+             * @example https://example.com/schemas/AgentDraftInputBody.json
+             */
+            readonly $schema?: string;
+            /** @description 编辑器里的当前配方；带上即为修改模式 */
+            current?: components["schemas"]["AgentRecipeBody"];
+            /** @description 想要的酒，或对 current 的修改要求 */
+            prompt: string;
+        };
+        AgentDraftOutputBody: {
+            /**
+             * Format: uri
+             * @description A URL to the JSON Schema for this object.
+             * @example https://example.com/schemas/AgentDraftOutputBody.json
+             */
+            readonly $schema?: string;
+            /** Format: int64 */
+            attempts: number;
+            descriptionMd: string;
+            /** Format: int64 */
+            difficulty: number;
+            family: string | null;
+            ir: unknown;
+            /** @description 修复轮用完后残留的业务规则问题 */
+            issues: components["schemas"]["ErrorDetailBody"][] | null;
+            /** @description 助手给用户的说明（替代原料、取舍等） */
+            reply: string;
+            subtitle: string;
+            tags: string[] | null;
+            tasteProfile: components["schemas"]["TasteProfileInput"];
+            title: string;
+        };
+        AgentRecipeBody: {
+            descriptionMd: string;
+            /** Format: int64 */
+            difficulty: number;
+            family?: string;
+            ir: unknown;
+            subtitle: string;
+            tags: string[] | null;
+            tasteProfile: components["schemas"]["TasteProfileInput"];
+            title: string;
+        };
+        AgentStatusOutputBody: {
+            /**
+             * Format: uri
+             * @description A URL to the JSON Schema for this object.
+             * @example https://example.com/schemas/AgentStatusOutputBody.json
+             */
+            readonly $schema?: string;
+            enabled: boolean;
+        };
         ApiError: {
             /**
              * Format: uri
@@ -1193,6 +1474,15 @@ export interface components {
             message: string;
             path?: string;
         };
+        FeaturedMenusOutputBody: {
+            /**
+             * Format: uri
+             * @description A URL to the JSON Schema for this object.
+             * @example https://example.com/schemas/FeaturedMenusOutputBody.json
+             */
+            readonly $schema?: string;
+            items: components["schemas"]["MenuBody"][] | null;
+        };
         FeedCard: {
             /** Format: double */
             abvEst: number | null;
@@ -1300,6 +1590,13 @@ export interface components {
             recipeCount: number;
             subcategory?: string;
             viz: unknown;
+            /** Format: date-time */
+            wikiEditedAt: string | null;
+            /**
+             * Format: int64
+             * @description 百科修订版本号；修订时作为 If-Match。0 = 仍是种子原文
+             */
+            wikiVersion: number;
         };
         IngredientListOutputBody: {
             /**
@@ -1310,6 +1607,38 @@ export interface components {
             readonly $schema?: string;
             items: components["schemas"]["IngredientBody"][] | null;
             nextCursor: string | null;
+        };
+        IngredientRevisionBody: {
+            /**
+             * Format: uri
+             * @description A URL to the JSON Schema for this object.
+             * @example https://example.com/schemas/IngredientRevisionBody.json
+             */
+            readonly $schema?: string;
+            /** Format: date-time */
+            createdAt: string;
+            editorHandle: string | null;
+            editorName: string | null;
+            note: string | null;
+            snapshot: components["schemas"]["IngredientSnapshotBody"];
+            /** Format: int64 */
+            version: number;
+        };
+        IngredientRevisionsOutputBody: {
+            /**
+             * Format: uri
+             * @description A URL to the JSON Schema for this object.
+             * @example https://example.com/schemas/IngredientRevisionsOutputBody.json
+             */
+            readonly $schema?: string;
+            items: components["schemas"]["IngredientRevisionBody"][] | null;
+        };
+        IngredientSnapshotBody: {
+            aliases: string[] | null;
+            descriptionEn: string | null;
+            descriptionZh: string | null;
+            nameEn: string;
+            nameZh: string;
         };
         LikerBody: {
             likedAt: string;
@@ -1397,15 +1726,19 @@ export interface components {
             /** Format: date-time */
             createdAt: string;
             description: string | null;
+            featured: boolean;
             id: string;
             /** Format: int64 */
             itemCount: number;
             owner?: components["schemas"]["MenuOwnerBody"];
             recipeCards: components["schemas"]["MenuRecipeCardBody"][] | null;
+            /** Format: int64 */
+            saveCount: number;
             title: string;
             /** Format: date-time */
             updatedAt: string;
             viewerIsOwner: boolean;
+            viewerSaved: boolean;
             visibility: string;
         };
         MenuDetailOutputBody: {
@@ -1471,6 +1804,17 @@ export interface components {
             /** Format: uuid */
             recipeId: string;
         };
+        MenuSaveOutputBody: {
+            /**
+             * Format: uri
+             * @description A URL to the JSON Schema for this object.
+             * @example https://example.com/schemas/MenuSaveOutputBody.json
+             */
+            readonly $schema?: string;
+            /** Format: int64 */
+            saveCount: number;
+            saved: boolean;
+        };
         MenuUpdateInputBody: {
             /**
              * Format: uri
@@ -1506,15 +1850,19 @@ export interface components {
             /** Format: date-time */
             createdAt: string;
             description: string | null;
+            featured: boolean;
             id: string;
             /** Format: int64 */
             itemCount: number;
             owner?: components["schemas"]["MenuOwnerBody"];
             recipeCards: components["schemas"]["MenuRecipeCardBody"][] | null;
+            /** Format: int64 */
+            saveCount: number;
             title: string;
             /** Format: date-time */
             updatedAt: string;
             viewerIsOwner: boolean;
+            viewerSaved: boolean;
             visibility: string;
         };
         MyMenusOutputBody: {
@@ -1592,6 +1940,8 @@ export interface components {
             id: string;
             isOfficial: boolean;
             location: string | null;
+            /** @enum {string} */
+            role: "user" | "editor" | "admin";
             viewerIsFollowing?: boolean;
             website: string | null;
         };
@@ -1749,22 +2099,29 @@ export interface components {
         };
         RevisionBody: {
             createdAt: string;
+            editorHandle: string | null;
             editorId: string | null;
+            editorName: string | null;
+            /** @description 该版本的元数据快照；ADR-027 之前写入的版本为 null */
+            meta: components["schemas"]["RevisionMetaBody"];
             note: string | null;
             title: string;
             /** Format: int64 */
             version: number;
         };
-        RevisionDetailOutputBody: {
+        RevisionDetailBody: {
             /**
              * Format: uri
              * @description A URL to the JSON Schema for this object.
-             * @example https://example.com/schemas/RevisionDetailOutputBody.json
+             * @example https://example.com/schemas/RevisionDetailBody.json
              */
             readonly $schema?: string;
             createdAt: string;
+            editorHandle: string | null;
             editorId: string | null;
+            editorName: string | null;
             ir: unknown;
+            meta: components["schemas"]["RevisionMetaBody"];
             note: string | null;
             title: string;
             /** Format: int64 */
@@ -1778,6 +2135,15 @@ export interface components {
              */
             readonly $schema?: string;
             items: components["schemas"]["RevisionBody"][] | null;
+        };
+        RevisionMetaBody: {
+            descriptionMd: string | null;
+            /** Format: int64 */
+            difficulty: number | null;
+            family: string | null;
+            subtitle: string | null;
+            tags: string[] | null;
+            tasteProfile: components["schemas"]["TasteProfileInput"];
         };
         SearchIngredientBody: {
             /** Format: double */
@@ -1828,6 +2194,16 @@ export interface components {
             /** Format: int64 */
             total?: number;
         };
+        SetRoleInputBody: {
+            /**
+             * Format: uri
+             * @description A URL to the JSON Schema for this object.
+             * @example https://example.com/schemas/SetRoleInputBody.json
+             */
+            readonly $schema?: string;
+            /** @enum {string} */
+            role: "user" | "editor";
+        };
         TagBody: {
             id: string;
             kind: string;
@@ -1875,6 +2251,21 @@ export interface components {
             readonly $schema?: string;
             body: string;
         };
+        UpdateIngredientInputBody: {
+            /**
+             * Format: uri
+             * @description A URL to the JSON Schema for this object.
+             * @example https://example.com/schemas/UpdateIngredientInputBody.json
+             */
+            readonly $schema?: string;
+            aliases: string[] | null;
+            descriptionEn?: string;
+            descriptionZh?: string;
+            nameEn: string;
+            nameZh: string;
+            /** @description 修订摘要 */
+            note?: string;
+        };
         UpdateMeInputBody: {
             /**
              * Format: uri
@@ -1909,6 +2300,8 @@ export interface components {
             ir?: unknown;
             /** @enum {string} */
             lang?: "zh" | "en";
+            /** @description 修订摘要（编辑修订经典条目时显示在修订历史里） */
+            note?: string;
             subtitle?: string;
             tags?: string[] | null;
             tasteProfile?: components["schemas"]["TasteProfileInput"];
@@ -1939,6 +2332,11 @@ export interface components {
             location: string | null;
             /** Format: int64 */
             recipeCount: number;
+            /**
+             * @description editor/admin 可在站内修订经典配方与原料百科（ADR-027）
+             * @enum {string}
+             */
+            role: "user" | "editor" | "admin";
             unitPreference: string;
             website: string | null;
         };
@@ -1986,6 +2384,59 @@ export interface components {
             /** Format: date-time */
             version: string;
         };
+        "Wiki-changesResponse": {
+            /**
+             * Format: uri
+             * @description A URL to the JSON Schema for this object.
+             * @example https://example.com/schemas/Wiki-changesResponse.json
+             */
+            readonly $schema?: string;
+            items: components["schemas"]["WikiChangeBody"][] | null;
+        };
+        WikiChangeBody: {
+            /** Format: date-time */
+            createdAt: string;
+            editorHandle: string | null;
+            editorName: string | null;
+            /** @enum {string} */
+            kind: "recipe" | "ingredient";
+            note: string | null;
+            /** @description 配方 UUID 或原料 ID */
+            targetId: string;
+            /** @description classicKey 或原料 ID（前端路由用） */
+            targetKey: string;
+            title: string;
+            /** Format: int64 */
+            version: number;
+        };
+        WikiMemberBody: {
+            /**
+             * Format: uri
+             * @description A URL to the JSON Schema for this object.
+             * @example https://example.com/schemas/WikiMemberBody.json
+             */
+            readonly $schema?: string;
+            avatarUrl: string | null;
+            displayName: string;
+            /** Format: int64 */
+            editCount: number;
+            handle: string;
+            /** Format: uuid */
+            id: string;
+            /** Format: date-time */
+            lastEditAt: string | null;
+            /** @enum {string} */
+            role: "user" | "editor" | "admin";
+        };
+        WikiMembersOutputBody: {
+            /**
+             * Format: uri
+             * @description A URL to the JSON Schema for this object.
+             * @example https://example.com/schemas/WikiMembersOutputBody.json
+             */
+            readonly $schema?: string;
+            items: components["schemas"]["WikiMemberBody"][] | null;
+        };
     };
     responses: never;
     parameters: never;
@@ -1995,6 +2446,103 @@ export interface components {
 }
 export type $defs = Record<string, never>;
 export interface operations {
+    "admin-set-role": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                handle: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SetRoleInputBody"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WikiMemberBody"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+        };
+    };
+    "agent-recipe-draft": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AgentDraftInputBody"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AgentDraftOutputBody"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+        };
+    };
+    "agent-status": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AgentStatusOutputBody"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+        };
+    };
     "auth-login": {
         parameters: {
             query?: never;
@@ -2672,6 +3220,106 @@ export interface operations {
             };
         };
     };
+    "ingredients-update": {
+        parameters: {
+            query?: never;
+            header?: {
+                "If-Match"?: string;
+            };
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdateIngredientInputBody"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["IngredientDetailBody"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+        };
+    };
+    "ingredients-revisions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["IngredientRevisionsOutputBody"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+        };
+    };
+    "ingredients-revision-get": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+                version: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["IngredientRevisionBody"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+        };
+    };
     "me-get": {
         parameters: {
             query?: never;
@@ -2828,6 +3476,38 @@ export interface operations {
             };
         };
     };
+    "me-saved-menus": {
+        parameters: {
+            query?: {
+                cursor?: string;
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MenuListOutputBody"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+        };
+    };
     "media-upload-url": {
         parameters: {
             query?: never;
@@ -2892,6 +3572,39 @@ export interface operations {
             };
         };
     };
+    "menus-plaza": {
+        parameters: {
+            query?: {
+                sort?: "hot" | "new";
+                cursor?: string;
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MenuListOutputBody"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+        };
+    };
     "menus-create": {
         parameters: {
             query?: never;
@@ -2912,6 +3625,35 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["MenuBody"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+        };
+    };
+    "menus-featured": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FeaturedMenusOutputBody"];
                 };
             };
             /** @description Error */
@@ -3020,6 +3762,37 @@ export interface operations {
             };
         };
     };
+    "menus-fork": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MenuBody"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+        };
+    };
     "menu-items-reorder": {
         parameters: {
             query?: never;
@@ -3105,6 +3878,68 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+        };
+    };
+    "menus-save": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MenuSaveOutputBody"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+        };
+    };
+    "menus-unsave": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MenuSaveOutputBody"];
+                };
             };
             /** @description Error */
             default: {
@@ -3653,7 +4488,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["RevisionDetailOutputBody"];
+                    "application/json": components["schemas"]["RevisionDetailBody"];
                 };
             };
             /** @description Error */
@@ -4056,6 +4891,66 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["VocabBody"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+        };
+    };
+    "wiki-changes": {
+        parameters: {
+            query?: {
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Wiki-changesResponse"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+        };
+    };
+    "wiki-editors": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WikiMembersOutputBody"];
                 };
             };
             /** @description Error */

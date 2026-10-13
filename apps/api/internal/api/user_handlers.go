@@ -96,6 +96,7 @@ type publicUserBody struct {
 	Location         *string        `json:"location"`
 	Website          *string        `json:"website"`
 	IsOfficial       bool           `json:"isOfficial"`
+	Role             string         `json:"role" enum:"user,editor,admin"`
 	Counts           userCountsBody `json:"counts"`
 	ViewerIsFollowing *bool         `json:"viewerIsFollowing,omitempty"`
 	CreatedAt        string         `json:"createdAt" format:"date-time"`
@@ -130,7 +131,7 @@ func publicUserToBody(p *user.Profile) publicUserBody {
 	return publicUserBody{
 		ID: p.ID.String(), Handle: p.Handle, DisplayName: p.DisplayName,
 		AvatarURL: p.AvatarURL, Bio: p.Bio, Location: p.Location, Website: p.Website,
-		IsOfficial: p.IsOfficial,
+		IsOfficial: p.IsOfficial, Role: p.Role,
 		Counts:     userCountsBody{Follower: p.FollowerCount, Following: p.FollowingCount, Recipe: p.RecipeCount},
 		CreatedAt:  p.CreatedAt.UTC().Format(time.RFC3339Nano),
 	}

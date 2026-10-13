@@ -13,6 +13,7 @@ import (
 	"github.com/go-chi/chi/v5/middleware"
 	"github.com/jackc/pgx/v5/pgxpool"
 
+	"github.com/kafsaki/shaker/apps/api/internal/agent"
 	"github.com/kafsaki/shaker/apps/api/internal/auth"
 	"github.com/kafsaki/shaker/apps/api/internal/config"
 	"github.com/kafsaki/shaker/apps/api/internal/interact"
@@ -24,6 +25,7 @@ import (
 	"github.com/kafsaki/shaker/apps/api/internal/report"
 	"github.com/kafsaki/shaker/apps/api/internal/user"
 	"github.com/kafsaki/shaker/apps/api/internal/vocab"
+	"github.com/kafsaki/shaker/apps/api/internal/wiki"
 )
 
 // API 持有 HTTP 层的全部依赖。
@@ -40,12 +42,16 @@ type API struct {
 	notifies *notify.Store
 	reports  *report.Store
 	media  *media.Store
+	wiki   *wiki.Store
 	// limiters 路径 → 限流器。敏感端点按 IP 计数。
 	limiters map[string]*ratelimit.Limiter
 	// writeLimiter 全部写操作（API 定义 §4：每用户 60 次/分钟）。
 	writeLimiter *ratelimit.Limiter
 	// publishLimiter 发布动作单独收紧（每用户 10 次/小时）。
 	publishLimiter *ratelimit.Limiter
+	// agentLimiter 酒保助手（每用户 20 次/小时，ADR-028）。
+	agentLimiter *ratelimit.Limiter
+	agent        *agent.Service
 }
 
 // New 构建 chi 路由。所有业务路由由各 handler 文件里的 register* 注册。
@@ -83,6 +89,7 @@ func setupRouter(pool *pgxpool.Pool, cfg config.Config) (*chi.Mux, huma.API) {
 	a.notifies = notify.NewStore(pool)
 	a.reports = report.NewStore(pool)
 	a.media = media.NewStore(pool, cfg)
+	a.wiki = wiki.NewStore(pool)
 	a.limiters = map[string]*ratelimit.Limiter{
 		// 认证端点按 IP 限流：登录防撞库、注册防批量、刷新防穷举、改密防试旧密码
 		"/api/v1/auth/login":    ratelimit.New(10, time.Minute),
@@ -92,6 +99,13 @@ func setupRouter(pool *pgxpool.Pool, cfg config.Config) (*chi.Mux, huma.API) {
 	}
 	a.writeLimiter = ratelimit.New(60, time.Minute)
 	a.publishLimiter = ratelimit.New(10, time.Hour)
+	a.agentLimiter = ratelimit.New(20, time.Hour)
+	a.agent = agent.NewService(agent.NewClient(agent.Config{
+		// 主端点在前、备用在后
+		Endpoints: append(agent.Endpoints(cfg.LLMBaseURL, cfg.LLMModel, cfg.LLMKeys),
+			agent.Endpoints(cfg.LLMFallbackBaseURL, cfg.LLMFallbackModel, cfg.LLMFallbackKeys)...),
+		Effort: cfg.LLMEffort, Timeout: cfg.LLMTimeout,
+	}), a.vocab)
 
 	api.UseMiddleware(a.middleware)
 
@@ -109,6 +123,8 @@ func setupRouter(pool *pgxpool.Pool, cfg config.Config) (*chi.Mux, huma.API) {
 	a.registerNotifications(api)
 	a.registerReports(api)
 	a.registerMedia(api)
+	a.registerWiki(api)
+	a.registerAgent(api)
 	return r, api
 }
 

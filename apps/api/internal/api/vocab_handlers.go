@@ -75,6 +75,8 @@ type ingredientDetailBody struct {
 	DescriptionZh *string `json:"descriptionZh,omitempty"`
 	DescriptionEn *string `json:"descriptionEn,omitempty"`
 	RecipeCount   int     `json:"recipeCount"`
+	WikiVersion   int     `json:"wikiVersion" doc:"百科修订版本号；修订时作为 If-Match。0 = 仍是种子原文"`
+	WikiEditedAt  *string `json:"wikiEditedAt" format:"date-time"`
 }
 
 type glassBody struct {
@@ -259,6 +261,11 @@ func (a *API) getIngredientHandler(ctx context.Context, in *ingredientGetInput) 
 		DescriptionZh:  ing.DescriptionZh,
 		DescriptionEn:  ing.DescriptionEn,
 		RecipeCount:    ing.RecipeCount,
+		WikiVersion:    ing.WikiVersion,
+	}
+	if ing.WikiEditedAt != nil {
+		s := ing.WikiEditedAt.UTC().Format(time.RFC3339Nano)
+		b.WikiEditedAt = &s
 	}
 	return &ingredientGetOutput{Body: b}, nil
 }

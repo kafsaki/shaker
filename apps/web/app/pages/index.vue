@@ -1,22 +1,15 @@
 <script setup lang="ts">
-import { useInfiniteQuery } from "@tanstack/vue-query";
-import { Flame, Search, Sparkles, Users } from "lucide-vue-next";
+/**
+ * 酒馆大厅：酒保对白（打字机 + 分支选项）+ 今日特调 + 酒单墙（热门 / 最新 / 关注）。
+ * 「随便来一杯」从热门流里抽一杯直接端上来。
+ * 页内搜索与筛选都是 Feed 的服务端过滤条件，热门/最新/关注与时间窗照常生效。
+ */
+import { useInfiniteQuery, useQuery } from "@tanstack/vue-query";
 import type { components } from "@shaker/api-client";
-import InfiniteLoader from "@/components/InfiniteLoader.vue";
-import RecipeCard from "@/components/RecipeCard.vue";
-import RecipeFilterBar from "@/components/RecipeFilterBar.vue";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
+import { toast } from "@/lib/toast";
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import { Skeleton } from "@/components/ui/skeleton";
-import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import {
+  ABV_MAX,
+  VOLUME_MAX,
   defaultFilter,
   filterKey,
   filterToParams,
@@ -25,29 +18,101 @@ import {
 } from "@/lib/recipe-filter";
 
 type FeedPage = components["schemas"]["FeedOutputBody"];
+type FeedCard = components["schemas"]["FeedCard"];
 
-useHead({ title: "探索 · Shaker" });
+useHead({ title: "酒馆 · Shaker" });
 
 const auth = useAuthStore();
 const api = useApi();
 const route = useRoute();
 const router = useRouter();
+const agentEnabled = useAgentStatus();
 
-const tab = ref<string>((route.query.tab as string) || "hot");
-watch(tab, (t) => {
-  router.replace({ query: t === "hot" ? {} : { tab: t } });
+/* ── 酒保对白 ── */
+function greeting(): string {
+  const h = new Date().getHours();
+  const time = h < 5 ? "夜深了" : h < 11 ? "早上好" : h < 14 ? "中午好" : h < 18 ? "下午好" : "晚上好";
+  const name = auth.user?.displayName;
+  const lines = name
+    ? [
+        `${time}，${name}。老位置给你留着呢。今晚想喝点什么？`,
+        `${time}，${name}。吧台刚擦干净——要不要露一手，调一杯新的？`,
+      ]
+    : [
+        `${time}，欢迎光临 Shaker。这里每一杯酒都会在吧台上演一遍——经典的、热门的，还是你自己来？`,
+        `${time}，旅人。第一次来？墙上那本图鉴收着 IBA 的经典，随便翻。`,
+      ];
+  return lines[Math.floor(Math.random() * lines.length)]!;
+}
+const line = ref("");
+onMounted(() => (line.value = greeting()));
+
+/** 煤球又把杯子推下去了（BarCat 彩蛋），酒保换一句台词 */
+function onCatPrank(glasses: number): void {
+  line.value =
+    glasses === 1
+      ? "……煤球！那是刚擦好的杯子。唉，算了——它才是这家店真正的老板。"
+      : `第 ${glasses} 只杯子了。煤球，这些都从你的小鱼干里扣。`;
+}
+
+/* ── 今日特调：全时段最热的一杯 ── */
+const { data: special } = useQuery({
+  queryKey: ["feed", "special"] as const,
+  queryFn: async (): Promise<FeedCard | null> => {
+    const { data, error } = await api.GET("/api/v1/feed/hot", {
+      params: { query: { window: "7d", limit: 1 } },
+    });
+    if (error) throw error;
+    if (data.items?.[0]) return data.items[0];
+    const all = await api.GET("/api/v1/feed/hot", { params: { query: { window: "all", limit: 1 } } });
+    return all.data?.items?.[0] ?? null;
+  },
+  staleTime: 5 * 60_000,
 });
 
+const rolling = ref(false);
+async function randomDrink(): Promise<void> {
+  rolling.value = true;
+  try {
+    const { data, error } = await api.GET("/api/v1/feed/hot", {
+      params: { query: { window: "all", limit: 40 } },
+    });
+    if (error) throw error;
+    const pool = data.items ?? [];
+    const pick = pool[Math.floor(Math.random() * pool.length)];
+    if (!pick) {
+      toast.info("吧台今天空空的，先去图鉴里看看吧");
+      return;
+    }
+    toast.success(`酒保推荐：${pick.title}`);
+    await router.push(
+      pick.isCanonical && pick.classicKey ? `/classics/${pick.classicKey}` : `/r/${pick.code}`,
+    );
+  } catch (err) {
+    toast.error(apiErrorMessage(err));
+  } finally {
+    rolling.value = false;
+  }
+}
+
+/* ── 酒单墙 ── */
+const tab = ref<string>((route.query.tab as string) || "hot");
+watch(tab, (t) => {
+  void router.replace({ query: t === "hot" ? {} : { tab: t } });
+});
+const TABS = [
+  { value: "hot", label: "热门", icon: "fire" as const },
+  { value: "new", label: "最新", icon: "sparkle" as const },
+  { value: "following", label: "关注", icon: "users" as const },
+];
 const hotWindow = ref("all");
-const windows = [
-  { value: "24h", label: "24 小时" },
-  { value: "7d", label: "7 天" },
-  { value: "30d", label: "30 天" },
-  { value: "all", label: "全部" },
+const WINDOWS = [
+  { value: "24h", label: "24H" },
+  { value: "7d", label: "7D" },
+  { value: "30d", label: "30D" },
+  { value: "all", label: "ALL" },
 ];
 
-// 页内搜索：关键词作为 Feed 的过滤条件（服务端过滤 + 游标分页），
-// 因此 热门/最新/关注 与时间范围在搜索时照常生效。
 const q = ref("");
 const debouncedQ = ref("");
 let qTimer: ReturnType<typeof setTimeout> | undefined;
@@ -57,30 +122,33 @@ watch(q, (v) => {
 });
 const searching = computed(() => debouncedQ.value !== "");
 
-// 筛选：与搜索结果页同一套组件、同一套后端谓词（Feed 与 /search 共用 filterConds）。
-// 探索页用 Tab 表达热度/时间，所以这里的 sort 不参与请求。
 const filter = ref<RecipeFilterState>(defaultFilter());
 const hasFilters = computed(() => isFilterActive(filter.value));
+const showFilter = ref(false);
+/** 生效的筛选维度数（按钮上的小角标）。 */
+const filterCount = computed(() => {
+  const f = filter.value;
+  return (
+    (f.family !== "all" ? 1 : 0) +
+    (f.method !== "all" ? 1 : 0) +
+    (f.glass !== "all" ? 1 : 0) +
+    (f.origin ? 1 : 0) +
+    (f.tags.length ? 1 : 0) +
+    (f.abvMin > 0 || f.abvMax < ABV_MAX ? 1 : 0) +
+    (f.volumeMin > 0 || f.volumeMax < VOLUME_MAX ? 1 : 0) +
+    (f.difficultyMax > 0 ? 1 : 0)
+  );
+});
 
-const feedEnabled = computed(
-  () => tab.value !== "following" || auth.isAuthenticated,
-);
+const feedEnabled = computed(() => tab.value !== "following" || auth.isAuthenticated);
 
 const feedQuery = useInfiniteQuery({
   queryKey: computed(
-    () =>
-      [
-        "feed",
-        String(tab.value),
-        hotWindow.value,
-        debouncedQ.value,
-        filterKey(filter.value),
-      ] as const,
+    () => ["feed", String(tab.value), hotWindow.value, debouncedQ.value, filterKey(filter.value)] as const,
   ),
   queryFn: async ({ pageParam }): Promise<FeedPage> => {
-    const cursor = pageParam || undefined;
     const query = {
-      cursor,
+      cursor: pageParam || undefined,
       q: debouncedQ.value || undefined,
       ...filterToParams(filter.value),
     };
@@ -106,117 +174,88 @@ const feedQuery = useInfiniteQuery({
 });
 
 const items = computed(() => feedQuery.data.value?.pages.flatMap((p) => p.items ?? []) ?? []);
-
-const isLoading = computed(() => feedQuery.isLoading.value);
-const isError = computed(() => feedQuery.isError.value);
-const error = computed(() => feedQuery.error.value);
-const hasNextPage = computed(() => feedQuery.hasNextPage.value);
-const isFetchingNextPage = computed(() => feedQuery.isFetchingNextPage.value);
-
-function loadMore(): void {
-  void feedQuery.fetchNextPage();
-}
 </script>
 
 <template>
-  <div class="flex flex-col gap-5">
-    <!-- 酒馆招牌：旋转光束 + 像素标题 + 闪烁光标 -->
-    <section
-      class="relative overflow-hidden rounded-sm border-2 border-border bg-card p-6 pixel-shadow sm:p-8"
-    >
-      <div
-        class="tavern-rays animate-rays-spin pointer-events-none absolute -left-20 -top-20 size-[400px] opacity-[0.06] dark:opacity-[0.1]"
-        aria-hidden="true"
-      />
-      <p class="font-pixel text-[10px] uppercase tracking-widest text-primary">
-        ★ Welcome to Shaker ★
-      </p>
-      <h1 class="mt-3 text-2xl font-bold sm:text-3xl">
-        像素酒馆营业中<span class="animate-cursor-blink text-primary">▌</span>
-      </h1>
-      <p class="mt-2 max-w-xl text-sm text-muted-foreground">
-        收录 IBA 经典配方与社区创作，每一杯都有可播放的调酒动画。
-        看一杯酒的社区共识落点，或者写下你自己的版本。
-      </p>
-      <div class="mt-4 flex gap-2">
-        <Button as-child size="sm">
-          <NuxtLink to="/register">进店看看</NuxtLink>
-        </Button>
-        <Button as-child size="sm" variant="outline">
-          <NuxtLink to="/classics">翻经典酒谱</NuxtLink>
-        </Button>
+  <div class="flex flex-col gap-10">
+    <h1 class="sr-only">酒馆大厅</h1>
+
+    <!-- 吧台：酒保对白 + 今日特调 -->
+    <section class="grid items-start gap-6 lg:grid-cols-[minmax(0,1fr)_260px]">
+      <BarScene @prank="onCatPrank">
+        <PxDialogue v-if="line" speaker="酒保 · 摇摇" :text="line">
+          <template #choices>
+          <PxButton variant="primary" icon="dice" :loading="rolling" sfx="coin" @click="randomDrink()">
+            随便来一杯
+          </PxButton>
+          <PxButton icon="book" to="/classics">翻翻经典图鉴</PxButton>
+          <PxButton icon="list" to="/menus">新手从哪杯开始？</PxButton>
+          <PxButton v-if="auth.isAuthenticated && agentEnabled" variant="accent" icon="sparkle" to="/editor/new?agent=1">
+            帮我想一杯
+          </PxButton>
+          <PxButton v-if="auth.isAuthenticated" icon="shaker" to="/editor/new">我自己调一杯</PxButton>
+          <PxButton v-else variant="accent" icon="play" to="/register" sfx="start">开始新游戏</PxButton>
+          </template>
+        </PxDialogue>
+        <div v-else class="h-28" />
+      </BarScene>
+
+      <div v-if="special" class="hidden flex-col gap-2 lg:flex">
+        <p class="flex items-center gap-2 text-amber">
+          <PxIcon name="trophy" :scale="2" />
+          <span class="font-logo text-[8px] tracking-[0.2em]">TODAY'S SPECIAL</span>
+        </p>
+        <RecipeCard :recipe="special" />
       </div>
     </section>
 
-    <!-- 页内搜索：关键词作用于当前这条流（热门/最新/关注 + 时间范围照常生效） -->
-    <div class="relative max-w-sm">
-      <Search class="absolute left-2.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
-      <Input v-model="q" placeholder="在当前流里搜配方名…" class="pl-8" />
-    </div>
-
-    <div class="flex flex-wrap items-center gap-3">
-      <Tabs :model-value="tab" @update:model-value="tab = String($event)">
-        <TabsList>
-          <TabsTrigger value="hot" class="gap-1.5">
-            <Flame class="size-3.5" /> 热门
-          </TabsTrigger>
-          <TabsTrigger value="new" class="gap-1.5">
-            <Sparkles class="size-3.5" /> 最新
-          </TabsTrigger>
-          <TabsTrigger value="following" class="gap-1.5">
-            <Users class="size-3.5" /> 关注
-          </TabsTrigger>
-        </TabsList>
-      </Tabs>
-
-      <Select v-if="tab === 'hot'" v-model="hotWindow">
-        <SelectTrigger class="h-9 w-28">
-          <SelectValue />
-        </SelectTrigger>
-        <SelectContent>
-          <SelectItem v-for="w in windows" :key="w.value" :value="w.value">
-            {{ w.label }}
-          </SelectItem>
-        </SelectContent>
-      </Select>
-
-      <h1 class="sr-only">探索</h1>
-    </div>
-
-    <!-- 配方筛选（与搜索结果页共用同一组件） -->
-    <RecipeFilterBar v-model="filter" />
-
-    <p
-      v-if="tab === 'following' && !auth.isAuthenticated"
-      class="py-16 text-center text-sm text-muted-foreground"
-    >
-      登录后可以看到你关注的调酒师的动态。
-      <NuxtLink to="/login" class="text-primary underline-offset-4 hover:underline">去登录</NuxtLink>
-    </p>
-
-    <div v-else-if="isLoading" class="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-      <Skeleton v-for="i in 6" :key="i" class="aspect-[4/5] rounded-xl" />
-    </div>
-
-    <p v-else-if="isError" class="py-16 text-center text-sm text-destructive">
-      {{ apiErrorMessage(error) }}
-    </p>
-
-    <p v-else-if="items.length === 0" class="py-16 text-center text-sm text-muted-foreground">
-      {{ searching || hasFilters ? "没有匹配的配方，试试换个关键词或清除筛选。" : "这里还空空如也。" }}
-    </p>
-
-    <template v-else>
-      <div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-        <RecipeCard v-for="r in items" :key="r.id" :recipe="r" />
+    <!-- 酒单墙 -->
+    <section class="flex flex-col gap-4">
+      <div class="flex flex-wrap items-end justify-between gap-3">
+        <PxSegmented v-model="tab" variant="tabs" :items="TABS" class="w-full !flex-nowrap sm:w-auto sm:flex-1" />
+        <PxSegmented v-if="tab === 'hot'" v-model="hotWindow" :items="WINDOWS" size="sm" />
       </div>
 
-      <InfiniteLoader
-        :has-next-page="hasNextPage"
-        :is-fetching-next-page="isFetchingNextPage"
-        :error="isError"
-        @load="loadMore()"
+      <div class="flex flex-wrap items-center gap-2">
+        <PxInput v-model="q" icon="search" placeholder="在当前流里搜配方名…" class="w-full max-w-sm" />
+        <PxButton
+          icon="filter"
+          :active="showFilter"
+          :aria-expanded="showFilter"
+          @click="showFilter = !showFilter"
+        >
+          筛选<span v-if="filterCount" class="font-logo text-[8px] text-amber">×{{ filterCount }}</span>
+        </PxButton>
+      </div>
+      <RecipeFilterBar v-if="showFilter" v-model="filter" class="animate-pop-in" />
+
+      <PxEmpty v-if="tab === 'following' && !auth.isAuthenticated" icon="users" title="登录后能看到你关注的调酒师的新作。">
+        <PxButton variant="primary" icon="play" to="/login">读取存档</PxButton>
+      </PxEmpty>
+
+      <div v-else-if="feedQuery.isLoading.value" class="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
+        <PxSkeleton v-for="i in 8" :key="i" class="aspect-[3/4]" />
+      </div>
+
+      <PxEmpty v-else-if="feedQuery.isError.value" icon="warn" tone="red" :title="apiErrorMessage(feedQuery.error.value)" />
+
+      <PxEmpty
+        v-else-if="items.length === 0"
+        icon="martini"
+        :title="searching || hasFilters ? '没有匹配的配方，换个关键词或清掉筛选试试。' : '这面墙还空着。'"
       />
-    </template>
+
+      <template v-else>
+        <div class="grid grid-cols-2 gap-x-3 gap-y-4 sm:grid-cols-3 lg:grid-cols-4">
+          <RecipeCard v-for="r in items" :key="r.id" :recipe="r" />
+        </div>
+        <InfiniteLoader
+          :has-next-page="feedQuery.hasNextPage.value"
+          :is-fetching-next-page="feedQuery.isFetchingNextPage.value"
+          :error="feedQuery.isError.value"
+          @load="feedQuery.fetchNextPage()"
+        />
+      </template>
+    </section>
   </div>
 </template>

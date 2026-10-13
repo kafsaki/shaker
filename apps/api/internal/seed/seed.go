@@ -10,6 +10,7 @@ import (
 	"context"
 	"embed"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"math"
 
@@ -32,6 +33,21 @@ type Data struct {
 	Techniques     []Technique     `json:"techniques"`
 	Tags           []Tag           `json:"tags"`
 	ClassicRecipes []ClassicRecipe `json:"classicRecipes"`
+	OfficialMenus  []OfficialMenu  `json:"officialMenus"`
+}
+
+// OfficialMenu 官方精选酒单（ADR-029）：以官方账号公开发布，key 是幂等导入的锚点，
+// 条目按数组顺序排列，引用经典配方的 classicKey。
+type OfficialMenu struct {
+	Key         string          `json:"key"`
+	Title       string          `json:"title"`
+	Description string          `json:"description"`
+	Recipes     []OfficialEntry `json:"recipes"`
+}
+
+type OfficialEntry struct {
+	ClassicKey string  `json:"classicKey"`
+	Note       *string `json:"note"`
 }
 
 type OfficialUser struct {
@@ -166,6 +182,11 @@ func Run(ctx context.Context, pool *pgxpool.Pool) error {
 			return err
 		}
 	}
+	for i := range data.OfficialMenus {
+		if err := importOfficialMenu(ctx, tx, officialID, i, &data.OfficialMenus[i]); err != nil {
+			return err
+		}
+	}
 
 	// 计数对账：种子直插投影不走 Publish 事务，recipe_count 类冗余列
 	// 不会被动维护。这里整表重算，幂等，天然收敛到真实值。
@@ -183,6 +204,19 @@ func Run(ctx context.Context, pool *pgxpool.Pool) error {
 			WHERE r.author_id = users.id AND r.status = 'published' AND r.deleted_at IS NULL
 		)`); err != nil {
 		return fmt.Errorf("重算用户配方数: %w", err)
+	}
+	// 精选酒单的条目算进配方收藏数；只改有变化的行，免得每次启动都刷新 updated_at
+	if _, err := tx.Exec(ctx, `
+		WITH c AS (
+			SELECT r.id, (SELECT count(*) FROM menu_items mi JOIN menus m ON m.id = mi.menu_id
+				WHERE mi.recipe_id = r.id AND m.deleted_at IS NULL) AS n
+			FROM recipes r
+		)
+		UPDATE recipes r SET collect_count = c.n,
+			hot_score = CASE WHEN r.published_at IS NULL THEN r.hot_score
+				ELSE r.like_count + c.n + r.comment_count END
+		FROM c WHERE c.id = r.id AND r.collect_count <> c.n`); err != nil {
+		return fmt.Errorf("重算配方收藏数: %w", err)
 	}
 
 	if err := tx.Commit(ctx); err != nil {
@@ -224,19 +258,27 @@ func upsertOfficialUser(ctx context.Context, tx pgx.Tx, u OfficialUser) (uuid.UU
 
 func importIngredients(ctx context.Context, tx pgx.Tx, officialID uuid.UUID, list []Ingredient) error {
 	for _, ing := range list {
-		_, err := tx.Exec(ctx, `
+		// 名称与别名是 wiki 可编辑字段：编辑改过（wiki_edited_at 非空）就保留站内版本（ADR-027）；
+		// 分类、物性、视觉不开放编辑，始终以 seed.json 为准。
+		var wikiEdited bool
+		err := tx.QueryRow(ctx, `
 			INSERT INTO ingredients (id, name_zh, name_en, category, subcategory, abv, density, viz, is_official, created_by)
 			VALUES ($1, $2, $3, $4, $5, $6, $7, $8, true, $9)
 			ON CONFLICT (id) DO UPDATE SET
-				name_zh = EXCLUDED.name_zh, name_en = EXCLUDED.name_en,
+				name_zh = CASE WHEN ingredients.wiki_edited_at IS NULL THEN EXCLUDED.name_zh ELSE ingredients.name_zh END,
+				name_en = CASE WHEN ingredients.wiki_edited_at IS NULL THEN EXCLUDED.name_en ELSE ingredients.name_en END,
 				category = EXCLUDED.category, subcategory = EXCLUDED.subcategory,
 				abv = EXCLUDED.abv, density = EXCLUDED.density, viz = EXCLUDED.viz,
-				is_official = true, updated_at = now()`,
-			ing.ID, ing.NameZh, ing.NameEn, ing.Category, ing.Subcategory, ing.ABV, ing.Density, ing.Viz, officialID)
+				is_official = true, updated_at = now()
+			RETURNING wiki_edited_at IS NOT NULL`,
+			ing.ID, ing.NameZh, ing.NameEn, ing.Category, ing.Subcategory, ing.ABV, ing.Density, ing.Viz, officialID).Scan(&wikiEdited)
 		if err != nil {
 			return fmt.Errorf("导入原料 %s: %w", ing.ID, err)
 		}
-		// 别名整表重建：seed.json 是别名的唯一真相源
+		if wikiEdited {
+			continue
+		}
+		// 别名整表重建：没人在站内改过的词条，seed.json 是别名的唯一真相源
 		if _, err := tx.Exec(ctx, `DELETE FROM ingredient_aliases WHERE ingredient_id = $1`, ing.ID); err != nil {
 			return fmt.Errorf("清空原料别名 %s: %w", ing.ID, err)
 		}
@@ -336,10 +378,14 @@ func importClassic(ctx context.Context, tx pgx.Tx, officialID uuid.UUID, vocab *
 			iba_category = EXCLUDED.iba_category, abv_est = EXCLUDED.abv_est,
 			total_volume_ml = EXCLUDED.total_volume_ml, taste_profile = EXCLUDED.taste_profile,
 			difficulty = EXCLUDED.difficulty, updated_at = now()
+		WHERE recipes.wiki_edited_at IS NULL
 		RETURNING id, (xmax = 0)`,
 		newID, officialID, c.Title, c.Subtitle, c.DescriptionMd, c.Lang,
 		c.IR, ir.Glass, ir.Method, c.Family, c.ClassicKey,
 		c.IBACategory, abvEst, totalMl, taste, c.Difficulty).Scan(&id, &inserted)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil // 编辑在站内修订过（WHERE 挡下了 UPDATE）：站内版本优先，投影也不动（ADR-027）
+	}
 	if err != nil {
 		return fmt.Errorf("导入配方 %q: %w", c.Title, err)
 	}
@@ -380,6 +426,60 @@ func importClassic(ctx context.Context, tx pgx.Tx, officialID uuid.UUID, vocab *
 			id, ref.Slot, ref.IngredientID, ref.Amount, ref.Unit, amountMl, ref.Role, pos); err != nil {
 			return fmt.Errorf("写入配方原料投影 %q/%s: %w", c.Title, ref.Slot, err)
 		}
+	}
+	return nil
+}
+
+// importOfficialMenu 按 key upsert 一份官方精选酒单（ADR-029），条目整体对齐到种子：
+// 多的删、缺的补、位置与笔记按种子顺序改。只在内容真有变化时写行，
+// 否则每次启动都会刷新 updated_at，精选酒单会一直排在「最近更新」最前面。
+// 精选酒单只归种子管：官方账号不在站内登录，没有站内修订需要保护。
+func importOfficialMenu(ctx context.Context, tx pgx.Tx, officialID uuid.UUID, rank int, m *OfficialMenu) error {
+	newID, err := uuid.NewV7()
+	if err != nil {
+		return fmt.Errorf("生成 UUIDv7: %w", err)
+	}
+	if _, err := tx.Exec(ctx, `
+		INSERT INTO menus (id, owner_id, title, description, visibility, featured_key, featured_rank)
+		VALUES ($1, $2, $3, $4, 'public', $5, $6)
+		ON CONFLICT (featured_key) WHERE featured_key IS NOT NULL DO UPDATE SET
+			owner_id = EXCLUDED.owner_id, title = EXCLUDED.title, description = EXCLUDED.description,
+			visibility = 'public', featured_rank = EXCLUDED.featured_rank, deleted_at = NULL
+		WHERE (menus.owner_id, menus.title, menus.description, menus.visibility, menus.featured_rank, menus.deleted_at)
+			IS DISTINCT FROM (EXCLUDED.owner_id, EXCLUDED.title, EXCLUDED.description, 'public'::menu_visibility,
+				EXCLUDED.featured_rank, NULL::timestamptz)`,
+		newID, officialID, m.Title, m.Description, m.Key, rank); err != nil {
+		return fmt.Errorf("导入精选酒单 %q: %w", m.Key, err)
+	}
+	var menuID uuid.UUID
+	if err := tx.QueryRow(ctx, `SELECT id FROM menus WHERE featured_key = $1`, m.Key).Scan(&menuID); err != nil {
+		return fmt.Errorf("查询精选酒单 %q: %w", m.Key, err)
+	}
+
+	recipeIDs := make([]uuid.UUID, 0, len(m.Recipes))
+	for pos, e := range m.Recipes {
+		var rid uuid.UUID
+		if err := tx.QueryRow(ctx, `
+			SELECT id FROM recipes WHERE classic_key = $1 AND is_canonical AND deleted_at IS NULL`,
+			e.ClassicKey).Scan(&rid); err != nil {
+			return fmt.Errorf("精选酒单 %q 引用的经典 %q 不存在: %w", m.Key, e.ClassicKey, err)
+		}
+		recipeIDs = append(recipeIDs, rid)
+		if _, err := tx.Exec(ctx, `
+			INSERT INTO menu_items (menu_id, recipe_id, position, note) VALUES ($1, $2, $3, $4)
+			ON CONFLICT (menu_id, recipe_id) DO UPDATE SET position = EXCLUDED.position, note = EXCLUDED.note
+			WHERE (menu_items.position, menu_items.note) IS DISTINCT FROM (EXCLUDED.position, EXCLUDED.note)`,
+			menuID, rid, pos+1, e.Note); err != nil {
+			return fmt.Errorf("写入精选酒单条目 %q/%s: %w", m.Key, e.ClassicKey, err)
+		}
+	}
+	if _, err := tx.Exec(ctx, `
+		DELETE FROM menu_items WHERE menu_id = $1 AND recipe_id <> ALL($2)`, menuID, recipeIDs); err != nil {
+		return fmt.Errorf("清理精选酒单条目 %q: %w", m.Key, err)
+	}
+	if _, err := tx.Exec(ctx, `
+		UPDATE menus SET item_count = $2 WHERE id = $1 AND item_count <> $2`, menuID, len(recipeIDs)); err != nil {
+		return fmt.Errorf("更新精选酒单计数 %q: %w", m.Key, err)
 	}
 	return nil
 }

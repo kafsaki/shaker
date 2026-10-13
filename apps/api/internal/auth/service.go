@@ -45,6 +45,7 @@ type User struct {
 	Website        *string
 	UnitPreference string
 	IsOfficial     bool
+	Role           string // user / editor / admin（ADR-027）
 	FollowerCount  int
 	FollowingCount int
 	RecipeCount    int
@@ -69,7 +70,7 @@ type UpdateProfile struct {
 }
 
 const userCols = `id, handle, display_name, email, email_verified, avatar_url, bio, location, website,
-	unit_preference, is_official, follower_count, following_count, recipe_count, created_at`
+	unit_preference, is_official, role, follower_count, following_count, recipe_count, created_at`
 
 // Service 认证业务逻辑。
 type Service struct {
@@ -423,7 +424,7 @@ func scanUser(row pgx.Row) (*User, error) {
 	u := &User{}
 	err := row.Scan(&u.ID, &u.Handle, &u.DisplayName, &u.Email, &u.EmailVerified,
 		&u.AvatarURL, &u.Bio, &u.Location, &u.Website, &u.UnitPreference,
-		&u.IsOfficial, &u.FollowerCount, &u.FollowingCount, &u.RecipeCount, &u.CreatedAt)
+		&u.IsOfficial, &u.Role, &u.FollowerCount, &u.FollowingCount, &u.RecipeCount, &u.CreatedAt)
 	if err != nil {
 		return nil, fmt.Errorf("扫描用户行: %w", err)
 	}

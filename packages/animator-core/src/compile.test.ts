@@ -126,6 +126,33 @@ test("静置容器的最低点都落在台面线上（碗底 y + 柱脚/底座�
   }
 });
 
+test("吧勺够长：STIR / FLOAT 时柄尾远高于杯口，FLOAT 的勺碗在杯内、贴近液面之上", () => {
+  // 回归：浮注吧勺曾是横在杯口上方的 10 格短棍，搅拌吧勺只露出杯口 6 格
+  let seen = 0;
+  for (const { f, tl } of compiled) {
+    for (const s of tl.steps) {
+      if (s.action !== "FLOAT" && s.action !== "STIR") continue;
+      const mid = sample(tl, s.startMs + s.durationMs * 0.5).scene;
+      const kind = s.action === "FLOAT" ? "float_spoon" : "barspoon";
+      const spoon = mid.props.find((p) => p.kind === kind);
+      if (!spoon) continue; // STIR 的目标可能不是 glass（mixing_glass 同样有吧勺）
+      const c = mid.containers.find((x) => x.id === mid.focus)!;
+      const rimY = c.y - c.height;
+      seen++;
+      assert.ok(rimY - spoon.y >= 80, `${f.title}/${s.stepId} 吧勺柄尾只高出杯口 ${rimY - spoon.y}`);
+      if (s.action === "FLOAT") {
+        assert.ok(spoon.tipY! > rimY && spoon.tipY! < c.y, `${f.title}/${s.stepId} 勺碗不在杯内`);
+        assert.ok(spoon.stream && spoon.stream.toY > spoon.tipY!, `${f.title}/${s.stepId} 勺缘溢流应落在勺碗下方`);
+        // 量酒器的细流对准勺背
+        const jig = mid.props.find((p) => p.kind === "pour_vessel");
+        assert.ok(jig?.stream?.gentle, `${f.title}/${s.stepId} FLOAT 的倒注应是贴勺背的细流`);
+        assert.ok(Math.abs(jig!.stream!.toY - (spoon.tipY! - 4)) < 0.01);
+      }
+    }
+  }
+  assert.ok(seen >= 2, "夹具里应至少有一个 FLOAT 和一个 STIR");
+});
+
 test("IR 的每个步骤都在 Timeline 里有对应项", () => {
   for (const { f, tl } of compiled) {
     const irIds = f.ir.steps.map((s) => s.id);

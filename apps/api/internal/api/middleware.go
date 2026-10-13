@@ -79,6 +79,10 @@ func (a *API) allow(ctx huma.Context, claims *auth.Claims) bool {
 	if m == http.MethodPost && isPublishPath(ctx.URL().Path) && !a.publishLimiter.Allow(key) {
 		return false
 	}
+	// 酒保助手每次都真花钱调模型（ADR-028）
+	if m == http.MethodPost && ctx.URL().Path == agentDraftPath && !a.agentLimiter.Allow(key) {
+		return false
+	}
 	return true
 }
 

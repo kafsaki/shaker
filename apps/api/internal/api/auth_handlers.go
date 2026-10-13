@@ -28,6 +28,7 @@ type userBody struct {
 	Website        *string `json:"website"`
 	UnitPreference string  `json:"unitPreference"`
 	IsOfficial     bool    `json:"isOfficial"`
+	Role           string  `json:"role" enum:"user,editor,admin" doc:"editor/admin 可在站内修订经典配方与原料百科（ADR-027）"`
 	FollowerCount  int     `json:"followerCount"`
 	FollowingCount int     `json:"followingCount"`
 	RecipeCount    int     `json:"recipeCount"`
@@ -39,7 +40,7 @@ func userToBody(u *auth.User) userBody {
 		ID: u.ID.String(), Handle: u.Handle, DisplayName: u.DisplayName,
 		Email: u.Email, EmailVerified: u.EmailVerified,
 		AvatarURL: u.AvatarURL, Bio: u.Bio, Location: u.Location, Website: u.Website,
-		UnitPreference: u.UnitPreference, IsOfficial: u.IsOfficial,
+		UnitPreference: u.UnitPreference, IsOfficial: u.IsOfficial, Role: u.Role,
 		FollowerCount: u.FollowerCount, FollowingCount: u.FollowingCount, RecipeCount: u.RecipeCount,
 		CreatedAt: u.CreatedAt.Format(time.RFC3339Nano),
 	}
