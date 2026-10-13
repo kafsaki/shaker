@@ -2,9 +2,9 @@
 /**
  * 调酒动画播放器 —— 产品核心资产，外观是一台吧台小电视。
  *
- * 复用 prototype 已调好的渲染管线：compile → 80ms 量化 sample → renderScene。
+ * 管线：compile → sample(t) → renderScene，60fps 连续取样（ADR-031；坐标仍吸附像素格）。
  * 控制：播放/暂停、上一步/下一步、重播、倍速；时间轴按步骤分段（段长 = 步骤时长），
- * 点击或拖动任意位置即 seek（O(1)）。键盘：空格 播放/暂停，←/→ 上/下一步，R 重播。
+ * 点击或拖动任意位置即 seek。键盘：空格 播放/暂停，←/→ 上/下一步，R 重播。
  * captureCover() 在 finalSceneMs 定格帧上 toBlob（ADR-015 前端截帧封面）。
  */
 import { compile, sample, type Timeline } from "@shaker/animator-core";
@@ -22,7 +22,7 @@ const props = withDefaults(
 );
 
 const emit = defineEmits<{
-  /** 步骤推进（80ms 量化）—— 配方页用它高亮文字步骤。 */
+  /** 步骤推进 —— 配方页用它高亮文字步骤（按 10% 进度节流）。 */
   progress: [stepIndex: number, stepProgress: number];
 }>();
 
@@ -89,21 +89,12 @@ const bannerOn = ref(false);
 /**
  * 按指定主题在给定时刻渲染一帧，返回该帧的采样结果。
  * 与播放器当前主题解耦——封面需要在同一时刻分别渲染暗/亮两套（ADR-015）。
- * 12fps 定格感：场景几何按 80ms 步进量化；液流条纹/水花/闪烁用原始时间。
  */
 function renderSceneAt(c: CanvasRenderingContext2D, themeName: "dark" | "light", ms: number) {
   const tl = timeline.value;
   if (!tl) return null;
-  const tQ = Math.floor(ms / 80) * 80;
-  const s = sample(tl, tQ);
-  renderScene(c, s.scene, {
-    theme: themeName === "dark" ? DARK_THEME : LIGHT_THEME,
-    timeMs: tQ,
-    fxMs: ms,
-    vessel: props.vocab.vessel,
-    stage: STAGE,
-    serveProgress: s.step.stepId === "__final" ? s.stepProgress : undefined,
-  });
+  const s = sample(tl, ms);
+  renderScene(c, s.scene, { theme: themeName === "dark" ? DARK_THEME : LIGHT_THEME });
   return s;
 }
 

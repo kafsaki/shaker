@@ -1,147 +1,112 @@
 /**
- * 容器状态机（规范 §4）。
+ * 容器语义状态（规范 §4）：液体去了哪里、混到什么程度、温度多少 —— 不管画面。
  *
- * `reduce(steps)` 逐步演化状态，每步产出关键帧。这里只管**语义**——
- * 液体去了哪里、混到什么程度、温度多少；不管画面。
+ * 编排在每个动作前后把它快照进 contents 轨道（world.snap），取样时插值。
+ * 液层带稳定 uid：插值按 uid 配对，新层从 0 长出、消失的层缩到 0。
  */
 import {
   dominantTexture,
   hexToRgb,
-  iceOccupancy,
   mixLiquids,
   physics,
   refToMl,
   rgbToHex,
   unitKind,
-  type ContainerId,
-  type IceType,
   type IngredientRef,
-  type Texture,
-  type VesselSpec,
 } from "@shaker/recipe-ir/core";
-import type { ResolvedVocab } from "./types.ts";
+import type { Contents, GarnishState, LayerState, ResolvedVocab, SolidState } from "./types.ts";
 
-export interface LiquidLayer {
-  volumeMl: number;
-  /** hex 颜色。 */
-  color: string;
-  opacity: number;
-  /** g/cm³，决定分层顺序。 */
-  density: number;
-  carbonation: number;
-  texture: Texture;
-  /** 溯源，供 UI 高亮。 */
-  sourceSlots: string[];
-}
-
-export interface SolidIce {
-  kind: IceType;
-  /** 这一批冰的实体积。 */
-  solidMl: number;
-  /** 容器内归一化坐标与尺寸，编译时一次性确定（确定性，无随机）。 */
-  x: number;
-  y: number;
-  size: number;
-  rot: number;
-}
-
-/** 已落位的装饰（容器状态的一部分 —— 装饰加进去之后不会在下一步消失）。 */
-export interface PlacedGarnish {
-  garnishId: string;
-  position: "rim" | "in_glass" | "float" | "skewer" | "side";
-  prep: string;
-  color: string;
-}
-
-export interface ContainerState {
-  id: ContainerId;
-  vessel: VesselSpec;
-  layers: LiquidLayer[];
-  ice: SolidIce[];
-  /** 泡沫体积（毫升）。 */
+export interface Sem {
+  layers: LayerState[];
+  iceSolidMl: number;
+  icePorosity: number;
   foamMl: number;
+  foamColor: string;
   temperatureC: number;
-  /** 冰融水（毫升）。 */
-  dilutionMl: number;
-  /** 0..1，连续的混合度（规范 §4.1）。 */
   mixedness: number;
-  rim: { coverage: "full" | "half"; color: string } | null;
-  /** 挂壁膜（RINSE discard 后留下）：颜色 + 附着强度。 */
-  coat: { color: string; strength: number } | null;
-  smokeDensity: number;
-  aromaMist: number;
-  lidOn: boolean;
-  /** 装饰物 —— 放进状态而不是只写关键帧，否则下一步重建场景时装饰会消失。 */
-  garnishes: PlacedGarnish[];
-  /** 是否已出现在场景里。 */
-  active: boolean;
-  /** 扰动度 0..1：倒酒/落冰/摇/搅升高，之后衰减。驱动波浪与冰块余波。 */
-  agitation: number;
+  rim: Contents["rim"];
+  coat: Contents["coat"];
+  garnishes: GarnishState[];
+  solids: SolidState[];
 }
 
-export function newContainer(id: ContainerId, vessel: VesselSpec): ContainerState {
+export function newSem(): Sem {
   return {
-    id,
-    vessel,
     layers: [],
-    ice: [],
+    iceSolidMl: 0,
+    icePorosity: 0.4,
     foamMl: 0,
+    foamColor: "#fbf8f2",
     temperatureC: physics.TEMP_AMBIENT_C,
-    dilutionMl: 0,
     mixedness: 0,
     rim: null,
     coat: null,
-    smokeDensity: 0,
-    aromaMist: 0,
-    lidOn: false,
     garnishes: [],
-    active: false,
-    agitation: 0,
+    solids: [],
   };
 }
 
-/* ────────────────────────── 派生量 ────────────────────────── */
-
-export function liquidMl(c: ContainerState): number {
-  return c.layers.reduce((s, l) => s + l.volumeMl, 0) + c.dilutionMl;
+/** 快照：深拷贝成 Contents（轨道里的值不可变）。 */
+export function toContents(s: Sem): Contents {
+  return {
+    layers: s.layers.map((l) => ({ ...l, sourceSlots: [...l.sourceSlots] })),
+    iceSolidMl: s.iceSolidMl,
+    icePorosity: s.icePorosity,
+    foamMl: s.foamMl,
+    foamColor: s.foamColor,
+    mixedness: s.mixedness,
+    rim: s.rim ? { ...s.rim } : null,
+    coat: s.coat ? { ...s.coat } : null,
+    garnishes: s.garnishes.map((g) => ({ ...g })),
+    solids: s.solids.map((g) => ({ ...g })),
+  };
 }
 
-export function iceSolidMl(c: ContainerState): number {
-  return c.ice.reduce((s, i) => s + i.solidMl, 0);
+export function liquidMl(s: Sem): number {
+  return s.layers.reduce((a, l) => a + l.ml, 0);
 }
 
-/** 加冰后还能装多少液体。 */
-export function liquidCapacityMl(c: ContainerState): number {
-  return Math.max(0, c.vessel.def.capacityMl - iceSolidMl(c));
+/**
+ * 液体 + 冰在杯里实际占据的体积（毫升）——液面由它决定。
+ *
+ * 冰堆的外包体积 = 冰实体积 / (1 − 孔隙率)。液体少时只填冰堆孔隙（液面 = 液量 / 孔隙率），
+ * 漫过冰堆后占位 = 液体 + 冰实体积。两段在冰堆顶处连续。
+ */
+export function occupiedMl(liquid: number, iceSolid: number, porosity: number): number {
+  if (iceSolid <= 0) return liquid;
+  const por = Math.max(0.05, Math.min(0.95, porosity));
+  const pile = iceSolid / (1 - por);
+  return liquid < pile * por ? liquid / por : liquid + iceSolid;
+}
+
+export function semOccupied(s: Sem): number {
+  return occupiedMl(liquidMl(s), s.iceSolidMl, s.icePorosity);
+}
+
+/** 稳定 uid 的发号器（每次 compile 新建，保证确定性）。 */
+export interface Uids {
+  next: number;
 }
 
 /* ────────────────────────── 加料 ────────────────────────── */
 
-/**
- * dash / drop 的等效混色权重 —— 体积可忽略但着色能力强。
- * 见 recipe-ir/color.ts 的 TINT_WEIGHT_PER_DASH 注释。
- */
+/** dash / drop 的等效混色权重 —— 体积可忽略但着色能力强（见 recipe-ir/color.ts）。 */
 function tintWeight(ref: IngredientRef): number {
-  const ml = refToMl(ref) ?? 0;
-  if (ref.unit === "dash") {
-    const amount = "amount" in ref ? ref.amount : 0;
-    return amount * 4;
-  }
-  if (ref.unit === "drop") {
-    const amount = "amount" in ref ? ref.amount : 0;
-    return amount * 0.8;
-  }
-  return ml;
+  const amount = "amount" in ref ? ref.amount : 0;
+  if (ref.unit === "dash") return amount * 4;
+  if (ref.unit === "drop") return amount * 0.8;
+  return refToMl(ref) ?? 0;
 }
 
-function layerFromRef(ref: IngredientRef, vocab: ResolvedVocab): LiquidLayer | null {
+/** 原料 → 液层。体积只计体积/勺量单位；dash/drop 体积为 0（只调色）。 */
+export function layerOf(ref: IngredientRef, vocab: ResolvedVocab, uids: Uids, mlOverride?: number): LayerState | null {
   const meta = vocab.ingredient(ref.ingredientId);
   if (!meta) return null;
   const kind = unitKind(ref.unit);
-  // 只有体积/勺量计入液面；dash/drop 只调色（规范 §3.1）
-  const volumeMl = kind === "volume" || kind === "spoon" ? (refToMl(ref) ?? 0) : 0;
+  const ml = mlOverride ?? (kind === "volume" || kind === "spoon" ? (refToMl(ref) ?? 0) : 0);
   return {
-    volumeMl,
+    uid: uids.next++,
+    ml,
     color: meta.viz.color,
     opacity: meta.viz.opacity ?? 0.9,
     density: meta.density ?? 1.0,
@@ -152,316 +117,168 @@ function layerFromRef(ref: IngredientRef, vocab: ResolvedVocab): LiquidLayer | n
 }
 
 /**
- * 把原料加入容器。
- *
- * `forceNewLayer` 为 true 时（FLOAT）强制新建独立层，绕过密度判断 ——
- * **作者的显式意图优先于物理**（规范 §7.3）。
+ * 倒入一层液体。`forceNewLayer`（FLOAT）绕过密度判断 —— 作者的显式意图优先于物理（§7.3）。
+ * 返回实际并入/新建的层（倒注液流用它的颜色）。
  */
-export function addToContainer(
-  c: ContainerState,
-  refs: readonly IngredientRef[],
-  vocab: ResolvedVocab,
-  forceNewLayer = false,
-): void {
-  c.active = true;
-  for (const ref of refs) {
-    const incoming = layerFromRef(ref, vocab);
-    if (!incoming) continue;
-
+export function pourIn(s: Sem, incoming: LayerState, tint: number, forceNewLayer = false): void {
+  if (incoming.ml <= 0) {
     // dash / drop：不增加体积，只把颜色混进最上层
-    if (incoming.volumeMl === 0) {
-      const top = c.layers[c.layers.length - 1];
-      if (top) {
-        tintLayer(top, incoming.color, tintWeight(ref));
-        top.sourceSlots.push(ref.slot);
-      } else {
-        c.layers.push({ ...incoming, volumeMl: 0 });
-      }
-      continue;
+    const top = s.layers[s.layers.length - 1];
+    if (top) {
+      tintInto(top, incoming.color, tint);
+      top.sourceSlots.push(...incoming.sourceSlots);
     }
-
-    if (forceNewLayer) {
-      c.layers.push(incoming);
-      continue;
-    }
-
-    // 密度接近现有层 → 并入；差异大 → 新建层并按密度排序
-    const target = c.layers.find(
-      (l) => Math.abs(l.density - incoming.density) < physics.LAYER_MERGE_DENSITY_THRESHOLD,
-    );
-    if (target) {
-      mergeInto(target, incoming);
-    } else {
-      c.layers.push(incoming);
-    }
+    return;
   }
-  if (!forceNewLayer) sortByDensity(c);
+  if (forceNewLayer) {
+    s.layers.push(incoming);
+    return;
+  }
+  const target = s.layers.find(
+    (l) => Math.abs(l.density - incoming.density) < physics.LAYER_MERGE_DENSITY_THRESHOLD,
+  );
+  if (target) mergeInto(target, incoming);
+  else s.layers.push(incoming);
+  // 重的在下（稳定排序：同密度保持倒入顺序）
+  s.layers.sort((a, b) => b.density - a.density);
 }
 
-/** 把 incoming 并入 target（减色混合 + 体积加权的其它字段）。 */
-function mergeInto(target: LiquidLayer, incoming: LiquidLayer): void {
-  const total = target.volumeMl + incoming.volumeMl;
+export function tintOf(ref: IngredientRef): number {
+  return tintWeight(ref);
+}
+
+function mergeInto(target: LayerState, incoming: LayerState): void {
+  const total = target.ml + incoming.ml;
   if (total <= 0) return;
   target.color = rgbToHex(
     mixLiquids([
-      { color: hexToRgb(target.color), weight: target.volumeMl },
-      { color: hexToRgb(incoming.color), weight: incoming.volumeMl },
+      { color: hexToRgb(target.color), weight: target.ml },
+      { color: hexToRgb(incoming.color), weight: incoming.ml },
     ]),
   );
-  target.opacity = (target.opacity * target.volumeMl + incoming.opacity * incoming.volumeMl) / total;
-  target.density = (target.density * target.volumeMl + incoming.density * incoming.volumeMl) / total;
-  target.carbonation =
-    (target.carbonation * target.volumeMl + incoming.carbonation * incoming.volumeMl) / total;
+  target.opacity = (target.opacity * target.ml + incoming.opacity * incoming.ml) / total;
+  target.density = (target.density * target.ml + incoming.density * incoming.ml) / total;
+  target.carbonation = (target.carbonation * target.ml + incoming.carbonation * incoming.ml) / total;
   target.texture = dominantTexture([target.texture, incoming.texture]);
   target.sourceSlots.push(...incoming.sourceSlots);
-  target.volumeMl = total;
+  target.ml = total;
 }
 
-/** 只调色不加量（dash / drop）。 */
-function tintLayer(layer: LiquidLayer, color: string, weight: number): void {
+function tintInto(layer: LayerState, color: string, weight: number): void {
   if (weight <= 0) return;
   layer.color = rgbToHex(
     mixLiquids([
-      { color: hexToRgb(layer.color), weight: layer.volumeMl },
+      { color: hexToRgb(layer.color), weight: Math.max(1, layer.ml) },
       { color: hexToRgb(color), weight },
     ]),
   );
 }
 
-/** 重的在下。 */
-function sortByDensity(c: ContainerState): void {
-  c.layers.sort((a, b) => b.density - a.density);
-}
-
-/* ────────────────────────── 冰 ────────────────────────── */
+/* ────────────────────────── 混合 / 稀释 ────────────────────────── */
 
 /**
- * 加冰。冰块的位置用**确定性**伪随机排布（seed 来自容器 id 与批次序号），
- * 保证同一份 IR 每次编译出完全相同的画面（规范 §9.2：compile 必须是纯函数）。
+ * 提高混合度。达到 LAYER_MERGE_MIXEDNESS 时所有层合并成单层（新 uid）。
+ * 这是「摇匀」和「分层」能用同一套代码表达的关键（§4.1）。
  */
-export function addIce(c: ContainerState, kind: IceType, fill: number): void {
-  c.active = true;
-  const occ = iceOccupancy(c.vessel.def.capacityMl, kind, fill);
-  if (occ.solidMl <= 0) {
-    // 干冰：不排水，只标记产烟
-    c.smokeDensity = Math.max(c.smokeDensity, 0.6);
-    return;
+export function mix(s: Sem, target: number, uids: Uids, opts?: { cloudy?: boolean }): void {
+  s.mixedness = Math.max(s.mixedness, Math.min(1, target));
+  if (opts?.cloudy) for (const l of s.layers) if (l.texture === "clear") l.texture = "cloudy";
+  if (s.mixedness >= physics.LAYER_MERGE_MIXEDNESS && s.layers.length > 1) {
+    const total = liquidMl(s);
+    const w = (pick: (l: LayerState) => number) =>
+      total > 0 ? s.layers.reduce((a, l) => a + pick(l) * l.ml, 0) / total : 0;
+    s.layers = [
+      {
+        uid: uids.next++,
+        ml: total,
+        color: rgbToHex(mixLiquids(s.layers.map((l) => ({ color: hexToRgb(l.color), weight: l.ml })))),
+        opacity: w((l) => l.opacity),
+        density: w((l) => l.density),
+        carbonation: w((l) => l.carbonation),
+        texture: dominantTexture(s.layers.map((l) => l.texture)),
+        sourceSlots: s.layers.flatMap((l) => l.sourceSlots),
+      },
+    ];
   }
-
-  const count = iceCount(kind, fill);
-  const size = iceSize(kind);
-  const perPiece = occ.solidMl / Math.max(1, count);
-  const rnd = makeRandom(hashString(`${c.id}:${kind}:${c.ice.length}`));
-
-  // 堆叠排布（模拟落底碰撞）：方冰/裂冰/球冰从杯底按行堆起，
-  // 同行错开、行距 = 冰块尺寸 → 不重叠；同类型尺寸一致（真实制冰模具）。
-  const half = size / 2;
-  if (kind === "crushed" || kind === "dry_ice") {
-    // 碎冰/干冰：颗粒云均匀散布，尺寸统一、朝向随机
-    for (let i = 0; i < count; i++) {
-      c.ice.push({
-        kind,
-        solidMl: perPiece,
-        x: (rnd() * 2 - 1) * 0.62,
-        y: (i + 0.5) / count * fill,
-        size,
-        rot: rnd() * Math.PI * 2,
-      });
-    }
-  } else {
-    // 纵向摞高：居中叠起，行距 = 冰块尺寸 → 不重叠；
-    // 横向/朝向加确定性小抖动 —— 自然堆放，不是笔直一摞
-    let pileTop = 0; // 当前堆到的杯高分数
-    for (let i = 0; i < count; i++) {
-      const y = Math.min(pileTop + half, 1 - half); // 底块中心 = 半高 → 底边贴杯底
-      const jitterX = (rnd() * 2 - 1) * 0.16; // ±0.16 杯宽内的自然偏移
-      c.ice.push({
-        kind,
-        solidMl: perPiece,
-        x: jitterX,
-        y,
-        size,
-        rot: rnd() * Math.PI * 2, // 只有朝向随机，尺寸统一
-      });
-      pileTop += size; // 行距 = 冰块尺寸，不交叠
-    }
-  }
-
-  // 碎冰让液体变浑浊
-  const clouding = physics.ICE_CLOUDING[kind];
-  if (clouding > 0) {
-    for (const l of c.layers) {
-      if (l.texture === "clear") l.texture = "cloudy";
-    }
-  }
-  c.temperatureC = Math.min(c.temperatureC, 2);
 }
-
-function iceCount(kind: IceType, fill: number): number {
-  const base: Record<IceType, number> = {
-    cube: 5,
-    large_cube: 2,
-    sphere: 1,
-    cracked: 8,
-    crushed: 26,
-    block: 1,
-    dry_ice: 1,
-  };
-  return Math.max(1, Math.round(base[kind] * Math.max(0.3, fill)));
-}
-
-function iceSize(kind: IceType): number {
-  const s: Record<IceType, number> = {
-    cube: 0.2,
-    large_cube: 0.5,
-    sphere: 0.62,
-    cracked: 0.15,
-    crushed: 0.08,
-    block: 0.3,
-    dry_ice: 0.2,
-  };
-  return s[kind];
-}
-
-/* ────────────────────────── 混合 ────────────────────────── */
 
 /**
- * 提高混合度。达到 LAYER_MERGE_MIXEDNESS（0.8）时把所有层合并成单层（加权减色混合）；
- * 低于该值时保留多层，层间渐变带宽度由 mixedness 控制。
- *
- * **这是「摇匀」和「分层」能用同一套代码表达的关键**（规范 §4.1）。
+ * 冰融水：按比例放大各层体积，颜色向水淡一点。只在有冰时生效。
+ * `capMl`：容器容量 —— 补满后再搅，融水不能把液面顶出杯口（冰化掉的部分让出空间）。
  */
-export function mix(c: ContainerState, target: number, opts?: { cloudy?: boolean }): void {
-  c.mixedness = Math.max(c.mixedness, Math.min(1, target));
-
-  if (opts?.cloudy) {
-    for (const l of c.layers) {
-      if (l.texture === "clear") l.texture = "cloudy";
-    }
+export function dilute(s: Sem, rate: number, capMl = Infinity): void {
+  if (s.iceSolidMl <= 0 || rate <= 0) return;
+  const liquid = liquidMl(s);
+  // 化掉的冰：实体积减少，融水体积 ≈ 化掉的冰（密度 0.92，忽略）
+  let water = liquid * rate;
+  const melted = Math.min(s.iceSolidMl * 0.5, water);
+  s.iceSolidMl -= melted;
+  const room = capMl - physics.HEADROOM_ML - occupiedMl(liquid, s.iceSolidMl, s.icePorosity);
+  water = Math.max(0, Math.min(water, room + melted * 0.2));
+  const k = liquid > 0 ? water / liquid : 0;
+  for (const l of s.layers) {
+    l.color = rgbToHex(
+      mixLiquids([
+        { color: hexToRgb(l.color), weight: l.ml },
+        { color: hexToRgb("#f2f6f8"), weight: l.ml * k * 0.35 },
+      ]),
+    );
+    l.opacity = Math.max(0.35, l.opacity * (1 - k * 0.25));
+    l.ml += l.ml * k;
   }
-
-  if (c.mixedness >= physics.LAYER_MERGE_MIXEDNESS && c.layers.length > 1) {
-    const total = c.layers.reduce((s, l) => s + l.volumeMl, 0);
-    const merged: LiquidLayer = {
-      volumeMl: total,
-      color: rgbToHex(
-        mixLiquids(c.layers.map((l) => ({ color: hexToRgb(l.color), weight: l.volumeMl }))),
-      ),
-      opacity: weighted(c.layers, (l) => l.opacity, total),
-      density: weighted(c.layers, (l) => l.density, total),
-      carbonation: weighted(c.layers, (l) => l.carbonation, total),
-      texture: dominantTexture(c.layers.map((l) => l.texture)),
-      sourceSlots: c.layers.flatMap((l) => l.sourceSlots),
-    };
-    c.layers = [merged];
-  }
+  s.temperatureC = Math.min(s.temperatureC, physics.TEMP_CHILLED_C);
 }
 
-function weighted(
-  layers: readonly LiquidLayer[],
-  pick: (l: LiquidLayer) => number,
-  total: number,
-): number {
-  if (total <= 0) return 0;
-  return layers.reduce((s, l) => s + pick(l) * l.volumeMl, 0) / total;
-}
-
-/** 加稀释（冰融水）。只在有冰时生效。 */
-export function dilute(c: ContainerState, rate: number): void {
-  if (c.ice.length === 0) return;
-  c.dilutionMl += liquidMl(c) * rate;
-  c.temperatureC = Math.min(c.temperatureC, physics.TEMP_CHILLED_C);
-}
-
-/** 摇散气泡（规范 §7.2）。 */
-export function killCarbonation(c: ContainerState): void {
+export function killCarbonation(s: Sem): void {
   if (!physics.SHAKE_KILLS_CARBONATION) return;
-  for (const l of c.layers) l.carbonation = 0;
+  for (const l of s.layers) l.carbonation = 0;
 }
 
-/** 起泡。foaming 高的原料在干摇下产生更多泡沫。 */
-export function buildFoam(
-  c: ContainerState,
-  refs: readonly IngredientRef[],
-  vocab: ResolvedVocab,
-  yieldFactor: number,
-): void {
+export function buildFoam(s: Sem, refs: readonly IngredientRef[], vocab: ResolvedVocab, yieldFactor: number): void {
   let foamingMl = 0;
   for (const ref of refs) {
-    const meta = vocab.ingredient(ref.ingredientId);
-    const foaming = meta?.viz.foaming ?? 0;
-    if (foaming <= 0) continue;
-    foamingMl += (refToMl(ref) ?? 0) * foaming;
+    const foaming = vocab.ingredient(ref.ingredientId)?.viz.foaming ?? 0;
+    if (foaming > 0) foamingMl += (refToMl(ref) ?? 0) * foaming;
   }
-  if (foamingMl > 0) c.foamMl += foamingMl * yieldFactor;
+  if (foamingMl > 0) s.foamMl += foamingMl * yieldFactor;
 }
 
 /* ────────────────────────── 转移 ────────────────────────── */
 
-export interface TransferOptions {
-  /** 冰是否随液体一起过去（DUMP 为 true，STRAIN 为 false）。 */
-  carryIce: boolean;
-  /** 细滤：滤掉浑浊，提升清澈度。 */
-  fineStrain?: boolean;
-}
-
+/** 把 from 的全部液体倒进 to。返回倒出的毫升数与混合色（液流颜色）。 */
 export function transfer(
-  from: ContainerState,
-  to: ContainerState,
-  opts: TransferOptions,
-): void {
-  // 自转移（DUMP/STRAIN 等的 from === to）必须短路：下面的循环边遍历
-  // from.layers 边往 to.layers push，同一数组会无限增长直到 OOM。
-  // 语义上"倒给自己"就是无事发生。
-  if (from === to) return;
-  to.active = true;
+  from: Sem,
+  to: Sem,
+  opts: { fineStrain?: boolean },
+): { ml: number; color: string } {
+  const ml = liquidMl(from);
+  const color =
+    from.layers.length > 0
+      ? rgbToHex(mixLiquids(from.layers.map((l) => ({ color: hexToRgb(l.color), weight: Math.max(0.1, l.ml) }))))
+      : "#e8d9b0";
+  if (from === to) return { ml: 0, color };
   for (const l of from.layers) {
-    const moved: LiquidLayer = { ...l, sourceSlots: [...l.sourceSlots] };
+    const moved: LayerState = { ...l, sourceSlots: [...l.sourceSlots] };
     if (opts.fineStrain && moved.texture === "cloudy") moved.texture = "clear";
     to.layers.push(moved);
   }
-  to.dilutionMl += from.dilutionMl;
   to.foamMl += from.foamMl;
   to.mixedness = Math.max(to.mixedness, from.mixedness);
   to.temperatureC = Math.min(to.temperatureC, from.temperatureC);
-
-  if (opts.carryIce) {
-    to.ice.push(...from.ice.map((i) => ({ ...i })));
-    from.ice = [];
-  }
-
   from.layers = [];
-  from.dilutionMl = 0;
   from.foamMl = 0;
-  // 目标容器里若有多层且已混匀，重新合并
-  if (to.mixedness >= 1) mix(to, 1);
-  else sortByDensity(to);
+  to.layers.sort((a, b) => b.density - a.density);
+  return { ml, color };
 }
 
-/* ────────────────────────── 确定性伪随机 ────────────────────────── */
-
-/**
- * mulberry32 —— 小、快、够用。
- *
- * **compile 必须是纯函数**（规范 §9.2）：同一份输入在浏览器、Node、WebView 里
- * 必须产出逐字节相同的 Timeline。所以任何"随机"都必须来自显式 seed。
- */
-export function makeRandom(seed: number): () => number {
-  let a = seed >>> 0;
-  return () => {
-    a = (a + 0x6d2b79f5) >>> 0;
-    let t = a;
-    t = Math.imul(t ^ (t >>> 15), t | 1);
-    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
-    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
-  };
+export function frostLevel(s: Sem): number {
+  if (s.temperatureC >= physics.TEMP_FROST_THRESHOLD_C) return 0;
+  const span = physics.TEMP_FROST_THRESHOLD_C - physics.TEMP_SWIZZLE_C;
+  return Math.max(0, Math.min(1, (physics.TEMP_FROST_THRESHOLD_C - s.temperatureC) / span));
 }
 
-export function hashString(s: string): number {
-  let h = 2166136261 >>> 0;
-  for (let i = 0; i < s.length; i++) {
-    h ^= s.charCodeAt(i);
-    h = Math.imul(h, 16777619) >>> 0;
-  }
-  return h >>> 0;
+/** 层的混合色（倒注液流用）。 */
+export function mixedColor(layers: readonly LayerState[]): string {
+  if (layers.length === 0) return "#e8d9b0";
+  return rgbToHex(mixLiquids(layers.map((l) => ({ color: hexToRgb(l.color), weight: Math.max(0.1, l.ml) }))));
 }

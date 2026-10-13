@@ -11,7 +11,7 @@
 import { compile, sample, type Timeline, type Scene } from "@shaker/animator-core";
 import { estimateAbv, totalLiquidMl, displayAmount, toParts, validateRecipeIR, type RecipeIR } from "@shaker/recipe-ir";
 import { DARK_THEME, LIGHT_THEME, renderScene } from "@shaker/animator-web";
-import { FIXTURES, ASSET_TEST_FIXTURES, INGREDIENTS, VESSEL_LIST, VOCAB, vesselLookup, type Fixture } from "@shaker/fixtures";
+import { FIXTURES, ASSET_TEST_FIXTURES, INGREDIENTS, VESSEL_LIST, VOCAB, type Fixture } from "@shaker/fixtures";
 import { renderEditor } from "./editor.ts";
 
 /** 真实配方在前，资源覆盖测试夹具（asset_testN）排在最后。 */
@@ -130,18 +130,8 @@ function frame(now: number): void {
 }
 
 function draw(): void {
-  // 12fps 定格感：场景几何按 80ms 步进量化；液流条纹/水花/闪烁仍用原始时间
-  const tQ = Math.floor(tMs / 80) * 80;
-  const { scene, stepIndex, step, stepProgress } = sample(timeline, tQ);
-  renderScene(ctx, scene, {
-    theme: dark ? DARK_THEME : LIGHT_THEME,
-    timeMs: tQ,
-    fxMs: tMs,
-    vessel: vesselLookup,
-    stage: STAGE,
-    serveProgress: step.stepId === "__final" ? stepProgress : undefined,
-    debug: debugChk.checked,
-  });
+  const { scene, stepIndex, stepProgress } = sample(timeline, tMs);
+  renderScene(ctx, scene, { theme: dark ? DARK_THEME : LIGHT_THEME, debug: debugChk.checked });
   highlightStep(stepIndex);
   updateRtState(scene, stepIndex, stepProgress);
 }
@@ -290,15 +280,14 @@ const ICE_ZH: Record<string, string> = {
   crushed: "碎冰", block: "长条冰", dry_ice: "干冰",
 };
 const PROP_ZH: Record<string, string> = {
-  jigger: "量酒器", bottle: "瓶子", lid: "盖", barspoon: "吧勺",
-  strainer: "滤网", muddler: "捣棒", swizzle: "搅棒", spray: "喷雾",
-  peel: "皮油", blender_lid: "搅拌机盖", pour_vessel: "倾倒容器",
-  float_spoon: "浮注吧勺",
+  barspoon: "吧勺", float_spoon: "浮注吧勺", muddler: "捣棒", swizzle: "搅棒",
+  hawthorne: "霍桑滤网", julep: "茱莉普滤网", fine_strainer: "细滤网", scoop: "冰铲",
+  spray: "喷雾", lighter: "打火机", peel: "果皮", smoke_gun: "烟枪", cloche: "玻璃罩",
+  rim_plate: "盐碟", blender_base: "搅拌机座",
 };
 
 /**
- * 每帧更新渲染状态面板。几何量化 80ms，状态只有 5~6 行文本 ——
- * 但 DOM 写入仍按 80ms 节流（和场景量化同步），避免读数抖动。
+ * 每帧更新渲染状态面板。DOM 写入按 80ms 节流，避免读数抖动。
  */
 let rtLastT = -1;
 function updateRtState(scene: Scene, stepIndex: number, stepProgress: number): void {
@@ -307,7 +296,7 @@ function updateRtState(scene: Scene, stepIndex: number, stepProgress: number): v
   rtLastT = q;
 
   rtEl.innerHTML = "";
-  const focus = scene.containers.find((c) => c.id === scene.focus) ?? scene.containers[0];
+  const focus = scene.vessels.find((c) => c.id === "glass") ?? scene.vessels[0];
   rtRow("时间", `${tMs.toFixed(0)} / ${timeline.totalMs.toFixed(0)} ms`);
   rtRow(
     "步骤",
@@ -318,24 +307,16 @@ function updateRtState(scene: Scene, stepIndex: number, stepProgress: number): v
     const layersDesc =
       focus.layers.length === 0
         ? "（空）"
-        : focus.layers
-            .map((l) => `${(l.toH * 100).toFixed(0)}%·${l.color}${l.blend > 0.02 ? `~b${(l.blend * 100).toFixed(0)}` : ""}`)
-            .join(" | ");
-    rtRow("焦点容器", `${focus.vesselId}`);
+        : focus.layers.map((l) => `y${l.topY.toFixed(0)}·${l.color}`).join(" | ");
+    rtRow("成品杯", `${focus.shapeId}`);
     rtRow("液层", layersDesc);
-    rtRow(
-      "冰",
-      focus.ice.length === 0
-        ? "—"
-        : focus.ice.map((i) => ICE_ZH[i.kind] ?? i.kind).join(" "),
-    );
+    rtRow("冰", focus.ice.length === 0 ? "—" : `${ICE_ZH[focus.ice[0]!.kind] ?? focus.ice[0]!.kind} ×${focus.ice.length}`);
     const flags: string[] = [];
-    if (focus.shake) flags.push("摇");
-    if (Math.abs(focus.tilt) > 0.05) flags.push(`倾${Math.round((focus.tilt * 180) / Math.PI)}°`);
+    if (Math.abs(focus.rot) > 0.05) flags.push(`倾${Math.round((focus.rot * 180) / Math.PI)}°`);
     if (focus.foam) flags.push("泡沫");
     if (focus.rim) flags.push("盐边");
     if (focus.coat) flags.push("挂壁");
-    if (focus.lidOn) flags.push("盖");
+    if (focus.lid > 0.5) flags.push("盖");
     if (focus.smoke > 0.02) flags.push("烟");
     if (focus.frost > 0.02) flags.push("霜");
     rtRow("容器状态", flags.length ? flags.join(" ") : "静止", flags.length === 0);
@@ -343,12 +324,10 @@ function updateRtState(scene: Scene, stepIndex: number, stepProgress: number): v
   }
   rtRow(
     "道具",
-    scene.props.length === 0
-      ? "—"
-      : scene.props.map((p) => PROP_ZH[p.kind] ?? p.kind).join(" "),
-    scene.props.length === 0,
+    scene.tools.length === 0 ? "—" : scene.tools.map((p) => PROP_ZH[p.kind] ?? p.kind).join(" "),
+    scene.tools.length === 0,
   );
-  rtRow("其他容器", `${scene.containers.length - 1} 个`, scene.containers.length <= 1);
+  rtRow("液柱", `${scene.streams.length} 条`, scene.streams.length === 0);
 }
 
 function buildSteps(): void {
@@ -399,7 +378,7 @@ function highlightStep(i: number): void {
 function buildMeta(): void {
   const abv = estimateAbv(currentIr, VOCAB);
   const vol = totalLiquidMl(currentIr.ingredients);
-  const kf = timeline.steps.reduce((s, x) => s + x.keyframes.length, 0);
+  const kf = [...timeline.vessels.map((v) => v.pose.keys.length + v.contents.keys.length), ...timeline.tools.map((t) => t.pose.keys.length)].reduce((a, b) => a + b, 0);
   metaEl.innerHTML = "";
   const rows: [string, string][] = [
     ["家族", fixture.family],
@@ -408,7 +387,7 @@ function buildMeta(): void {
     ["酒精度", abv === null ? "—" : `约 ${abv.toFixed(1)}%`],
     ["液量", `${vol} ml（不含冰融水与补满）`],
     ["时长", `${(timeline.totalMs / 1000).toFixed(2)} s`],
-    ["关键帧", `${kf} 帧 / ${timeline.steps.length} 步`],
+    ["关键帧", `${kf} 个（${timeline.vessels.length} 器具 · ${timeline.tools.length} 工具）`],
   ];
   for (const [k, v] of rows) {
     const d = document.createElement("div");

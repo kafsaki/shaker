@@ -1,14 +1,16 @@
 /**
- * Timeline 的数据结构 —— animator-core 的输出，绘制后端的输入。
+ * Timeline 与 Scene 的数据结构 —— animator-core 的输出，绘制后端的输入（ADR-031）。
  *
- * 两条不可妥协的规则（规范 §9.1）：
+ * 两段式：
+ *   compile(ir) → Timeline   编译期：语义状态机 + 编排，产出各实体的关键帧轨道
+ *   sample(tl, t) → Scene    取样期：各轨道插值 + 物理求解（液面、液流、冰块），
+ *                            产出世界坐标下可直接绘制的画面
  *
- * **① 关键帧是完整场景快照，不是增量。** 渲染器只需找到 t 所属区间、对两端插值
- *     即可绘制 —— seek 是 O(1)，不需要重放历史。这是「拖时间轴」和「单步回看」的前提。
- *
- * **② 粒子是 t 的纯函数。** 气泡/烟雾/火焰不进关键帧插值，而由 Effect 的参数化
- *     发射器 + 固定 seed 在渲染时按 t 确定性算出。如果粒子带状态，seek 回退时
- *     位置就会跳变，拖时间轴的体验会立刻崩坏。
+ * 不可妥协的规则：
+ *   ① seek 是 O(log n)：每条轨道二分定位、两端插值，不重放历史。
+ *   ② 一切随时间变化的量都是 t 的纯函数 —— 粒子、振荡、液流前缘、落冰都按绝对时间求值，
+ *      拖时间轴来回不会漂移。
+ *   ③ 渲染器不做几何决策，只按 Scene 里的世界坐标画。几何只有一份，在这个包里。
  */
 import type { ContainerId, Texture, VocabLookup } from "@shaker/recipe-ir/core";
 
@@ -16,12 +18,41 @@ import type { ContainerId, Texture, VocabLookup } from "@shaker/recipe-ir/core";
 
 export interface Timeline {
   totalMs: number;
-  /** 与 IR steps 一一对应 —— 支撑「单步回看」。 */
+  /** 与 IR steps 一一对应，末尾追加 `__final` 定格段。只划定时间段与文案。 */
   steps: TimelineStep[];
-  /** 成品定格段**末帧**时刻（= totalMs），用于截封面图（ADR-015）：此刻无道具残留、serve 特效已熄灭。 */
+  /** 成品定格段末帧（= totalMs），截封面用（ADR-015）。 */
   finalSceneMs: number;
-  /** 舞台逻辑尺寸。所有坐标都是这个坐标系内的，由渲染器映射到像素。 */
-  stage: { width: number; height: number };
+  stage: StageLayout;
+  /** 本时间轴用到的全部器具剖面（舞台单位），渲染器据此画，不再需要词表。 */
+  shapes: Record<string, ShapeData>;
+  vessels: VesselTrack[];
+  tools: ToolTrack[];
+  streams: StreamSpec[];
+  effects: Effect[];
+}
+
+/**
+ * 器具剖面（已换算成舞台单位）。几何的唯一来源：液面求解、冰块堆积、
+ * 渲染器画杯壁都用这一份，不再各自插值。
+ */
+export interface ShapeData {
+  id: string;
+  /** 碗身高度（舞台单位）。局部原点在碗底中心，柱脚画在原点下方。 */
+  height: number;
+  /**
+   * 这只器具的「舞台单位 / 厘米」。玻璃杯按真实尺寸 = 20；工作器具（摇壶、搅拌杯）
+   * 为了放进吧台被画小了，比 20 小 —— 冰块、吧勺这类按真实厘米定尺寸的东西要用它换算，
+   * 否则 2.6cm 的方冰塞进缩小过的搅拌杯就只能摞成一竖条。
+   */
+  cm: number;
+  capacityMl: number;
+  /** 半径采样：radii[i] 是 v = i/(n−1)·height 处的半径（舞台单位）。 */
+  radii: number[];
+  stem: { height: number; width: number } | null;
+  base: { radius: number } | null;
+  material: "glass" | "metal" | "bottle";
+  /** 酒瓶：瓶颈起点（归一化高度），渲染器在这里收窄、画标签。 */
+  neckAt?: number;
 }
 
 export interface TimelineStep {
@@ -30,193 +61,383 @@ export interface TimelineStep {
   startMs: number;
   durationMs: number;
   label: { zh: string; en: string };
-  keyframes: Keyframe[];
 }
 
-export type Ease = "linear" | "easeIn" | "easeOut" | "easeInOut";
-
-export interface Keyframe {
-  tMs: number;
-  scene: Scene;
-  /** 到下一帧的插值曲线。 */
-  ease: Ease;
+/** 舞台布局：渲染器画背景（酒架、台面）要用，几何定义只在 core。 */
+export interface StageLayout {
+  width: number;
+  height: number;
+  /** 台面线（静置器皿最低点所在的 y）。 */
+  counterY: number;
+  /** 后墙酒架隔板：板面 y 与横向范围。 */
+  shelves: { y: number; x0: number; x1: number }[];
 }
 
-/* ════════════════════════════ 场景 ════════════════════════════ */
+/* ════════════════════════════ 轨道 ════════════════════════════ */
 
-export interface Scene {
-  /** 镜头焦点，驱动缩放与居中。 */
-  focus: ContainerId;
-  containers: RenderedContainer[];
-  props: Prop[];
-  effects: Effect[];
+export type Ease = "linear" | "easeIn" | "easeOut" | "easeInOut" | "hold";
+
+/** 一条关键帧轨道。`t` 是时间轴绝对毫秒，`ease` 作用于到下一帧的区间。 */
+export interface Track<T> {
+  keys: { t: number; v: T; ease: Ease }[];
 }
 
-export interface RenderedContainer {
-  id: ContainerId;
-  /** 杯型/容器 ID，渲染器据此取剖面。 */
-  vesselId: string;
-  /** 舞台坐标，杯底中心。 */
+/**
+ * 器具姿态。(x, y) = 局部原点（碗底中心）的世界坐标；rot = 顺时针倾角（弧度）。
+ * 局部坐标 (u 向右, v 向上) → 世界：wx = x + u·cos + v·sin，wy = y + u·sin − v·cos。
+ */
+export interface Pose {
   x: number;
   y: number;
-  /** 容器绝对高度（舞台单位）。 */
-  height: number;
+  rot: number;
+  /** 缩放：架上的酒瓶远一些、小一些。 */
   scale: number;
   opacity: number;
-  /** 倾倒角度（弧度）。 */
-  tilt: number;
-  /** 摇晃位移与旋转。渲染器按 phase 叠加正弦。 */
-  shake: ShakeMotion | null;
-  /** 杯壁霜，0..1。 */
-  frost: number;
-  /** 液层，自下而上。 */
-  layers: RenderedLayer[];
-  ice: RenderedIce[];
-  /** 泡沫冠，归一化高度区间。 */
-  foam: { fromH: number; toH: number; color: string } | null;
-  rim: { coverage: "full" | "half"; color: string } | null;
-  /** 挂壁膜（RINSE discard 后留下）：杯壁内侧染色薄膜。 */
-  coat: { color: string; strength: number } | null;
-  garnishes: RenderedGarnish[];
-  /** 杯内烟雾浓度 0..1。 */
-  smoke: number;
-  /** 是否加盖（SHAKE / SMOKE cover）。 */
-  lidOn: boolean;
-  /**
-   * 扰动度 0..1 —— 倒酒/落冰/摇/搅时升高，之后逐步衰减。
-   * 渲染器据此驱动液面波浪幅度与冰块浮动/碰撞后的余波。
-   */
-  agitation: number;
+  /** 绘制层级：0 = 后墙酒架，1 = 台面，2 = 手持（在台面器具之前）。 */
+  z: number;
 }
 
-export interface ShakeMotion {
-  /** 舞台单位的位移幅度。 */
-  ampX: number;
-  ampY: number;
-  /** 旋转幅度（弧度）。 */
-  rot: number;
-  /** 每秒周期数。 */
+/** 一次液面扰动：t 起 120ms 升到 peak，保持 dur，之后指数衰减（时间常数 450ms）。 */
+export interface Impulse {
+  t: number;
+  dur: number;
+  peak: number;
+}
+
+/**
+ * 叠加在姿态上的周期运动（摇和、涮杯、搅拌），按绝对时间求值，相位天然连续。
+ * 位移沿局部轴：`along` 沿器具轴线（摇和往复），`across` 横向。
+ */
+export interface Osc {
   freqHz: number;
-  /** 相位偏移，保证不同关键帧间连续。 */
-  phase: number;
+  along: number;
+  across: number;
+  rot: number;
+  /** 波形：sine 平滑往复；snap 两端急停（摇和：冰块撞到壶两头的那一下）。 */
+  wave: "sine" | "snap";
 }
 
-export interface RenderedLayer {
-  /** 归一化高度下边界（0 = 杯底）。 */
-  fromH: number;
-  /** 上边界。 */
-  toH: number;
+/* ════════════════════════════ 器具（容器 / 量酒器 / 酒瓶） ════════════════════════════ */
+
+export type VesselKind = "container" | "jigger" | "bottle";
+
+export interface VesselTrack {
+  /** 容器用 ContainerId；量酒器 `jigger`；酒瓶 `bottle:<ingredientId>`。 */
+  id: string;
+  kind: VesselKind;
+  /** 剖面 id（杯型 / 工作器具 / 酒瓶素材）。 */
+  shapeId: string;
+  /** 器具绝对高度（舞台单位）。 */
+  height: number;
+  pose: Track<Pose>;
+  osc: Track<Osc>;
+  /** 语义内容快照：只由状态机按时间顺序写入。 */
+  contents: Track<Contents>;
+  /**
+   * 液面波动的冲量（倒酒、落冰、搅拌各激起一次）。用冲量和而不是关键帧，
+   * 这样重叠编排的动作互不覆盖：agitation(t) = Σ 冲量包络，取样时求和。
+   */
+  agitation: Impulse[];
+  /** 0..1：摇和 / 搅拌机中，冰块在罐内乱撞、液体被打成气泡。 */
+  tumble: Track<number>;
+  /** 0..1：搅拌中，冰块绕杯轴转、液面中心微陷。 */
+  swirl: Track<number>;
+  /** 0 / 1：盖子（摇壶盖、搅拌机盖）。中间值 = 盖子正在落下 / 揭起。 */
+  lid: Track<number>;
+  frost: Track<number>;
+  /** 杯内烟雾浓度 0..1。 */
+  smoke: Track<number>;
+  /** 冰的各个「时代」：每次加冰、转移都开一段。 */
+  ice: IceEpoch[];
+  /** 酒瓶外观（kind = bottle）。 */
+  bottle?: BottleLook;
+}
+
+export interface BottleLook {
+  liquid: string;
+  glass: string;
+  label: string;
+  cap: string;
+  /** 苦精瓶：倒出是一滴一滴的。 */
+  dasher: boolean;
+}
+
+/** 一段时间内容器里的冰（局部坐标）。 */
+export interface IceEpoch {
+  fromMs: number;
+  toMs: number;
+  pieces: IcePiece[];
+  /** 冰堆顶面（局部 v）：液面高过它，整堆开始上浮。 */
+  topV: number;
+}
+
+export interface IcePiece {
+  kind: "cube" | "large_cube" | "sphere" | "cracked" | "crushed" | "block" | "dry_ice";
+  /** 局部坐标（舞台单位）：u 相对中轴，v 相对碗底，指块中心。 */
+  u: number;
+  v: number;
+  /** 宽、高（舞台单位）。 */
+  w: number;
+  h: number;
+  rot: number;
+  /** 外形 seed：碎冰/裂冰的不规则轮廓由它决定。 */
+  seed: number;
+  /** 0 = 后排（被前排挡住、偏暗），1 = 前排。侧视图里冰块有前后两层才有体积感。 */
+  depth: 0 | 1;
+  /** 开始下落的绝对时刻；之前不可见。已在杯中的冰为 -Infinity。 */
+  dropAt: number;
+  /** 下落起点（局部坐标）。 */
+  dropFromU: number;
+  dropFromV: number;
+  /** 离开这个容器的时刻（连冰倒走、被打成冰沙）；之后不可见。 */
+  leaveAt: number;
+}
+
+/** 容器内容（语义快照，可插值）。 */
+export interface Contents {
+  layers: LayerState[];
+  /** 冰实体积 —— 抬高液面（ADR-014 的排水模型）。 */
+  iceSolidMl: number;
+  icePorosity: number;
+  foamMl: number;
+  foamColor: string;
+  /** 0..1：液层间过渡带宽度。 */
+  mixedness: number;
+  rim: { coverage: "full" | "half"; color: string } | null;
+  coat: { color: string; strength: number } | null;
+  garnishes: GarnishState[];
+  /** 投进杯里的固体（薄荷叶、青柠角……）。 */
+  solids: SolidState[];
+}
+
+export interface LayerState {
+  /** 稳定 id：插值按它配对，混匀时旧层缩成 0、新层从 0 长出。 */
+  uid: number;
+  ml: number;
   color: string;
   opacity: number;
-  /**
-   * 层间渐变带宽度（归一化高度单位）。
-   * 由 mixedness 控制：0 = 锐利分层（FLOAT），大值 = 已混匀。
-   */
-  blend: number;
-  /** 气泡发射率 0..1。 */
+  density: number;
   carbonation: number;
-  /**
-   * 液体质地 —— 渲染器据此区分表现：
-   * clear 透亮带液面高光；cloudy 哑光含悬浮微粒；creamy 浑浊加厚；foam 由泡沫冠表达。
-   */
   texture: Texture;
-  /** 溯源 —— UI 悬停原料可高亮它贡献的层。 */
   sourceSlots: string[];
 }
 
-export interface RenderedIce {
-  kind: "cube" | "large_cube" | "sphere" | "cracked" | "crushed" | "block" | "dry_ice";
-  /** 容器内归一化坐标：x 为 -1..1（相对该高度的半径），y 为 0..1 高度。 */
-  x: number;
-  y: number;
-  /** 归一化尺寸。 */
-  size: number;
-  rot: number;
-  opacity: number;
-}
-
-export interface RenderedGarnish {
+export interface GarnishState {
   garnishId: string;
   position: "rim" | "in_glass" | "float" | "skewer" | "side";
   prep: string;
-  /** 舞台坐标偏移（相对容器）。 */
-  dx: number;
-  dy: number;
-  rot: number;
-  opacity: number;
   color: string;
+  /** 开始落位的绝对时刻（之前不可见）。 */
+  addedAt: number;
 }
 
-export interface Prop {
-  kind:
-    | "jigger"
-    | "bottle"
-    | "lid"
-    | "barspoon"
-    | "strainer"
-    | "muddler"
-    | "swizzle"
-    | "spray"
-    | "peel"
-    | "blender_lid"
-    | "pour_vessel"
-    | "float_spoon";
-  x: number;
-  y: number;
+export interface SolidState {
+  sprite: "leaf" | "wedge" | "wheel" | "berry" | "cube";
+  color: string;
+  /** 局部 u（舞台单位），落在杯底附近。 */
+  u: number;
   rot: number;
-  scale: number;
-  opacity: number;
-  /** pour_vessel：画的源容器杯型 id。 */
-  vesselId?: string;
-  /** 长杆道具（吧勺/搅棒/捣棒）尖端的舞台 y —— 杆身画到杯底附近。 */
-  tipY?: number;
-  /** 斜置长杆（float_spoon）尖端的舞台 x；缺省 = x（竖直杆）。 */
-  tipX?: number;
-  /** 倒注流。存在时渲染一条液流。 */
-  stream?: {
-    /** 液流起点（道具壶口，随倾角偏移）。缺省则从道具中心流出。 */
-    fromX?: number;
-    fromY?: number;
-    toX: number;
-    toY: number;
-    width: number;
-    color: string;
-    /** 贴着落点的细流（FLOAT 倒在勺背上）：落点不画水花。 */
-    gentle?: boolean;
-  };
+  addedAt: number;
+  /** 0..1：被捣压的程度。 */
+  bruised: number;
+  slot: string;
 }
 
-/* ════════════════════════════ 效果 ════════════════════════════ */
+/* ════════════════════════════ 工具 ════════════════════════════ */
 
-export type EffectKind = "bubbles" | "smoke" | "flame" | "mist" | "sparks" | "splash";
+export type ToolKind =
+  | "barspoon"
+  | "float_spoon"
+  | "muddler"
+  | "swizzle"
+  | "hawthorne"
+  | "julep"
+  | "fine_strainer"
+  | "scoop"
+  | "spray"
+  | "lighter"
+  | "peel"
+  | "smoke_gun"
+  | "cloche"
+  | "rim_plate"
+  | "blender_base";
+
+export interface ToolTrack {
+  id: string;
+  kind: ToolKind;
+  /** 杆状工具的杆长、器皿类工具的宽（舞台单位）。 */
+  size: number;
+  color?: string;
+  pose: Track<Pose>;
+  osc: Track<Osc>;
+  /**
+   * 时间段内挂在某个器具上（滤网卡在摇壶口、搅拌机座托着杯身）：取样时姿态由
+   * 器具姿态 ∘ 局部偏移算出，器具怎么转它就怎么跟 —— 不靠两条轨道各自插值去凑。
+   */
+  attach: { vessel: string; fromMs: number; toMs: number; u: number; v: number; rot: number }[];
+}
+
+/* ════════════════════════════ 液流 ════════════════════════════ */
+
+/**
+ * 一段倒注。几何不在编译期定死：出口取源器具当时的口沿最低点，
+ * 落点取目标当时的液面，轨迹按抛体运动求（ADR-031）。
+ */
+export interface StreamSpec {
+  /** 源器具 id，或工具 id（细滤网尖、浮注吧勺缘）。 */
+  from: string;
+  /** 目标器具 id，或工具 id（细滤网、浮注吧勺背），或台面（倒掉）。 */
+  to: string | "counter";
+  startMs: number;
+  endMs: number;
+  color: string;
+  /** 出口截面宽（舞台单位）。 */
+  width: number;
+  /** pour 连续液柱；drops 逐滴（苦精）；gentle 贴着勺背的细流。 */
+  mode: "pour" | "drops" | "gentle";
+  /** 出口水平速度（舞台单位/秒），粘稠的慢。 */
+  speed: number;
+  /** drops 模式的滴数。 */
+  count?: number;
+}
+
+/* ════════════════════════════ 粒子效果 ════════════════════════════ */
+
+export type EffectKind = "smoke" | "flame" | "mist" | "sparks" | "splash" | "chill";
 
 export interface Effect {
   kind: EffectKind;
-  /** 固定 seed —— 保证粒子位置可重现、可 seek。 */
   seed: number;
   startMs: number;
   endMs: number;
-  /** 发射率（个/秒）。 */
   rate: number;
-  /** 发射区域，舞台坐标。 */
+  /** 发射区域（世界坐标）。 */
   region: { x: number; y: number; w: number; h: number };
-  /** 粒子上升/飘移方向与速度，舞台单位/秒。 */
   drift: { vx: number; vy: number };
   size: { min: number; max: number };
   color: string;
   opacity: number;
 }
 
+/* ════════════════════════════ 取样结果 ════════════════════════════ */
+
+export interface Scene {
+  tMs: number;
+  stage: StageLayout;
+  /** 器具剖面（引用 Timeline.shapes，不复制）。 */
+  shapes: Record<string, ShapeData>;
+  /** 按绘制顺序排好（后墙 → 前景）。 */
+  vessels: VesselView[];
+  tools: ToolView[];
+  streams: StreamView[];
+  effects: Effect[];
+  /** 整屏震动（舞台单位），剧烈摇和时非零。 */
+  screenShake: { x: number; y: number };
+  /** 成品定格进度 0..1（`__final` 段内），否则 undefined。 */
+  serve?: number;
+}
+
+export interface VesselView {
+  id: string;
+  kind: VesselKind;
+  shapeId: string;
+  height: number;
+  x: number;
+  y: number;
+  rot: number;
+  scale: number;
+  opacity: number;
+  z: number;
+  /** 液层，自下而上；`topY` 是该层上表面的世界 y（水平面）。 */
+  layers: LayerView[];
+  ice: IceView[];
+  /** 泡沫冠上表面（世界 y），下表面即液面。 */
+  foam: { topY: number; color: string } | null;
+  frost: number;
+  mixedness: number;
+  agitation: number;
+  tumble: number;
+  swirl: number;
+  /** 0..1 */
+  lid: number;
+  rim: Contents["rim"];
+  coat: Contents["coat"];
+  smoke: number;
+  garnishes: GarnishView[];
+  solids: SolidView[];
+  bottle?: BottleLook;
+}
+
+export interface LayerView {
+  topY: number;
+  color: string;
+  opacity: number;
+  texture: Texture;
+  carbonation: number;
+  sourceSlots: string[];
+}
+
+export interface IceView {
+  kind: IcePiece["kind"];
+  /** 世界坐标中心。 */
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+  rot: number;
+  seed: number;
+  depth: 0 | 1;
+  /** 中心是否已浸入液面以下（渲染器据此决定冰下透出的颜色）。 */
+  submerged: boolean;
+}
+
+export interface GarnishView {
+  garnishId: string;
+  position: GarnishState["position"];
+  prep: string;
+  color: string;
+  /** 世界坐标锚点（sprite 底边中点）与旋转。 */
+  x: number;
+  y: number;
+  rot: number;
+  opacity: number;
+}
+
+export interface SolidView {
+  sprite: SolidState["sprite"];
+  color: string;
+  x: number;
+  y: number;
+  rot: number;
+  bruised: number;
+}
+
+export interface ToolView {
+  id: string;
+  kind: ToolKind;
+  size: number;
+  color?: string;
+  x: number;
+  y: number;
+  rot: number;
+  scale: number;
+  opacity: number;
+  z: number;
+  /** 周期运动的当前相位 0..1（搅棒自旋、捣棒下压的画法要用）。 */
+  phase: number;
+}
+
+export interface StreamView {
+  color: string;
+  mode: StreamSpec["mode"];
+  /** 液柱中心线采样点（世界坐标，自上而下）与每点宽度。 */
+  points: { x: number; y: number; w: number }[];
+  /** 落点（液柱已触及目标时）：渲染器画水花。 */
+  impact: { x: number; y: number; strength: number } | null;
+}
+
 /* ════════════════════════════ 编译输入 ════════════════════════════ */
 
-/**
- * 编译所需的词表视图。
- *
- * 直接复用 recipe-ir 的 `VocabLookup` —— 不另立一个近似接口，
- * 否则同一个词表要同时满足两个形状相似但不相同的类型。
- *
- * 成品杯来自 `ir.glass`；工作容器（shaker 等）用 `WORK_VESSEL_IDS` 里的内置 ID。
- */
 export type ResolvedVocab = VocabLookup;
 
 export interface CompileOptions {
@@ -225,3 +446,5 @@ export interface CompileOptions {
   /** 舞台逻辑尺寸，默认 400×520。 */
   stage?: { width: number; height: number };
 }
+
+export type { ContainerId };
