@@ -17,11 +17,25 @@ import (
 	"time"
 )
 
-// Config 大模型连接配置。Keys 按顺序尝试：前一把鉴权失败、限流或服务端出错时换下一把。
-type Config struct {
+// Endpoint 一个可调用的模型服务：地址 + 模型 + 密钥。主备可以是不同服务商。
+type Endpoint struct {
 	BaseURL string
 	Model   string
-	Keys    []string
+	Key     string
+}
+
+// Endpoints 同一服务商下的多把密钥展开成多个端点。
+func Endpoints(baseURL, model string, keys []string) []Endpoint {
+	out := make([]Endpoint, 0, len(keys))
+	for _, k := range keys {
+		out = append(out, Endpoint{BaseURL: baseURL, Model: model, Key: k})
+	}
+	return out
+}
+
+// Config 大模型连接配置。Endpoints 按顺序尝试：前一个鉴权失败、限流或服务端出错时换下一个。
+type Config struct {
+	Endpoints []Endpoint
 	// Effort 透传 reasoning_effort（low / high / max）；空则不传，用模型默认。
 	Effort  string
 	Timeout time.Duration
@@ -61,12 +75,20 @@ func NewClient(cfg Config) *Client {
 	if cfg.Timeout <= 0 {
 		cfg.Timeout = 90 * time.Second
 	}
-	cfg.BaseURL = strings.TrimRight(cfg.BaseURL, "/")
+	// 缺地址、模型或密钥的端点直接丢掉，全丢光即助手关闭
+	eps := make([]Endpoint, 0, len(cfg.Endpoints))
+	for _, ep := range cfg.Endpoints {
+		ep.BaseURL = strings.TrimRight(ep.BaseURL, "/")
+		if ep.BaseURL != "" && ep.Model != "" && ep.Key != "" {
+			eps = append(eps, ep)
+		}
+	}
+	cfg.Endpoints = eps
 	return &Client{cfg: cfg, http: &http.Client{Timeout: cfg.Timeout}}
 }
 
 func (c *Client) Enabled() bool {
-	return c != nil && len(c.cfg.Keys) > 0 && c.cfg.BaseURL != "" && c.cfg.Model != ""
+	return c != nil && len(c.cfg.Endpoints) > 0
 }
 
 type chatRequest struct {
@@ -94,17 +116,9 @@ func (c *Client) ChatJSON(ctx context.Context, msgs []Message) (string, error) {
 	if !c.Enabled() {
 		return "", ErrDisabled
 	}
-	body, err := json.Marshal(chatRequest{
-		Model: c.cfg.Model, Messages: msgs,
-		ResponseFormat: map[string]string{"type": "json_object"},
-		Effort:         c.cfg.Effort,
-	})
-	if err != nil {
-		return "", err
-	}
 	var last error
-	for i, key := range c.cfg.Keys {
-		out, err := c.post(ctx, key, body)
+	for i, ep := range c.cfg.Endpoints {
+		out, err := c.post(ctx, ep, msgs)
 		if err == nil {
 			return out, nil
 		}
@@ -113,19 +127,27 @@ func (c *Client) ChatJSON(ctx context.Context, msgs []Message) (string, error) {
 		if ctx.Err() != nil || (errors.As(err, &ue) && !ue.retryable()) {
 			return "", err
 		}
-		if i+1 < len(c.cfg.Keys) {
-			slog.Warn("模型调用失败，换备用密钥重试", "key_index", i, "err", err)
+		if i+1 < len(c.cfg.Endpoints) {
+			slog.Warn("模型调用失败，换备用端点重试", "endpoint_index", i, "model", ep.Model, "err", err)
 		}
 	}
 	return "", last
 }
 
-func (c *Client) post(ctx context.Context, key string, body []byte) (string, error) {
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, c.cfg.BaseURL+"/chat/completions", bytes.NewReader(body))
+func (c *Client) post(ctx context.Context, ep Endpoint, msgs []Message) (string, error) {
+	body, err := json.Marshal(chatRequest{
+		Model: ep.Model, Messages: msgs,
+		ResponseFormat: map[string]string{"type": "json_object"},
+		Effort:         c.cfg.Effort,
+	})
 	if err != nil {
 		return "", err
 	}
-	req.Header.Set("Authorization", "Bearer "+key)
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, ep.BaseURL+"/chat/completions", bytes.NewReader(body))
+	if err != nil {
+		return "", err
+	}
+	req.Header.Set("Authorization", "Bearer "+ep.Key)
 	req.Header.Set("Content-Type", "application/json")
 	start := time.Now()
 	resp, err := c.http.Do(req)
@@ -148,7 +170,7 @@ func (c *Client) post(ctx context.Context, key string, body []byte) (string, err
 	if len(cr.Choices) == 0 || strings.TrimSpace(cr.Choices[0].Message.Content) == "" {
 		return "", errors.New("模型没有返回内容")
 	}
-	slog.Info("llm", "model", c.cfg.Model, "ms", time.Since(start).Milliseconds(),
+	slog.Info("llm", "model", ep.Model, "ms", time.Since(start).Milliseconds(),
 		"prompt_tokens", cr.Usage.PromptTokens, "completion_tokens", cr.Usage.CompletionTokens,
 		"finish", cr.Choices[0].FinishReason)
 	return cr.Choices[0].Message.Content, nil

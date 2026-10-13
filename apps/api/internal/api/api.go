@@ -101,7 +101,9 @@ func setupRouter(pool *pgxpool.Pool, cfg config.Config) (*chi.Mux, huma.API) {
 	a.publishLimiter = ratelimit.New(10, time.Hour)
 	a.agentLimiter = ratelimit.New(20, time.Hour)
 	a.agent = agent.NewService(agent.NewClient(agent.Config{
-		BaseURL: cfg.LLMBaseURL, Model: cfg.LLMModel, Keys: cfg.LLMKeys,
+		// 主端点在前、备用在后
+		Endpoints: append(agent.Endpoints(cfg.LLMBaseURL, cfg.LLMModel, cfg.LLMKeys),
+			agent.Endpoints(cfg.LLMFallbackBaseURL, cfg.LLMFallbackModel, cfg.LLMFallbackKeys)...),
 		Effort: cfg.LLMEffort, Timeout: cfg.LLMTimeout,
 	}), a.vocab)
 

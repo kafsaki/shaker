@@ -132,7 +132,7 @@ var orphanIR = strings.Replace(exampleSour, `{"action":"GARNISH","id":"s6","targ
 func newTestService(t *testing.T, f *fakeLLM, keys ...string) *Service {
 	srv := httptest.NewServer(f)
 	t.Cleanup(srv.Close)
-	return NewService(NewClient(Config{BaseURL: srv.URL + "/", Model: "m", Keys: keys, Effort: "low"}), fakeVocab{})
+	return NewService(NewClient(Config{Endpoints: Endpoints(srv.URL+"/", "m", keys), Effort: "low"}), fakeVocab{})
 }
 
 func TestGenerateRepairsRuleErrors(t *testing.T) {
@@ -186,6 +186,29 @@ func TestKeyFallback(t *testing.T) {
 	}
 }
 
+// 主备是两家服务商：主端点 401 后，请求应发到备用端点的地址、带备用的模型 id。
+func TestEndpointFallbackSwitchesProvider(t *testing.T) {
+	primary := &fakeLLM{replies: []string{reply(exampleSour)}, rejectKey: "pk"}
+	backup := &fakeLLM{replies: []string{reply(exampleSour)}}
+	ps, bs := httptest.NewServer(primary), httptest.NewServer(backup)
+	t.Cleanup(ps.Close)
+	t.Cleanup(bs.Close)
+	s := NewService(NewClient(Config{Endpoints: []Endpoint{
+		{BaseURL: ps.URL, Model: "primary-model", Key: "pk"},
+		{BaseURL: bs.URL, Model: "", Key: "dropped"}, // 缺模型的端点被丢弃
+		{BaseURL: bs.URL + "/", Model: "backup-model", Key: "bk"},
+	}}), fakeVocab{})
+	if _, err := s.Generate(context.Background(), "x", nil); err != nil {
+		t.Fatalf("备用端点应接手：%v", err)
+	}
+	if strings.Join(primary.keys, ",") != "pk" || strings.Join(backup.keys, ",") != "bk" {
+		t.Errorf("端点尝试不对：主 %v 备 %v", primary.keys, backup.keys)
+	}
+	if backup.requests[0].Model != "backup-model" {
+		t.Errorf("备用端点应使用自己的模型 id，得到 %q", backup.requests[0].Model)
+	}
+}
+
 func TestModifyModeSendsCurrent(t *testing.T) {
 	f := &fakeLLM{replies: []string{reply(exampleSour)}}
 	cur := &Draft{Title: "我的大吉利", IR: json.RawMessage(exampleSour)}
@@ -199,7 +222,7 @@ func TestModifyModeSendsCurrent(t *testing.T) {
 }
 
 func TestDisabled(t *testing.T) {
-	s := NewService(NewClient(Config{BaseURL: "http://x", Model: "m"}), fakeVocab{})
+	s := NewService(NewClient(Config{Endpoints: Endpoints("http://x", "m", nil)}), fakeVocab{})
 	if s.Enabled() {
 		t.Fatal("没有密钥不应启用")
 	}

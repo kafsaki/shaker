@@ -33,13 +33,17 @@ type Config struct {
 	// AdminHandles 启动时提升为百科管理员的账号（逗号分隔，ADR-027）。管理员再在站内
 	// 授予/撤销编辑身份；这里只负责「第一个管理员从哪来」。
 	AdminHandles []string
-	// LLM* 酒保助手（ADR-028）所用的 OpenAI 兼容模型服务。LLMKeys 为空时助手关闭，
-	// 接口返回 503。密钥只放环境变量，绝不进仓库、绝不下发前端。
-	LLMBaseURL string
-	LLMModel   string
-	LLMKeys    []string
-	LLMEffort  string
-	LLMTimeout time.Duration
+	// LLM* 酒保助手（ADR-028）所用的 OpenAI 兼容模型服务。主备各自一套地址 + 模型 + 密钥，
+	// 备用可以是另一家服务商。两套都没有密钥时助手关闭，接口返回 503。
+	// 密钥只放环境变量，绝不进仓库、绝不下发前端。
+	LLMBaseURL         string
+	LLMModel           string
+	LLMKeys            []string
+	LLMFallbackBaseURL string
+	LLMFallbackModel   string
+	LLMFallbackKeys    []string
+	LLMEffort          string
+	LLMTimeout         time.Duration
 }
 
 func env(key, def string) string {
@@ -94,11 +98,14 @@ func Load() Config {
 		MediaOrphanTTL:       envDuration("SHAKER_MEDIA_ORPHAN_TTL", "24h"),
 		AdminHandles:         envList("SHAKER_ADMIN_HANDLES"),
 
-		LLMBaseURL: env("SHAKER_LLM_BASE_URL", "https://api.deepseek.com"),
-		LLMModel:   env("SHAKER_LLM_MODEL", "deepseek-flash"),
-		// 主密钥在前、备用在后；主密钥失效/限流时自动换备用
-		LLMKeys:    append(envList("SHAKER_LLM_API_KEY"), envList("SHAKER_LLM_API_KEY_FALLBACK")...),
-		LLMEffort:  env("SHAKER_LLM_EFFORT", ""),
-		LLMTimeout: envDuration("SHAKER_LLM_TIMEOUT", "90s"),
+		LLMBaseURL: env("SHAKER_LLM_BASE_URL", "https://discovery-api.intern-ai.org.cn/v1"),
+		LLMModel:   env("SHAKER_LLM_MODEL", "deepseek-v4-flash-0731"),
+		LLMKeys:    envList("SHAKER_LLM_API_KEY"),
+		// 备用端点：主端点失效/限流时接替；地址与模型不填则沿用主端点的
+		LLMFallbackBaseURL: env("SHAKER_LLM_FALLBACK_BASE_URL", env("SHAKER_LLM_BASE_URL", "https://discovery-api.intern-ai.org.cn/v1")),
+		LLMFallbackModel:   env("SHAKER_LLM_FALLBACK_MODEL", env("SHAKER_LLM_MODEL", "deepseek-v4-flash-0731")),
+		LLMFallbackKeys:    envList("SHAKER_LLM_API_KEY_FALLBACK"),
+		LLMEffort:          env("SHAKER_LLM_EFFORT", ""),
+		LLMTimeout:         envDuration("SHAKER_LLM_TIMEOUT", "90s"),
 	}
 }
