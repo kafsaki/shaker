@@ -96,7 +96,7 @@ export interface Layout {
   hasJigger: boolean;
 }
 
-export const HAND_SCALE = 0.82;
+export const HAND_SCALE = 0.64;
 const SHELF_SCALE = 0.56;
 
 export function layout(

@@ -21,6 +21,7 @@ import {
   type Frame,
 } from "./geometry.ts";
 import { lipXFor, fallTime } from "./stream.ts";
+import { HAND_SCALE } from "./stage.ts";
 import { liquidMl, occupiedMl, semOccupied } from "./state.ts";
 import { key, last, lastT } from "./track.ts";
 import type { Pose, StreamSpec } from "./types.ts";
@@ -67,6 +68,8 @@ export interface PourResult {
   doneMs: number;
   /** 液柱落到目标的时刻（目标液面开始上涨）。 */
   landMs: number;
+  /** 液柱尾巴落进目标的时刻 —— 在这之前目标不能挪走，否则最后一截液柱会落空。 */
+  tailMs: number;
 }
 
 /** 恰好装下 vol 毫升（液面贴着口沿最低点）的倾角，0..MAX_TILT。 */
@@ -92,6 +95,13 @@ export function surfaceY(v: Vessel): number {
   return p.y - Math.max(2, lv) * p.scale;
 }
 
+/** 倒进 ml 毫升后目标液面会升高多少（舞台单位）。 */
+function expectedRise(dst: Vessel, ml: number): number {
+  const p = last(dst.track.pose);
+  const occ = semOccupied(dst.sem);
+  return (uprightLevel(dst.shape, occ + ml) - uprightLevel(dst.shape, occ)) * p.scale;
+}
+
 export function rimY(v: Vessel): number {
   const p = last(v.track.pose);
   return p.y - v.shape.height * p.scale;
@@ -114,7 +124,9 @@ export function pour(w: World, src: Vessel, dst: Vessel | null, t0: number, o: P
 
   const dir: 1 | -1 =
     o.dir ?? (src.kind === "bottle" ? (target.x < w.layout.stage.width / 2 ? -1 : 1) : src.home.x <= target.x ? 1 : -1);
-  const scale = src.kind === "bottle" ? 0.82 : srcPose.scale;
+  // 手里的瓶子比架上（远处）大一号，但不比台面器具的比例尺更大 —— 否则一只瓶子比碟形杯还宽
+  const counterScale = [...w.layout.stations.values()][0]?.scale ?? 1;
+  const scale = src.kind === "bottle" ? Math.min(HAND_SCALE * counterScale, Math.max(srcPose.scale, w.layout.shelfScale * 1.15)) : srcPose.scale;
 
   // ── 出液量与倾角 ──
   const before = liquidMl(src.sem);
@@ -137,7 +149,10 @@ export function pour(w: World, src: Vessel, dst: Vessel | null, t0: number, o: P
   const speed = { low: 46, medium: 34, high: 22 }[visc];
   const clearance = o.clearance ?? (src.kind === "jigger" ? 14 : 22);
   const ly = target.rimY - clearance;
-  const lx = lipXFor(target.x + (o.aimDx ?? -dir * 3), ly, target.y, dir * speed);
+  // 落点瞄准目标中轴：液面在倒的过程中上涨（落点抬高、下落时间变短），按出液前后液面的
+  // 平均高度瞄准，偏差最小
+  const aimY = o.to ? target.y : (target.y + Math.max(target.rimY + 4, target.y - (dst ? expectedRise(dst, ml) : 0))) / 2;
+  const lx = lipXFor(target.x + (o.aimDx ?? 0), ly, aimY, dir * speed);
 
   const lipPose = (rot: number, lift = 0): Pose => {
     const r = dir * rot;
@@ -210,7 +225,7 @@ export function pour(w: World, src: Vessel, dst: Vessel | null, t0: number, o: P
   } else if (o.after === "lift") {
     done = w.move(tr, tUp, tUp + w.ms(200), { rot: 0 });
   }
-  return { startMs: tStart, endMs: tEnd, doneMs: done, landMs };
+  return { startMs: tStart, endMs: tEnd, doneMs: done, landMs, tailMs: Math.round(tEnd + fall) + w.ms(40) };
 }
 
 /** 目标器具的口沿半径（量酒器口对准杯口时的横向余量）。 */

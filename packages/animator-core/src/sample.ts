@@ -564,18 +564,28 @@ function streamAt(tl: Timeline, s: StreamSpec, t: number): StreamView | null {
       }
       pts.push({ x, y, w: 1.4 });
     }
-    return pts.length || impact ? { color: s.color, mode: s.mode, points: pts, impact } : null;
+    return pts.length || impact ? { from: s.from, to: s.to, color: s.color, mode: s.mode, points: pts, impact } : null;
   }
 
-  // 连续液柱：τ 从最新（口沿处）到最旧（前缘），逐段推进
+  // 连续液柱：τ 从最新（口沿处）到最旧（前缘），逐段推进。
+  // 出液结束后口沿已经离开（收手），尾巴上的液体仍按它们离开时的口沿位置继续下落 ——
+  // 所以 τ 只在 [startMs, endMs] 里取，与口沿此刻在哪无关。
   const newest = Math.min(t, s.endMs);
+  const oldest = Math.max(s.startMs, t - maxFall);
   const pts: StreamView["points"] = [];
   let impact: StreamView["impact"] = null;
   const N = 22;
-  const span = Math.min(newest - s.startMs, maxFall);
+  if (newest < oldest) return null;
+  // 收手后，最后离开口沿的那一滴也已落进目标：整条液柱都落完了
+  if (t > s.endMs) {
+    const lipEnd = lipAt(s.endMs);
+    if (lipEnd) {
+      const a = (t - s.endMs) / 1000;
+      if (yAtAge(lipEnd.y, a) >= landAt(t, lipEnd.x + s.speed * a)) return null;
+    }
+  }
   for (let i = 0; i <= N; i++) {
-    const tau = newest - (span * i) / N;
-    if (tau < s.startMs) break;
+    const tau = newest - ((newest - oldest) * i) / N;
     const lip = lipAt(tau);
     if (!lip) break;
     const a = (t - tau) / 1000;
@@ -594,7 +604,7 @@ function streamAt(tl: Timeline, s: StreamSpec, t: number): StreamView | null {
     pts.push({ x, y, w });
   }
   if (pts.length < 2 && !impact) return null;
-  return { color: s.color, mode: s.mode, points: pts, impact };
+  return { from: s.from, to: s.to, color: s.color, mode: s.mode, points: pts, impact };
 }
 
 /** 液柱起点：器具的出液口（口沿最低点），或工具的出液点（细滤网尖、勺缘）。 */

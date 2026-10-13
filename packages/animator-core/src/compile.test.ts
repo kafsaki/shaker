@@ -7,6 +7,7 @@
  *   ③ 作者点名的三处出戏的回归：液柱越往下越竖直、冰块堆积不整齐、摇和有往复。
  * 「能编译通过」不算验证 —— 要跑出来看数。
  */
+import { readFileSync } from "node:fs";
 import { test } from "node:test";
 import assert from "node:assert/strict";
 
@@ -388,4 +389,38 @@ test("THROW / ROLL 按 times 来回倒：两只容器轮流装过液体，最后
   assert.equal(end.vessels.find((v) => v.id === "glass")!.layers.length, 0, "三趟之后液体应在 to（第二容器）");
   assert.ok(glassAt(tl, tl.totalMs).layers.length > 0, "下一步 ROLL 倒回成品杯");
   void glassEmptied;
+});
+
+/* ══════════════════════════ 全部经典配方（seed.json） ══════════════════════════ */
+
+test("seed.json 的全部经典配方：编译、逐帧取样无 NaN，液柱都落进目标，封面帧干净", () => {
+  const seed = JSON.parse(
+    readFileSync(new URL("../../../apps/api/internal/seed/data/seed.json", import.meta.url), "utf8"),
+  ) as {
+    ingredients: { id: string }[];
+    glassware: { id: string; nameZh: string; nameEn: string; capacityMl: number; shape: never }[];
+    classicRecipes: { titleEn?: string; slug?: string; ir: never }[];
+  };
+  const ing = new Map(seed.ingredients.map((i) => [i.id, i]));
+  const glass = new Map(seed.glassware.map((g) => [g.id, compileVessel(g)]));
+  const vocab = { ingredient: (id: string) => ing.get(id) as never, vessel: (id: string) => glass.get(id) };
+  assert.ok(seed.classicRecipes.length > 40);
+  for (const r of seed.classicRecipes) {
+    const name = r.titleEn ?? r.slug ?? "?";
+    const tl = compile(r.ir, vocab);
+    for (let i = 0; i <= 120; i++) {
+      const sc = sample(tl, (tl.totalMs * i) / 120).scene;
+      for (const v of sc.vessels) assert.ok([v.x, v.y, v.rot, ...v.layers.map((l) => l.topY)].every(Number.isFinite), `${name} NaN`);
+      for (const s of sc.streams) {
+        if (!s.impact || s.to === "counter") continue;
+        const dst = sc.vessels.find((v) => v.id === s.to);
+        if (!dst) continue;
+        const shape = sc.shapes[dst.id] ?? sc.shapes[dst.shapeId]!;
+        assert.ok(Math.abs(dst.x - s.impact.x) <= shape.radii.at(-1)! * dst.scale, `${name}: ${s.from}→${s.to} 液柱落到杯外`);
+      }
+    }
+    const end = sample(tl, tl.totalMs).scene;
+    assert.equal(end.streams.length, 0, `${name} 封面帧还有液柱`);
+    assert.ok(!end.tools.some((t) => t.kind !== "blender_base"), `${name} 封面帧还有工具`);
+  }
 });

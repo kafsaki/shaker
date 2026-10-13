@@ -428,6 +428,8 @@ export interface ToolView {
 }
 
 export interface StreamView {
+  from: string;
+  to: string;
   color: string;
   mode: StreamSpec["mode"];
   /** 液柱中心线采样点（世界坐标，自上而下）与每点宽度。 */

@@ -166,8 +166,8 @@ function pourIngredient(
       },
       after: "home",
     });
-    // 量酒器倒进杯：酒瓶收手时它就出发
-    const r2 = pour(w, jig, dst, r1.endMs + w.ms(200), {
+    // 量酒器倒进杯：酒瓶那一截液柱全部落进量酒器之后才拿起来
+    const r2 = pour(w, jig, dst, r1.tailMs, {
       ml,
       color,
       viscosity: visc,
@@ -669,7 +669,7 @@ function rollOrThrow(s: StepOf<"ROLL"> | StepOf<"THROW">, ctx: Ctx, t0: number):
         w.agitate(dst, land, end - land, 0.7);
       },
     });
-    t = r.endMs + w.ms(160);
+    t = Math.max(r.endMs + w.ms(160), r.tailMs);
     [src, dst] = [dst, src];
   }
   // 两只都回位（最后接酒的那只 = src，经交换后）
