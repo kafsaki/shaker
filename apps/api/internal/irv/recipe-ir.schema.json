@@ -1401,6 +1401,13 @@
                   "none"
                 ]
               },
+              "skewerStyle": {
+                "type": "string",
+                "enum": [
+                  "across",
+                  "lean"
+                ]
+              },
               "discard": {
                 "type": "boolean"
               }

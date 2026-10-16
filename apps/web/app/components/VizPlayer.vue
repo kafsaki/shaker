@@ -32,6 +32,8 @@ const canvasEl = ref<HTMLCanvasElement | null>(null);
 const playing = ref(true);
 const speed = ref("1");
 const tMs = ref(0);
+/** 封面姿态过渡进度：播完 0→1（其它元素淡出、成品杯归一），seek 离开末尾退回 0。 */
+const coverMix = ref(0);
 const { theme } = useTheme();
 const { play: sfx } = useSfx();
 
@@ -44,6 +46,7 @@ function recompile(): void {
   try {
     timeline.value = compile(props.ir, props.vocab, { stage: STAGE });
     tMs.value = 0;
+    coverMix.value = 0;
     playing.value = true;
     lastBannerStep = -1; // 让 STEP 1 横幅重新弹出
     clearTimeout(bannerTimer);
@@ -94,7 +97,10 @@ function renderSceneAt(c: CanvasRenderingContext2D, themeName: "dark" | "light",
   const tl = timeline.value;
   if (!tl) return null;
   const s = sample(tl, ms);
-  renderScene(c, s.scene, { theme: themeName === "dark" ? DARK_THEME : LIGHT_THEME });
+  renderScene(c, s.scene, {
+    theme: themeName === "dark" ? DARK_THEME : LIGHT_THEME,
+    cover: coverMix.value > 0 ? { vessel: "glass", mix: coverMix.value } : undefined,
+  });
   return s;
 }
 
@@ -141,6 +147,12 @@ function frame(now: number): void {
       tMs.value = timeline.value.totalMs;
       playing.value = false;
     }
+  }
+  // 播完进入封面姿态（0.75s 推杯 + 杂物淡出）；seek 离开末尾快速退回（0.25s）
+  const mixTarget = atEnd.value ? 1 : 0;
+  if (coverMix.value !== mixTarget) {
+    const rate = dt / (mixTarget > coverMix.value ? 750 : 250);
+    coverMix.value = Math.min(1, Math.max(0, coverMix.value + (mixTarget > coverMix.value ? rate : -rate)));
   }
   draw();
   rafId = requestAnimationFrame(frame);
@@ -266,8 +278,8 @@ function onKey(e: KeyboardEvent): void {
 onMounted(() => window.addEventListener("keydown", onKey));
 onBeforeUnmount(() => window.removeEventListener("keydown", onKey));
 
-/** 成品定格帧截图：暗/亮两套主题各截一帧（ADR-015：封面 = finalSceneMs 定格帧 toBlob）。 */
-async function captureCover(): Promise<{ dark: Blob; light: Blob } | null> {
+/** 封面截图：成品杯归一姿态（无关元素隐去），暗/亮两套主题各截一帧（ADR-015）。宽高随包返回。 */
+async function captureCover(): Promise<{ dark: Blob; light: Blob; width: number; height: number } | null> {
   const tl = timeline.value;
   const el = canvasEl.value;
   const c = ensureCtx();
@@ -275,7 +287,9 @@ async function captureCover(): Promise<{ dark: Blob; light: Blob } | null> {
   const was = playing.value;
   playing.value = false;
   const restore = tMs.value;
+  const restoreMix = coverMix.value;
   tMs.value = tl.finalSceneMs;
+  coverMix.value = 1; // 封面姿态：只留成品杯，居中归一尺度
 
   const grab = (): Promise<Blob | null> =>
     new Promise((resolve) => el.toBlob((b) => resolve(b), "image/png"));
@@ -286,10 +300,11 @@ async function captureCover(): Promise<{ dark: Blob; light: Blob } | null> {
   const light = await grab();
 
   tMs.value = restore;
+  coverMix.value = restoreMix;
   playing.value = was;
   draw(); // 立即把画布恢复成当前主题的帧（rAF 下一帧也会重绘，这里避免闪一瞬）
   if (!dark || !light) return null;
-  return { dark, light };
+  return { dark, light, width: el.width, height: el.height };
 }
 
 defineExpose({ seekTo, seekToStep, togglePlay, captureCover, timeline });

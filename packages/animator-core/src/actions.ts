@@ -874,7 +874,7 @@ const GARNISH: Handler<StepOf<"GARNISH">> = (s, ctx, t0) => {
   }
   w.snap(c, t, t, "hold");
   const prev = c.sem.garnishes.filter((g) => !(g.garnishId === gid && g.position === s.position));
-  c.sem.garnishes = [...prev, { garnishId: gid, position: s.position, prep: s.prep ?? "none", color, addedAt: t }];
+  c.sem.garnishes = [...prev, { garnishId: gid, position: s.position, prep: s.prep ?? "none", color, addedAt: t, skewerStyle: s.skewerStyle }];
   w.snapNow(c, t);
   if (s.position === "in_glass" || s.position === "float") stir(w, c, t + w.ms(380), w.ms(200), 0.3);
   return t + w.ms(640);

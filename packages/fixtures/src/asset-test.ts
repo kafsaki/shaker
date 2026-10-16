@@ -10,6 +10,7 @@
  *   asset_test5  THROW（high + low 两种抛掷高度）
  *   asset_test6  RIM 半圈盐边 · SPRITZ 喷雾 · FLAME(peel_oil 火花 + surface 火焰)
  *   asset_test7  dry_ice · SMOKE 熏枪揭盖 · WAIT infuse
+ *   asset_test8  宽口杯签串斜靠（skewer lean：杯口比签宽，签靠内壁）
  */
 import { parse, type Fixture } from "./index.ts";
 
@@ -184,6 +185,30 @@ export const ASSET_TEST_FIXTURES: Fixture[] = [
         { id: "s3", action: "SMOKE", target: "glass", method: "smoking_gun", cover: true },
         { id: "s4", action: "WAIT", target: "glass", durationSec: 10, reason: "infuse" },
         { id: "s5", action: "GARNISH", target: "glass", items: ["i2"], position: "rim", prep: "expressed" },
+      ],
+    }),
+  },
+
+  {
+    title: "asset_test8",
+    subtitle: "宽口杯签串斜靠（skewer lean）",
+    family: "martini_duo",
+    tests: "马天尼杯杯口（8.1cm）比 8cm 签宽 → 默认斜靠右内壁（lean）；本夹具显式 skewerStyle 验证作者指定路径；对照 asset_test2 的横架（across）。",
+    ir: parse({
+      schemaVersion: 1,
+      glass: "martini",
+      method: "stirred",
+      ingredients: [
+        { slot: "i1", ingredientId: "gin-london-dry", amount: 60, unit: "ml", role: "base" },
+        { slot: "i2", ingredientId: "vermouth-rosso", amount: 15, unit: "ml", role: "modifier" },
+        { slot: "i3", ingredientId: "cherry", amount: 1, unit: "piece", role: "garnish" },
+      ],
+      steps: [
+        { id: "s1", action: "ADD", target: "mixing_glass", items: ["i1", "i2"] },
+        { id: "s2", action: "ICE", target: "mixing_glass", iceType: "cube", fill: 0.7 },
+        { id: "s3", action: "STIR", target: "mixing_glass", durationSec: 20 },
+        { id: "s4", action: "STRAIN", from: "mixing_glass", to: "glass", strainer: "julep" },
+        { id: "s5", action: "GARNISH", target: "glass", items: ["i3"], position: "skewer", skewerStyle: "lean" },
       ],
     }),
   },

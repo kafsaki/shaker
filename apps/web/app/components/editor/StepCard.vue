@@ -29,6 +29,11 @@ const meta = computed(
     ACTION_META[props.modelValue.action] ?? { label: "?", group: "?", fields: [] },
 );
 
+/** 条件字段（when）：只在依赖字段等于指定值时显示（如签姿只在 position = skewer 时出现）。 */
+const visibleFields = computed(() =>
+  meta.value.fields.filter((f) => !f.when || fieldVal(f.when.key) === f.when.equals),
+);
+
 function patch(p: Record<string, unknown>): void {
   emit("update:modelValue", { ...props.modelValue, ...p } as Step);
 }
@@ -129,8 +134,8 @@ const slotOptions = computed(() => props.slots.map((s) => ({ value: s.slot, labe
         </div>
       </div>
 
-      <div v-if="meta.fields.length" class="fields">
-        <template v-for="f in meta.fields" :key="f.key">
+      <div v-if="visibleFields.length" class="fields">
+        <template v-for="f in visibleFields" :key="f.key">
           <!-- 单容器 -->
           <div v-if="f.kind === 'container'" class="field">
             <span class="lbl">{{ f.label }}</span>

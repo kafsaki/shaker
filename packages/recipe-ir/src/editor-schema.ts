@@ -28,6 +28,8 @@ export interface FieldDef {
   integer?: boolean;
   /** enum 选项。 */
   options?: { value: string; label: string }[];
+  /** 仅当另一字段等于某值时才显示（如签姿只在 position = skewer 时显示）。 */
+  when?: { key: string; equals: string };
 }
 
 const C = (key: string, label: string): FieldDef => ({ key, label, kind: "container", required: true });
@@ -244,6 +246,14 @@ export const ACTION_META: Record<
           { value: "float", label: "液面" },
           { value: "skewer", label: "串签" },
           { value: "side", label: "杯旁" },
+        ],
+      },
+      {
+        key: "skewerStyle", label: "签姿", kind: "enum",
+        when: { key: "position", equals: "skewer" },
+        options: [
+          { value: "across", label: "横架杯口" },
+          { value: "lean", label: "斜靠杯壁" },
         ],
       },
       {

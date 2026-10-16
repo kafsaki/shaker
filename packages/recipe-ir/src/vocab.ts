@@ -205,6 +205,10 @@ export type MuddleIntensity = z.infer<typeof MuddleIntensity>;
 export const GarnishPosition = z.enum(["rim", "in_glass", "float", "skewer", "side"]);
 export type GarnishPosition = z.infer<typeof GarnishPosition>;
 
+/** 串签放置方式。缺省时按杯口宽度物理判定（杯口 ≤ 签长则横架，否则斜靠）。 */
+export const SkewerStyle = z.enum(["across", "lean"]);
+export type SkewerStyle = z.infer<typeof SkewerStyle>;
+
 export const GarnishPrep = z.enum([
   "twist",
   "wheel",

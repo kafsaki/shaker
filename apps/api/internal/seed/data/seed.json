@@ -6280,7 +6280,7 @@
             "id": "s6",
             "target": "glass",
             "garnishId": "orange-peel",
-            "position": "side",
+            "position": "rim",
             "prep": "expressed",
             "discard": false
           }
@@ -6400,7 +6400,7 @@
             "id": "s7",
             "target": "glass",
             "garnishId": "lemon-peel",
-            "position": "side",
+            "position": "rim",
             "prep": "twist",
             "discard": false
           }
@@ -8456,7 +8456,7 @@
             "id": "s3",
             "target": "glass",
             "garnishId": "orange-peel",
-            "position": "side",
+            "position": "rim",
             "prep": "twist",
             "discard": false
           }
@@ -10981,7 +10981,7 @@
             "id": "s6",
             "target": "glass",
             "garnishId": "celery-stick",
-            "position": "side",
+            "position": "rim",
             "prep": "none"
           }
         ]
@@ -11458,7 +11458,7 @@
             "id": "s5",
             "target": "glass",
             "garnishId": "cinnamon-stick",
-            "position": "side",
+            "position": "rim",
             "prep": "none"
           }
         ]

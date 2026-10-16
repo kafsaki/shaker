@@ -227,6 +227,8 @@ export interface GarnishState {
   position: "rim" | "in_glass" | "float" | "skewer" | "side";
   prep: string;
   color: string;
+  /** 串签姿态（作者显式指定）；缺省时取样按杯口宽度物理判定。 */
+  skewerStyle?: "across" | "lean";
   /** 开始落位的绝对时刻（之前不可见）。 */
   addedAt: number;
 }
@@ -401,6 +403,10 @@ export interface GarnishView {
   y: number;
   rot: number;
   opacity: number;
+  /** 串签（position = skewer 且 sprite 不自带签）：世界坐标线段，渲染端画在 sprite 底下。 */
+  stick?: { x1: number; y1: number; x2: number; y2: number };
+  /** 串签姿态：across 横架杯口（sprite 顶行对齐签）、lean 斜靠杯壁（sprite 中心对齐锚点）。 */
+  skewerPose?: "across" | "lean";
 }
 
 export interface SolidView {

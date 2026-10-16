@@ -374,19 +374,30 @@ function iceAt(
   if (!epoch) return [];
   const out: IceView[] = [];
   // 液面漫过冰堆：整堆上浮（冰密度 0.92 —— 只有一成露出液面）
+  const pileTopV = epoch.topV;
+  const typicalH = epoch.pieces[0]?.h ?? 0;
   let lift = 0;
   if (tumble < 0.05 && Math.abs(f.rot) < 0.3) {
-    const top = epoch.topV;
-    const typicalH = epoch.pieces[0]?.h ?? 0;
-    lift = Math.max(0, levelV - top + typicalH * 0.12);
-    lift = Math.min(lift, Math.max(0, shape.height - top - typicalH * 0.1));
+    lift = Math.max(0, levelV - pileTopV + typicalH * 0.12);
+    lift = Math.min(lift, Math.max(0, shape.height - pileTopV - typicalH * 0.1));
   }
   const surfY = layers.length > 0 ? layers[layers.length - 1]!.topY : Infinity;
   const tSec = t / 1000;
   for (const p of epoch.pieces) {
     if (t < p.dropAt || t >= p.leaveAt) continue;
     let u = p.u;
-    let vv = p.v + (p.kind === "block" || p.kind === "dry_ice" ? 0 : lift);
+    const sinking = p.kind === "block" || p.kind === "dry_ice";
+    let vv = p.v + (sinking ? 0 : lift);
+    // 碎冰获得浮力 → 休止角崩解：按比例向「表面层」重排（各块在层里的深度按 seed 参差），
+    // 并横向摊开（液面处杯型更宽）。浮力越足，碎冰越接近均匀漂在液面下的一层，
+    // 不会在水里一直顶着干堆时的三角尖
+    if (!sinking && lift > 0) {
+      const floatFrac = Math.min(1, lift / Math.max(1, typicalH * 2));
+      const surfV = levelV - p.h * (0.25 + hash01(p.seed, 13) * 0.85);
+      vv += (surfV - vv) * floatFrac * 0.85;
+      const room = Math.max(0, radiusAtV(shape, vv) - p.w / 2 - 1);
+      u = Math.max(-room, Math.min(room, u * (1 + floatFrac * 0.3)));
+    }
     let rot = p.rot;
     // 落冰：从铲口自由落下，落地后一次小回弹
     if (p.dropAt > -Infinity) {
@@ -453,6 +464,8 @@ function garnishesAt(c: Contents, shape: ShapeData, f: Frame, t: number, levelV:
     let u = 0;
     let vv = shape.height;
     let rot = 0;
+    let stick: GarnishView["stick"];
+    let skewerPose: GarnishView["skewerPose"];
     switch (g.position) {
       case "rim":
         u = rr * 0.78;
@@ -460,13 +473,48 @@ function garnishesAt(c: Contents, shape: ShapeData, f: Frame, t: number, levelV:
         rot = 0.12;
         break;
       case "side":
+        // 杯旁＝立在台面上：台面在杯脚脚底，有脚杯的局部原点在碗底，要下退一个脚高
         u = rr + 26;
-        vv = 0;
+        vv = shape.stem ? -shape.stem.height : 0;
         break;
-      case "skewer":
-        u = 0;
-        vv = shape.height + 2;
+      case "skewer": {
+        // 签姿：作者显式指定优先（同 FLOAT 的作者意图原则）；缺省按物理 ——
+        // 鸡尾酒短签 ≈ 8cm，杯口架得住就横架（across），架不住就斜靠右内壁（lean）。
+        // 装饰串在签上（中心落在签线）；flag sprite 自带签，不再重复画
+        const stickLen = 8 * shape.cm;
+        const want = g.skewerStyle ?? (rr * 2 + 1 <= stickLen ? "across" : "lean");
+        if (want === "across") {
+          // 横架：签架在杯口，装饰串在签中点；签长统一 8cm，长出杯口不截断
+          const half = stickLen / 2;
+          u = 0;
+          vv = shape.height + 2;
+          skewerPose = "across";
+          if (g.prep !== "flag") {
+            const a = toWorld(f, -half, vv);
+            const b = toWorld(f, half, vv);
+            stick = { x1: a.x, y1: a.y, x2: b.x, y2: b.y };
+          }
+        } else {
+          // 斜靠：签长统一 8cm、与竖直方向夹角固定，以杯口右沿为支点，约 55% 在杯中、45% 露出
+          const tilt = 0.65;
+          const sn = Math.sin(tilt);
+          const cs = Math.cos(tilt);
+          const au = rr - sn * stickLen * 0.55;
+          const av = shape.height - cs * stickLen * 0.55;
+          const bu = rr + sn * stickLen * 0.45;
+          const bv = shape.height + cs * stickLen * 0.45;
+          u = au + 0.4 * (bu - au);
+          vv = av + 0.4 * (bv - av);
+          rot = 0.18;
+          skewerPose = "lean";
+          if (g.prep !== "flag") {
+            const a = toWorld(f, au, av);
+            const b = toWorld(f, bu, bv);
+            stick = { x1: a.x, y1: a.y, x2: b.x, y2: b.y };
+          }
+        }
         break;
+      }
       default:
         // in_glass / float：浮在液面（空杯回退到杯口）
         vv = levelV > 0 ? levelV : shape.height;
@@ -482,6 +530,8 @@ function garnishesAt(c: Contents, shape: ShapeData, f: Frame, t: number, levelV:
       y: p.y - fall,
       rot: f.rot + rot + (1 - k) * 0.6,
       opacity: Math.min(1, k * 3),
+      stick: stick ? { x1: stick.x1, y1: stick.y1 - fall, x2: stick.x2, y2: stick.y2 - fall } : undefined,
+      skewerPose,
     });
   }
   return out;

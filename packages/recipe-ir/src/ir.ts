@@ -31,6 +31,7 @@ import {
   RimCoverage,
   Role,
   ShakeIntensity,
+  SkewerStyle,
   SlugId,
   SmokeMethod,
   SPOON_UNITS,
@@ -250,6 +251,8 @@ export const GarnishStep = step("GARNISH", {
   items: itemRefs.optional(),
   position: GarnishPosition,
   prep: GarnishPrep.optional(),
+  /** position: "skewer" 时显式指定签姿；缺省按杯口宽度物理判定。 */
+  skewerStyle: SkewerStyle.optional(),
   /** prep: "expressed" 时挤完是否丢弃。 */
   discard: z.boolean().optional(),
 });

@@ -114,11 +114,19 @@ export function drawVessel(s: Surface, v: VesselView, shape: ShapeData, pal: Pal
 
       // ── 杯腔内部 ──
       if (!onWall) {
-        // 金属摇壶：不透明，只画外壁（霜、高光）
         if (metal) {
+          // 金属外壳明暗（与外壳同一套渐变）
           const shadeK = u / Math.max(1, r);
-          let col = mixRGB(pal.metalLo, pal.metalHi, clamp01(0.55 - shadeK * 0.6));
-          if (u < -r * 0.45 && u > -r * 0.7) col = pal.metalHi;
+          let shell = mixRGB(pal.metalLo, pal.metalHi, clamp01(0.55 - shadeK * 0.6));
+          if (u < -r * 0.45 && u > -r * 0.7) shell = pal.metalHi;
+          // 半透明剖视：液体/泡沫透出来、罩约四成壳色；空腔比外壳暗一档（像内壁）
+          let inner: RGB | null = liquidAt(v, wy, wx, px, py, tMs, agit);
+          if (!inner && v.foam && wy < surfaceY && wy >= v.foam.topY) {
+            const fr = rampOf(v.foam.color);
+            const n = hash(px * 3 + py * 5, 91);
+            inner = n < 0.18 ? fr.dark : n < 0.3 ? fr.light : fr.base;
+          }
+          let col = inner ? mixRGB(inner, shell, 0.42) : shade(shell, -0.3);
           if (v.frost > 0.02 && hash(px * 7 + py * 13, 3) < v.frost * 0.7) col = mixRGB(col, pal.frost, 0.75);
           set(s, px, py, col);
           continue;
@@ -130,10 +138,12 @@ export function drawVessel(s: Surface, v: VesselView, shape: ShapeData, pal: Pal
           if (au > r - wallPx * 1.5 && r > wallPx * 3) col = shade(col, -0.18);
           set(s, px, py, col);
         } else if (v.foam && wy < surfaceY && wy >= v.foam.topY) {
-          // 泡沫冠
+          // 泡沫冠（与液体同规则贴壁暗一档，否则亮泡沫顶到壁、比带暗边的酒体视觉上宽一圈）
           const fr = rampOf(v.foam.color);
           const n = hash(px * 3 + py * 5, 91);
-          set(s, px, py, n < 0.18 ? fr.dark : n < 0.3 ? fr.light : fr.base);
+          let fc = n < 0.18 ? fr.dark : n < 0.3 ? fr.light : fr.base;
+          if (au > r - wallPx * 1.5 && r > wallPx * 3) fc = shade(fc, -0.18);
+          set(s, px, py, fc);
         } else {
           // 空杯区：玻璃透明（背景透过来），淡淡一层玻璃色
           const under = get(s, px, py);

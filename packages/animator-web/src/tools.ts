@@ -280,8 +280,21 @@ export function drawGarnish(s: Surface, g: GarnishView, pal: Palette): void {
   const h = rows.length;
   const cx = g.x / PS;
   const cy = g.y / PS;
-  // 锚点 = sprite 中心对齐液面 / 杯沿（skewer 首行即签）
-  const oy = g.position === "skewer" ? 0 : g.position === "side" ? -h : -h / 2;
+  // 锚点：side 底边立台面；其余（含串签）中心对齐 —— 串签装饰骑在签线上
+  const oy = g.position === "side" ? -h : -h / 2;
+  // 金属串签：metalLo 杆身 + 上侧 metalHi 高光，外露端（端点 2）一颗圆珠 —— 不锈钢酒签
+  if (g.stick) {
+    const sa = Math.min(1, g.opacity);
+    const x1 = Math.round(g.stick.x1 / PS);
+    const y1 = Math.round(g.stick.y1 / PS);
+    const x2 = Math.round(g.stick.x2 / PS);
+    const y2 = Math.round(g.stick.y2 / PS);
+    line(s, x1, y1, x2, y2, pal.metalLo, sa);
+    line(s, x1, y1 - 1, x2, y2 - 1, pal.metalHi, sa * 0.9);
+    blend(s, x2, y2 - 2, pal.metalHi, sa);
+    blend(s, x2 - 1, y2 - 1, pal.metalLo, sa);
+    blend(s, x2 + 1, y2 - 1, pal.metalHi, sa);
+  }
   const c = Math.cos(g.rot);
   const sn = Math.sin(g.rot);
   for (let r = 0; r < h; r++) {
@@ -305,7 +318,7 @@ const SOLID_SPRITES: Record<SolidView["sprite"], readonly string[]> = {
   cube: ["oo", "oo"],
 };
 
-export function drawSolid(s: Surface, p: SolidView, pal: Palette): void {
+export function drawSolid(s: Surface, p: SolidView, pal: Palette, alpha = 1): void {
   const rows = SOLID_SPRITES[p.sprite];
   const base = rgb(p.color);
   const col = p.bruised > 0 ? mixRGB(base, shade(base, -0.4), p.bruised * 0.6) : base;
@@ -322,7 +335,11 @@ export function drawSolid(s: Surface, p: SolidView, pal: Palette): void {
       if (!cc) continue;
       const lx = i - w / 2;
       const ly = r - rows.length;
-      set(s, Math.round(cx + lx * c - ly * sn), Math.round(cy + lx * sn + ly * c), cc);
+      const x = Math.round(cx + lx * c - ly * sn);
+      const y = Math.round(cy + lx * sn + ly * c);
+      // 金属器具剖视时压暗（alpha < 1）
+      if (alpha >= 1) set(s, x, y, cc);
+      else blend(s, x, y, cc, alpha);
     }
   }
 }

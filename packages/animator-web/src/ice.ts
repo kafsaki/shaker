@@ -11,11 +11,11 @@ import type { Palette } from "./theme.ts";
 const ICE_BODY = rgb("#dceef8");
 const ICE_EDGE = rgb("#9cc0d8");
 
-export function drawIce(s: Surface, ice: readonly IceView[], pal: Palette): void {
-  for (const p of ice) drawPiece(s, p, pal);
+export function drawIce(s: Surface, ice: readonly IceView[], pal: Palette, dimK = 1): void {
+  for (const p of ice) drawPiece(s, p, pal, dimK);
 }
 
-function drawPiece(s: Surface, p: IceView, pal: Palette): void {
+function drawPiece(s: Surface, p: IceView, pal: Palette, dimK: number): void {
   const hw = p.w / 2;
   const hh = p.h / 2;
   const reach = Math.hypot(hw, hh) + PS;
@@ -28,9 +28,10 @@ function drawPiece(s: Surface, p: IceView, pal: Palette): void {
   const back = p.depth === 0;
   const tiny = p.w < PS * 5;
   // 冰体透明度：浸在液体里几乎看不见（冰与酒的折射率接近，只看得见边），露在空气里白一些
-  const bodyA = (p.submerged ? 0.07 : 0.3) * (back ? 0.6 : 1);
+  // dimK：金属器具剖视时整体压暗（< 1），与罩过壳色的液体亮度一致
+  const bodyA = (p.submerged ? 0.07 : 0.3) * (back ? 0.6 : 1) * dimK;
   // 边：碎冰颗粒小，边占了大半，压低一些，否则一杯碎冰像一杯雪
-  const edgeA = (p.submerged ? 0.42 : 0.72) * (tiny ? 0.6 : 1) * (back ? 0.65 : 1);
+  const edgeA = (p.submerged ? 0.42 : 0.72) * (tiny ? 0.6 : 1) * (back ? 0.65 : 1) * dimK;
   const edgeHi: RGB = back ? mixRGB(pal.frost, ICE_EDGE, 0.5) : pal.frost;
   const edgeLo: RGB = back ? shadeDown(ICE_EDGE) : ICE_EDGE;
   const irregular = p.kind === "crushed" || p.kind === "cracked" || p.kind === "dry_ice";

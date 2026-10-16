@@ -29,7 +29,7 @@ const player = ref<{
   seekTo: (ms: number) => void;
   seekToStep: (i: number) => void;
   togglePlay: () => void;
-  captureCover: () => Promise<{ dark: Blob; light: Blob } | null>;
+  captureCover: () => Promise<{ dark: Blob; light: Blob; width: number; height: number } | null>;
   timeline: Timeline | null;
 } | null>(null);
 
@@ -51,15 +51,13 @@ if (useRoute().query.__cover === "1") {
     (window as unknown as {
       __shakerCover?: () => Promise<{ dark: Shot; light: Shot } | null>;
     }).__shakerCover = async () => {
-      const toShot = async (blob: Blob): Promise<Shot> => {
-        // 页面里还有背景画布，必须按 data-viz 精确取播放器那块
-        const canvas = document.querySelector<HTMLCanvasElement>("canvas[data-viz]");
+      const toShot = async (blob: Blob, width: number, height: number): Promise<Shot> => {
         const dataUrl = await new Promise<string>((resolve) => {
           const r = new FileReader();
           r.onload = () => resolve(String(r.result));
           r.readAsDataURL(blob);
         });
-        return { dataUrl, width: canvas?.width ?? 0, height: canvas?.height ?? 0 };
+        return { dataUrl, width, height };
       };
       const deadline = Date.now() + 15_000;
       while (Date.now() < deadline) {
@@ -67,7 +65,10 @@ if (useRoute().query.__cover === "1") {
         if (p?.timeline) {
           const covers = await p.captureCover();
           if (covers) {
-            return { dark: await toShot(covers.dark), light: await toShot(covers.light) };
+            return {
+              dark: await toShot(covers.dark, covers.width, covers.height),
+              light: await toShot(covers.light, covers.width, covers.height),
+            };
           }
         }
         await new Promise((r) => setTimeout(r, 100));

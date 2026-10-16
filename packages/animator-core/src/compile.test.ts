@@ -422,5 +422,13 @@ test("seed.json 的全部经典配方：编译、逐帧取样无 NaN，液柱都
     const end = sample(tl, tl.totalMs).scene;
     assert.equal(end.streams.length, 0, `${name} 封面帧还有液柱`);
     assert.ok(!end.tools.some((t) => t.kind !== "blender_base"), `${name} 封面帧还有工具`);
+    for (const v of end.vessels) {
+      const shape = end.shapes[v.id] ?? end.shapes[v.shapeId]!;
+      for (const g of v.garnishes) {
+        if (g.position !== "side") continue;
+        const counterY = v.y + (shape.stem ? shape.stem.height * v.scale : 0);
+        assert.ok(Math.abs(g.y - counterY) < 1.5, `${name}: side 装饰 ${g.garnishId} 悬在碗底，没落到台面`);
+      }
+    }
   }
 });

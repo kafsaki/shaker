@@ -42,6 +42,7 @@ export type {
   ShakeIntensity,
   SmokeMethod,
   Strainer,
+  SkewerStyle,
   Texture,
   Unit,
   Viscosity,
