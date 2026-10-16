@@ -19,14 +19,15 @@ const { data, error, isLoading } = useQuery({
 
 useHead(() => ({ title: `${data.value?.title ?? code.value} · Shaker` }));
 
-/** 经典配方的唯一地址是 /classics/{key}，这里只做收敛（旧链接/外部分享兜底）。 */
+/** 经典配方的唯一地址是 /classics/{key}，这里只做收敛（旧链接/外部分享兜底）。
+ *  query 必须透传 —— 封面截帧脚本走 /r/{code}?__cover=1，丢了 query 钩子就不注册。 */
 const canonicalKey = computed(() =>
   data.value?.isCanonical && data.value.classicKey ? data.value.classicKey : null,
 );
 watch(
   canonicalKey,
   (k) => {
-    if (k) void navigateTo(`/classics/${k}`, { replace: true });
+    if (k) void navigateTo({ path: `/classics/${k}`, query: route.query, replace: true });
   },
   { immediate: true },
 );
