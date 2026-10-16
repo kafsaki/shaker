@@ -26,7 +26,9 @@ const auth = useAuthStore();
 const api = useApi();
 const { play } = useSfx();
 const player = ref<{
+  seekTo: (ms: number) => void;
   seekToStep: (i: number) => void;
+  togglePlay: () => void;
   captureCover: () => Promise<{ dark: Blob; light: Blob } | null>;
   timeline: Timeline | null;
 } | null>(null);
@@ -34,7 +36,16 @@ const player = ref<{
 // 封面截帧钩子：?__cover=1 时暴露给 Playwright 脚本（scripts/classic-covers），
 // 与编辑器发布走同一条 captureCover 路径（ADR-015 同源逻辑）。正常访问零影响。
 // 返回暗/亮两套 dataUrl（封面双版本），脚本各存一份。
+// 同时暴露 __shakerSeek(ms)：截帧对照脚本按时刻定格画面（只在 ?__cover=1 下存在）。
 if (useRoute().query.__cover === "1") {
+  onMounted(() => {
+    (window as unknown as { __shakerSeek?: (ms: number) => number }).__shakerSeek = (ms) => {
+      const p = player.value;
+      if (!p?.timeline) return 0;
+      p.seekTo(ms);
+      return p.timeline.totalMs;
+    };
+  });
   onMounted(() => {
     type Shot = { dataUrl: string; width: number; height: number };
     (window as unknown as {

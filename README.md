@@ -86,6 +86,8 @@ pnpm --filter @shaker/web dev
 
 改代码后：`pnpm --filter @shaker/prototype watch` 自动重建。
 
+`http://localhost:5173/shots.html` 是截帧接触表：每个夹具的每一步按 5 个进度点排成一张图，改动画前后人眼对照用。参数：`?fixture=<标题>` 只看一个夹具，`&step=<序号>&n=<帧数>` 只看一步、取更密的帧，`&theme=light` 看日班主题。
+
 ### 部署（v1.0.0）
 
 全栈部署产物在 `deploy/`：Postgres + MinIO + API + 前端 + Caddy 反代，一条命令起完整站点（需要 80/443）。

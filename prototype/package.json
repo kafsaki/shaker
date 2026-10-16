@@ -5,8 +5,8 @@
   "type": "module",
   "description": "动画引擎验证装置。不是产品代码。",
   "scripts": {
-    "build": "esbuild src/main.ts --bundle --format=esm --target=es2022 --outfile=dist/main.js --sourcemap",
-    "watch": "esbuild src/main.ts --bundle --format=esm --target=es2022 --outfile=dist/main.js --sourcemap --watch",
+    "build": "esbuild src/main.ts src/shots.ts --bundle --format=esm --target=es2022 --outdir=dist --sourcemap",
+    "watch": "esbuild src/main.ts src/shots.ts --bundle --format=esm --target=es2022 --outdir=dist --sourcemap --watch",
     "serve": "node ../scripts/serve.mjs",
     "typecheck": "tsc --noEmit"
   },
